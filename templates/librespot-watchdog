@@ -1,0 +1,33 @@
+#!/bin/bash
+# Monitors librespot for audio-key errors and AP disconnects, restarts as needed.
+# Deploy to: /var/home/core/bin/librespot-watchdog
+
+LAST_RESTART=0
+COOLDOWN=30
+SINK_FLAG=/tmp/inferno-sink-active
+
+restart_librespot() {
+    local reason="$1"
+    local NOW; NOW=$(date +%s)
+    local ELAPSED=$(( NOW - LAST_RESTART ))
+    if [ "$ELAPSED" -ge "$COOLDOWN" ]; then
+        echo "[librespot-watchdog] $reason — restarting librespot" >&2
+        LAST_RESTART=$NOW
+        systemctl --user restart librespot.service
+        sleep 3
+        systemctl --user start inferno-keepalive.service
+    else
+        echo "[librespot-watchdog] $reason — cooldown (${ELAPSED}s < ${COOLDOWN}s), skipping" >&2
+    fi
+}
+
+journalctl --user -u librespot --since now -f -o cat | \
+while IFS= read -r line; do
+    if echo "$line" | grep -qE "Unable to load key|Failed to get audio key|Cannot get audio key"; then
+        restart_librespot "audio key error"
+    elif echo "$line" | grep -qiE "lost connection|session disconnected|AP disconnected|connection reset by peer|reconnecting to AP"; then
+        if [ -f "$SINK_FLAG" ]; then
+            restart_librespot "AP disconnect during active playback"
+        fi
+    fi
+done

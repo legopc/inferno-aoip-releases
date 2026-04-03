@@ -1,0 +1,171 @@
+name: Nightly Build — Inferno AoIP Binaries
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # 03:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      force_tag:
+        description: 'Override release tag (leave blank for nightly-YYYY-MM-DD)'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    # ubuntu-24.04 = glibc 2.39 — compatible with Fedora IoT 43 (glibc 2.40 is ABI-forward-compatible)
+    timeout-minutes: 90
+
+    steps:
+      # ── Rust toolchain ────────────────────────────────────────────────────
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      # ── Cargo caching ────────────────────────────────────────────────────
+      - name: Cache Cargo registry and index
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      # ── System dependencies ───────────────────────────────────────────────
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev \
+            libssl-dev \
+            pkg-config \
+            git
+
+      # ── Clone source repos ────────────────────────────────────────────────
+      - name: Clone inferno from GitLab
+        run: git clone --recurse-submodules https://gitlab.com/lumifaza/inferno.git
+
+      - name: Clone statime (inferno-dev branch)
+        uses: actions/checkout@v4
+        with:
+          repository: teodly/statime
+          ref: inferno-dev
+          submodules: recursive
+          path: statime
+
+      - name: Clone librespot
+        uses: actions/checkout@v4
+        with:
+          repository: librespot-org/librespot
+          path: librespot
+
+      # ── Checkout this repo (for templates/ and scripts/) ─────────────────
+      - name: Checkout inferno-aoip-releases (templates)
+        uses: actions/checkout@v4
+        with:
+          path: releases-repo
+
+      # ── Build ALSA plugin (.so) ───────────────────────────────────────────
+      - name: Build inferno ALSA plugin
+        working-directory: inferno
+        run: |
+          cargo build --release -p alsa_pcm_inferno
+          ls -lh target/release/libasound_module_pcm_inferno.so
+
+      # ── Build statime binary ──────────────────────────────────────────────
+      - name: Build statime
+        working-directory: statime
+        run: |
+          cargo build --release -p statime-linux
+          ls -lh target/release/statime
+
+      # ── Build librespot ───────────────────────────────────────────────────
+      - name: Build librespot
+        working-directory: librespot
+        run: |
+          cargo build --release \
+            --no-default-features \
+            --features "alsa-backend with-libmdns rustls-tls-webpki-roots"
+          ls -lh target/release/librespot
+
+      # ── Assemble tarball ──────────────────────────────────────────────────
+      - name: Compute release metadata
+        id: meta
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          TAG="${{ github.event.inputs.force_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="nightly-${DATE}"
+          fi
+          INFERNO_SHA=$(git -C inferno rev-parse --short HEAD)
+          STATIME_SHA=$(git -C statime rev-parse --short HEAD)
+          LIBRESPOT_SHA=$(git -C librespot rev-parse --short HEAD)
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "date=${DATE}" >> "$GITHUB_OUTPUT"
+          echo "inferno_sha=${INFERNO_SHA}" >> "$GITHUB_OUTPUT"
+          echo "statime_sha=${STATIME_SHA}" >> "$GITHUB_OUTPUT"
+          echo "librespot_sha=${LIBRESPOT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Assemble release tarball
+        run: |
+          STAGE=inferno-aoip
+          mkdir -p ${STAGE}/{bin,lib,templates/{systemd/{system,user},alsa},scripts}
+
+          # Binaries
+          cp inferno/target/release/libasound_module_pcm_inferno.so ${STAGE}/lib/
+          cp statime/target/release/statime   ${STAGE}/bin/
+          cp librespot/target/release/librespot ${STAGE}/bin/
+          strip ${STAGE}/bin/statime ${STAGE}/bin/librespot ${STAGE}/lib/libasound_module_pcm_inferno.so
+
+          # Templates and scripts from this repo
+          cp -r releases-repo/templates/. ${STAGE}/templates/
+          cp releases-repo/scripts/inferno-deploy.sh  ${STAGE}/scripts/
+          cp releases-repo/scripts/inferno-web.py     ${STAGE}/scripts/
+
+          # Version manifest
+          cat > ${STAGE}/VERSION <<EOF
+          date=${{ steps.meta.outputs.date }}
+          tag=${{ steps.meta.outputs.tag }}
+          inferno=${{ steps.meta.outputs.inferno_sha }}
+          statime=${{ steps.meta.outputs.statime_sha }}
+          librespot=${{ steps.meta.outputs.librespot_sha }}
+          EOF
+
+          tar -czf inferno-aoip.tar.gz ${STAGE}/
+          sha256sum inferno-aoip.tar.gz > inferno-aoip.tar.gz.sha256
+          ls -lh inferno-aoip.tar.gz
+
+      # ── Publish GitHub Release ────────────────────────────────────────────
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: "Inferno AoIP Nightly ${{ steps.meta.outputs.date }}"
+          body: |
+            **Automated nightly build** — ${{ steps.meta.outputs.date }}
+
+            | Component | Source commit |
+            |---|---|
+            | `libasound_module_pcm_inferno.so` | lumifaza/inferno@${{ steps.meta.outputs.inferno_sha }} |
+            | `statime` | teodly/statime@${{ steps.meta.outputs.statime_sha }} (inferno-dev) |
+            | `librespot` | librespot-org/librespot@${{ steps.meta.outputs.librespot_sha }} |
+
+            **Target platform:** x86_64-unknown-linux-gnu (glibc ≥ 2.39, Fedora IoT 43+)
+
+            **Stable download URL (always points to latest):**
+            ```
+            https://github.com/${{ github.repository }}/releases/latest/download/inferno-aoip.tar.gz
+            ```
+
+            **Verify checksum:**
+            ```bash
+            curl -fsSL https://github.com/${{ github.repository }}/releases/latest/download/inferno-aoip.tar.gz.sha256 | sha256sum -c
+            ```
+          files: |
+            inferno-aoip.tar.gz
+            inferno-aoip.tar.gz.sha256
+          prerelease: false
+          make_latest: true
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

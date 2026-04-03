@@ -1,0 +1,20 @@
+#!/bin/bash
+# Called by librespot --emit-sink-events --onevent
+# Maintains /tmp/inferno-sink-active flag file for librespot-watchdog.
+# Deploy to: /var/home/core/bin/inferno-sink-event
+
+LOG=/tmp/inferno-sink-event.log
+FLAG=/tmp/inferno-sink-active
+
+log() { echo "$(date '+%Y-%m-%dT%H:%M:%S') [sink-event] $*" >> "$LOG"; }
+
+case "${PLAYER_EVENT}" in
+  sink_opened)
+    touch "$FLAG"
+    log "sink_opened"
+    ;;
+  sink_closed)
+    rm -f "$FLAG"
+    log "sink_closed"
+    ;;
+esac

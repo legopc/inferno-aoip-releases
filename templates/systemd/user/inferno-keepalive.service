@@ -1,0 +1,16 @@
+[Unit]
+Description=Inferno Dante Keepalive
+Documentation=https://gitlab.com/lumifaza/inferno
+After=inferno-bridge.service
+After=default.target
+
+[Service]
+# Writes silence to inferno_mix to keep the Dante TX advertised when librespot is idle.
+# librespot's inferno-sink-event script stops/starts this around active playback.
+ExecStart=/usr/bin/aplay -D inferno_mix -r 48000 -f S32_LE -c 2 /dev/zero
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=5
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,136 @@
+name = "inferno-aoip"
+description = "Inferno AoIP appliance — Fedora IoT base image"
+version = "0.1.0"
+modules = []
+groups = []
+
+# ── Blueprint status ──────────────────────────────────────────────────────────
+# NOTE: osbuild custom iot-commit builds are NOT currently feasible.
+# The iot-commit / iot-installer image types require parsec + dbus-parsec packages
+# which are NOT available as standalone RPMs in any public Fedora repo — they only
+# exist inside Fedora's internal OSTree build pipeline.
+#
+# CURRENT DEPLOYMENT APPROACH:
+#   1. Use the official Fedora IoT provisioner ISO (no custom ISO needed)
+#   2. Ignition JSON configures first-boot
+#   3. inferno-deploy.sh Phase 1: rpm-ostree install packages → reboot
+#   4. inferno-deploy.sh Phase 2: download binaries, configure services
+#
+# This blueprint is kept for reference and future use when osbuild gains
+# support for building against an upstream OSTree URL with package overlays.
+# It would also work if built on infrastructure that has the Fedora IoT
+# compose repos (parsec/dbus-parsec) accessible — e.g. inside Fedora's own CI.
+#
+# ── Packages (reference — installed by deploy script via rpm-ostree) ──────────
+# These are the packages inferno-deploy.sh Phase 1 installs. Kept here as
+# documentation of what the appliance needs.
+
+[[packages]]
+name = "alsa-lib"
+
+[[packages]]
+name = "alsa-utils"
+
+[[packages]]
+name = "alsa-plugins-speex"       # speexrate_best SRC for librespot
+
+[[packages]]
+name = "speexdsp"
+
+[[packages]]
+name = "avahi"
+
+[[packages]]
+name = "avahi-tools"              # avahi-browse for Dante discovery debugging
+
+[[packages]]
+name = "nss-mdns"                 # resolves .local hostnames
+
+[[packages]]
+name = "curl"
+
+[[packages]]
+name = "git"                      # not strictly needed at runtime; useful for debug
+
+[[packages]]
+name = "openssh-server"
+
+[[packages]]
+name = "bash"
+
+[[packages]]
+name = "python3"                  # required for inferno-web.py
+
+# ── Cockpit web management UI ─────────────────────────────────────────────────
+# Accessible at https://node-ip:9090 — no SSH required for routine management.
+# cockpit-system: system overview, service management, in-browser terminal
+# cockpit-ostree: rpm-ostree upgrade/rollback UI
+# cockpit-files: file browser + text editor (edit /etc/inferno.conf from browser)
+
+[[packages]]
+name = "cockpit-system"
+
+[[packages]]
+name = "cockpit-ostree"
+
+[[packages]]
+name = "cockpit-files"
+
+# ── System customisations ─────────────────────────────────────────────────────
+
+[customizations]
+hostname = "inferno-node"         # Will be set per-node via Ignition or inferno-deploy.sh
+
+# 'core' user — matches Fedora CoreOS/IoT convention
+# Password hash generated with: openssl passwd -6 YOURPASSWORD
+# Replace INFERNO_CORE_PASSWORD_HASH before building.
+[[customizations.user]]
+name = "core"
+description = "Inferno AoIP operator"
+password = "INFERNO_CORE_PASSWORD_HASH"
+groups = ["wheel", "audio"]
+home = "/var/home/core"
+shell = "/bin/bash"
+
+[customizations.services]
+enabled = [
+    "sshd",
+    "cockpit.socket",
+    "avahi-daemon",
+]
+masked = [
+    "systemd-timesyncd",    # Statime (PTP) manages the clock — timesyncd must never run
+    "chronyd",
+    "ntpd",
+]
+
+# ── Firewall ──────────────────────────────────────────────────────────────────
+# Open the ports Inferno and Cockpit need.
+# Dante traffic (4455, 8700, etc.) uses UDP; Cockpit uses TCP 9090.
+
+[customizations.firewall]
+ports = [
+    "22:tcp",
+    "9090:tcp",             # Cockpit
+    "8080:tcp",             # inferno-web config UI
+    "5353:udp",             # mDNS (Dante discovery + Avahi)
+    "4455:udp",             # Dante audio
+    "8700:udp",             # Dante control
+    "4400:udp",             # Dante
+    "8800:udp",             # Dante
+    "6000-6011:udp",        # Inferno ALT_PORT ranges (spotify:6000-6003, aux-tx:6004-6007, aux-rx:6008-6011)
+]
+
+# ── Kernel options ────────────────────────────────────────────────────────────
+
+# ── Kernel options ────────────────────────────────────────────────────────────
+# NOTE: kernel arg customizations are NOT supported for iot-commit / iot-installer
+# image types (osbuild limitation). Kernel args for OSTree images are managed via
+# BLS entries using: sudo rpm-ostree kargs --append=console=ttyS0,115200n8
+#
+# Fedora IoT defaults already include console=tty0 (display output works out of
+# the box when a monitor is connected — no extra config needed).
+# Serial console for headless/VM use: inferno-deploy.sh runs rpm-ostree kargs.
+#
+# [customizations.kernel]
+# append = "console=ttyS0,115200n8 console=tty0"

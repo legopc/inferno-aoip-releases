@@ -1,0 +1,11 @@
+[Unit]
+Description=Librespot Audio Key Error Watchdog
+After=librespot.service
+
+[Service]
+ExecStart=/var/home/core/bin/librespot-watchdog
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

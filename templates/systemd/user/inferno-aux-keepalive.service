@@ -1,0 +1,14 @@
+[Unit]
+Description=Inferno AUX RX Keepalive — holds Dante RX path open when idle
+Documentation=https://gitlab.com/lumifaza/inferno
+After=statime-inferno.service
+After=inferno-aux-rx.service
+Conflicts=inferno-aux-rx.service
+
+[Service]
+ExecStart=/usr/bin/arecord -D inferno_aux_rx -f S32_LE -r 48000 -c 2 /dev/null
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

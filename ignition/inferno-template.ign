@@ -1,0 +1,52 @@
+{
+  "ignition": { "version": "3.3.0" },
+  "passwd": {
+    "users": [
+      {
+        "name": "core",
+        "passwordHash": "INFERNO_CORE_PASSWORD_HASH",
+        "groups": ["wheel", "audio"],
+        "homeDir": "/var/home/core",
+        "shell": "/bin/bash"
+      }
+    ]
+  },
+  "storage": {
+    "files": [
+      {
+        "path": "/etc/sudoers.d/core-nopasswd",
+        "mode": 288,
+        "contents": {
+          "inline": "core ALL=(ALL) NOPASSWD:ALL\n"
+        }
+      },
+      {
+        "path": "/etc/inferno.conf",
+        "mode": 420,
+        "contents": {
+          "inline": "# Inferno AoIP node configuration — seed file written by Ignition\n# inferno-deploy.sh reads this on first boot and replaces it with derived values.\n\n# Mode: spotify or aux\nINFERNO_MODE=spotify\n\n# Dante/Spotify device name (appears in Dante Controller and Spotify app)\nINFERNO_NAME=InfernoNode\n\n# NIC name or 'auto' (auto = first non-loopback interface)\nINFERNO_NIC=auto\n\n# Physical audio card number for aux mode (0 = first card, usually the onboard codec)\n# For spotify mode this is unused.\nINFERNO_AUDIO_CARD=0\n"
+        }
+      },
+      {
+        "path": "/usr/local/bin/inferno-firstboot.sh",
+        "mode": 493,
+        "contents": {
+          "inline": "#!/bin/bash\n# Bootstrap script — downloads and runs the full inferno-deploy.sh from the tarball.\n# This avoids embedding the full deploy script in Ignition JSON.\nset -euo pipefail\n\nRELEASES_BASE=\"https://github.com/legopc/inferno-aoip-releases/releases/latest/download\"\nSENTINEL=\"/var/lib/inferno/.deployed\"\n\n[ -f \"${SENTINEL}\" ] && exit 0\n\nmkdir -p /var/lib/inferno/bin\ncurl -fsSL \"${RELEASES_BASE}/inferno-aoip.tar.gz\" -o /tmp/inferno-aoip.tar.gz\ncurl -fsSL \"${RELEASES_BASE}/inferno-aoip.tar.gz.sha256\" -o /tmp/inferno-aoip.tar.gz.sha256\n(cd /tmp && sha256sum -c inferno-aoip.tar.gz.sha256)\ntar -xzf /tmp/inferno-aoip.tar.gz -C /tmp/\nbash /tmp/inferno-aoip/scripts/inferno-deploy.sh\n"
+        }
+      }
+    ]
+  },
+  "systemd": {
+    "units": [
+      {
+        "name": "inferno-firstboot.service",
+        "enabled": true,
+        "contents": "[Unit]\nDescription=Inferno AoIP first-boot deployment\nAfter=network-online.target\nWants=network-online.target\nConditionPathExists=!/var/lib/inferno/.deployed\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/usr/local/bin/inferno-firstboot.sh\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=multi-user.target\n"
+      },
+      {
+        "name": "getty@tty1.service",
+        "enabled": true
+      }
+    ]
+  }
+}

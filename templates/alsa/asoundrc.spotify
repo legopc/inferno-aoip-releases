@@ -1,0 +1,50 @@
+pcm_type.inferno {
+    lib "%%INFERNO_PLUGIN_PATH%%"
+}
+
+# Raw Inferno/Dante device. Only inferno-bridge.service writes here.
+# Keeping this permanently open prevents Dante re-subscription delays.
+pcm.inferno_spotify {
+    type inferno
+    NAME "%%INFERNO_NAME%%"
+    BIND_IP %%INFERNO_INTERFACE%%
+    SAMPLE_RATE 48000
+    PROCESS_ID 1
+    ALT_PORT 6000
+    RX_CHANNELS 0
+    TX_CHANNELS 2
+    TX_LATENCY_NS 10000000
+    RX_LATENCY_NS 10000000
+    CLOCK_PATH /tmp/ptp-usrvclock
+    DEVICE_ID %%INFERNO_DEVICE_ID%%
+
+    hint {
+        show off
+        description "Inferno ALSA virtual device for Spotifyd"
+    }
+}
+
+# Loopback mixing bus — dmix allows concurrent writers (silence + audio = audio).
+pcm.inferno_mix {
+    type dmix
+    ipc_key 5000
+    slave {
+        pcm "hw:Loopback,0,0"
+        rate 48000
+        format S32_LE
+        channels 2
+        period_size 256
+        periods 4
+    }
+}
+
+# librespot writes here: 44.1kHz → 48kHz SRC → loopback mix bus
+pcm.spotifyd {
+    type rate
+    converter "speexrate_best"
+    slave {
+        pcm "inferno_mix"
+        rate 48000
+        format S32_LE
+    }
+}

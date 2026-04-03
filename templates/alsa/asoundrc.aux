@@ -1,0 +1,47 @@
+pcm_type.inferno {
+    lib "%%INFERNO_PLUGIN_PATH%%"
+}
+
+# AUX TX: analog input → Dante transmitter
+# Appears in Dante Controller as "%%INFERNO_NAME%%-TX"
+pcm.inferno_aux_tx {
+    type inferno
+    NAME "%%INFERNO_NAME%%-TX"
+    BIND_IP %%INFERNO_INTERFACE%%
+    SAMPLE_RATE 48000
+    PROCESS_ID 2
+    ALT_PORT 6004
+    RX_CHANNELS 0
+    TX_CHANNELS 2
+    TX_LATENCY_NS 10000000
+    RX_LATENCY_NS 10000000
+    CLOCK_PATH /tmp/ptp-usrvclock
+    DEVICE_ID %%INFERNO_DEVICE_ID_TX%%
+
+    hint {
+        show off
+        description "Inferno AUX TX: analog in to Dante"
+    }
+}
+
+# AUX RX: Dante receiver → analog output
+# Appears in Dante Controller as "%%INFERNO_NAME%%-RX"
+pcm.inferno_aux_rx {
+    type inferno
+    NAME "%%INFERNO_NAME%%-RX"
+    BIND_IP %%INFERNO_INTERFACE%%
+    SAMPLE_RATE 48000
+    PROCESS_ID 3
+    ALT_PORT 6008
+    RX_CHANNELS 2
+    TX_CHANNELS 0
+    TX_LATENCY_NS 10000000
+    RX_LATENCY_NS 10000000
+    CLOCK_PATH /tmp/ptp-usrvclock
+    DEVICE_ID %%INFERNO_DEVICE_ID_RX%%
+
+    hint {
+        show off
+        description "Inferno AUX RX: Dante to analog out"
+    }
+}
