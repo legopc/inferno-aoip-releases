@@ -50,6 +50,10 @@ fi
 # shellcheck source=/dev/null
 source "${CONF}"
 
+# ── Privilege helper — works whether run as root (firstboot) or core (manual) ──
+SUDO=""
+[ "$(id -u)" -ne 0 ] && SUDO="sudo"
+
 # ── Phase 1: Install required RPM packages via rpm-ostree ─────────────────────
 # Fedora IoT's base OSTree commit doesn't include Cockpit or ALSA utils.
 # We install them via rpm-ostree package layering on first boot, then reboot
@@ -63,7 +67,7 @@ source "${CONF}"
 if [ ! -f "${PACKAGES_SENTINEL}" ]; then
     echo "Phase 1: Installing required packages via rpm-ostree..."
     echo "  (This requires a reboot — Phase 2 will run automatically after it)"
-    $SUDO rpm-ostree install --idempotent \
+    $SUDO rpm-ostree install --idempotent --allow-inactive \
         cockpit-system cockpit-ostree cockpit-files \
         alsa-lib alsa-utils alsa-plugins-speex speexdsp \
         avahi avahi-tools nss-mdns \
@@ -72,7 +76,11 @@ if [ ! -f "${PACKAGES_SENTINEL}" ]; then
     $SUDO touch "${PACKAGES_SENTINEL}"
     echo "Packages staged. Rebooting to activate..."
     sleep 3
-    $SUDO systemctl reboot
+    if [ -z "${INFERNO_NO_REBOOT:-}" ]; then
+        $SUDO systemctl reboot
+    else
+        echo "(INFERNO_NO_REBOOT set — skipping Phase 1 reboot)"
+    fi
     exit 0
 fi
 echo "Phase 1 already done (packages installed). Proceeding to Phase 2..."
@@ -111,10 +119,6 @@ echo ""
 PLUGIN_PATH="${PLUGIN_DIR}/libasound_module_pcm_inferno.so"
 INFERNO_MODE="${INFERNO_MODE:-spotify}"
 AUDIO_CARD="${INFERNO_AUDIO_CARD:-0}"
-
-# ── Privilege helper — works whether run as root (firstboot) or core (manual) ──
-SUDO=""
-[ "$(id -u)" -ne 0 ] && SUDO="sudo"
 
 # ── Create directories ─────────────────────────────────────────────────────────
 $SUDO mkdir -p "${BIN_DIR}" "${PLUGIN_DIR}"
