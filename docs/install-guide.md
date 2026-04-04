@@ -361,6 +361,81 @@ set `https_proxy` in `/etc/inferno.conf` and restart the service.
 For air-gapped environments, use `INFERNO_LOCAL_TARBALL=/path/to/inferno-aoip.tar.gz`
 and manually trigger: `sudo bash /var/lib/inferno/bin/inferno-deploy.sh`
 
+### ENOSPC during coreos-installer (Proxmox VMs)
+
+**Symptom:** Install fails with `error decoding and writing image: No space left on device (os error 28)`.
+
+**Cause:** The VM disk LV symlink in `/dev/VGname/` was missing or replaced by a rogue regular
+file (this can happen after failed wipefs operations or if the LV was recreated without udev
+re-running). When this happens, QEMU writes the VM disk to a tmpfs file rather than the LV,
+and the tmpfs runs out of space.
+
+**Fix — always destroy and recreate cleanly:**
+```bash
+# On Proxmox host:
+qm stop 111 --skiplock
+qm destroy 111 --destroy-unreferenced-disks 1 --purge 1
+
+# Recreate fresh
+qm create 111 --name inferno-node-01 --machine q35 --bios ovmf \
+  --cpu host --cores 2 --sockets 1 --memory 4096 \
+  --net0 virtio,bridge=vmbr0,tag=10 \
+  --scsihw virtio-scsi-pci --serial0 socket --vga serial0 --tablet 0 --ostype l26
+qm set 111 --efidisk0 YOUR_STORAGE:4,efitype=4m,pre-enrolled-keys=0
+qm set 111 --scsi0 YOUR_STORAGE:32,cache=none
+qm set 111 --ide2 local:iso/Fedora-IoT-provisioner-43-inferno.iso,media=cdrom
+qm set 111 --boot order="ide2;scsi0"
+qm start 111
+```
+
+**⚠ Never attempt to reuse or manually wipe a VM disk that has failed an install.**
+Always `qm destroy` and recreate. The `qm create` process properly initialises the LV
+and udev symlinks.
+
+---
+
+### Ignition "running for the second time" warning
+
+**Cause:** The provisioner ISO embeds an ignition config that runs during `coreos-installer`.
+When you also place a config on p2 (the boot partition), ignition runs again on first boot.
+
+**This warning is harmless.** The second run applies your updated config (with correct SSH keys,
+etc.) on top of the first. Files with `overwrite: true` are updated; the `core` user's
+`sshAuthorizedKeys` are merged.
+
+To avoid the double-run in future, embed your final ignition config into the provisioner ISO
+before install (see Method A above).
+
+---
+
+### Mounting p2 (boot partition) on Proxmox LVM storage
+
+If you need to place/update the ignition config on p2 after install but before first boot:
+
+```bash
+# On PRX-01, with VM stopped:
+# 1. Activate the LV (it goes inactive when VM stops)
+lvchange -ay YOUR_VG/vm-111-disk-1
+udevadm settle
+
+# 2. Mount p2 via byte offset (sector 1028096 × 512 = 526385152)
+mkdir -p /mnt/p2
+mount -o offset=526385152 /dev/mapper/YOUR--VG-vm--111--disk--1 /mnt/p2
+
+# 3. Place ignition
+mkdir -p /mnt/p2/ignition
+cp your-node.ign /mnt/p2/ignition/config.ign
+
+# 4. Unmount and deactivate
+umount /mnt/p2
+lvchange -an YOUR_VG/vm-111-disk-1
+```
+
+**Note:** `losetup` does not work on block devices (LVM LVs). Use the offset mount method above.
+`kpartx` is not installed on Proxmox by default.
+
+---
+
 ### VM LUKS passphrase prompt at boot
 
 **Cause:** Fedora IoT uses LUKS disk encryption by default (`coreos.inst.crypt_root=1`).

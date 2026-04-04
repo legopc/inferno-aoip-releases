@@ -1,11 +1,15 @@
 {
-  "ignition": { "version": "3.4.0" },
+  "ignition": {
+    "version": "3.4.0"
+  },
   "passwd": {
     "users": [
       {
         "name": "core",
         "passwordHash": "INFERNO_CORE_PASSWORD_HASH",
-        "groups": ["wheel"],
+        "groups": [
+          "wheel"
+        ],
         "homeDir": "/var/home/core",
         "shell": "/bin/bash",
         "sshAuthorizedKeys": [
@@ -17,6 +21,14 @@
   },
   "storage": {
     "files": [
+      {
+        "path": "/etc/hostname",
+        "mode": 420,
+        "overwrite": true,
+        "contents": {
+          "source": "data:,InfernoNode"
+        }
+      },
       {
         "path": "/etc/sudoers.d/core-nopasswd",
         "mode": 288,
