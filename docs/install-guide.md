@@ -168,70 +168,166 @@ xorriso -as mkisofs \
 #### Deploy in Proxmox
 
 ```bash
-# Create VM
-qm create 111 --name inferno-node-01 \
-  --cores 2 --memory 4096 \
+# Create VM (recommended settings — use exact command, not the short form above)
+qm create 111 --name inferno-node-01 --machine q35 --bios ovmf \
+  --cpu host --cores 2 --sockets 1 --memory 8192 \
   --net0 virtio,bridge=vmbr0,tag=10 \
-  --scsihw virtio-scsi-pci \
-  --scsi0 YOUR_STORAGE:vm-111-disk-1,cache=writeback,size=32G \
-  --ide2 local:iso/Fedora-IoT-provisioner-43-ignition.iso,media=cdrom \
-  --boot order="ide2;scsi0" \
-  --bios ovmf \
-  --efidisk0 YOUR_STORAGE:vm-111-efi,size=4M \
-  --serial0 socket \
-  --vga serial0
+  --scsihw virtio-scsi-pci --serial0 socket --vga serial0 --tablet 0 --ostype l26
+qm set 111 --efidisk0 YOUR_STORAGE:4,efitype=4m,pre-enrolled-keys=0
+qm set 111 --scsi0 YOUR_STORAGE:32,cache=none
+qm set 111 --ide2 local:iso/Fedora-IoT-provisioner-43-inferno.iso,media=cdrom
+qm set 111 --boot order="scsi0;ide2"
 
-# Start and monitor via serial
-qm start 111
-socat - UNIX-CONNECT:/var/run/qemu-server/111.serial0
-```
+# ⚠ ALWAYS read the MAC back immediately — it is auto-assigned and changes on every
+# destroy/create. You need it to find the node's DHCP IP after boot.
+qm config 111 | grep net0
+# Record the MAC shown (e.g. BC:24:11:D1:3D:57) for later ARP lookup:
+#   ip neigh | grep -i "d1:3d:57"
 
-The installer will:
-1. Boot from ISO
-2. Download ignition config from URL
-3. Extract and write Fedora IoT image to `/dev/sda`
-4. Embed ignition config into the EFI boot partition
-5. Power off (due to `coreos.inst.skip_reboot`)
-
-**After poweroff: remove ISO from boot order and start VM:**
-```bash
-qm set 111 --boot order="scsi0"
+# Start VM
 qm start 111
 ```
+
+The boot order `scsi0;ide2` works because:
+- UEFI tries `scsi0` first → fresh disk, no EFI bootloader → falls through
+- UEFI boots from `ide2` (CDROM/ISO) automatically
+- After install, disk has EFI bootloader → subsequent boots use `scsi0`, ignoring CDROM
+
+The installer will automatically:
+1. Run coreos-installer (writes image to disk, embeds ignition from ISO)
+2. Reboot from disk — **no skip_reboot, no manual intervention needed**
+3. Ignition configures system (users, SSH, masked services, firstboot unit)
+4. inferno-firstboot.service deploys Inferno via rpm-ostree → auto-reboot
+5. inferno-postdeploy.service fixes SELinux + enables statime
+6. Node is operational (~25 min total)
+
 
 ### Method B: Physical Hardware
 
-**Required tools:** USB stick with Fedora IoT provisioner ISO burned to it.
+**Required tools:**
+- USB stick (≥ 2 GB) burned with the Fedora IoT provisioner ISO
+- A monitor and keyboard connected to the target machine (no serial console assumed)
+- A second machine on the same network to serve the ignition config over HTTP
 
+#### Step 1 — Burn the provisioner ISO to USB
+
+On legopc (or any Linux machine):
 ```bash
-# Burn ISO to USB
-sudo dd if=Fedora-IoT-provisioner-43.iso of=/dev/sdX bs=4M status=progress
+# Find your USB device (check dmesg or lsblk after inserting)
+lsblk
+# Then burn (replace /dev/sdX with your USB device):
+sudo dd if=Fedora-IoT-provisioner-43-inferno.iso of=/dev/sdX bs=4M status=progress oflag=sync
 ```
 
-Boot from USB. The Fedora IoT provisioner ISO runs `coreos-installer` automatically.
-It installs to the first non-USB disk it finds.
+#### Step 2 — Prepare the ignition config
 
-**Embedding ignition config on physical hardware:**
-
-Option 1 — Network ignition (requires DHCP + reachable HTTP server during install):
-- Boot with `coreos.inst.ignition_url=http://YOUR_IP:8080/config.ign` added to kernel args
-- Press `e` at the GRUB menu to edit the boot entry and append this parameter
-
-Option 2 — Manual placement (after install, before first reboot):
+On legopc:
 ```bash
-# After coreos-installer finishes (but before first boot):
-# The installed disk's EFI partition (p2) is mounted at /mnt/boot during install
-# OR mount it manually:
-mount /dev/sda2 /mnt
-mkdir -p /mnt/ignition
-cp your-node.ign /mnt/ignition/config.ign
-umount /mnt
+cd ~/copilot_projects/Inferno_Appliance/inferno-aoip-releases
+cp ignition/inferno-template.ign /tmp/NODE_NAME.ign
+
+# Fill in the password hash (replace INFERNO_CORE_PASSWORD_HASH placeholder)
+HASH=$(openssl passwd -6 inferno123)
+sed -i "s|INFERNO_CORE_PASSWORD_HASH|${HASH}|" /tmp/NODE_NAME.ign
+
+# Validate
+python3 -m json.tool /tmp/NODE_NAME.ign > /dev/null && echo "JSON OK"
 ```
 
-**⚠ CRITICAL:** Ignition only runs once on first boot. If it runs with no config,
-it marks itself complete and will NOT run again. The node will have locked accounts
-(no login possible). You must either reflash or provide the ignition config before
-the first boot.
+Edit `/tmp/NODE_NAME.ign` to set `INFERNO_MODE`, `INFERNO_NAME`, and `INFERNO_NIC`
+in the `/etc/inferno.conf` file section. For a new node, leave `INFERNO_NIC=auto`
+unless you know the NIC name.
+
+Also add your SSH public key to `sshAuthorizedKeys` if not already in the template.
+
+#### Step 3 — Serve the ignition config over HTTP
+
+On legopc (or any machine reachable from the target):
+```bash
+cd /tmp
+python3 -m http.server 8080 &
+# Note your IP on the same network as the target:
+ip addr show   # find 10.10.1.x or similar
+```
+
+Keep this running throughout the install.
+
+#### Step 4 — Boot from USB and edit GRUB
+
+1. Plug in USB, power on target machine, boot from USB (F12/DEL/F2 for boot menu)
+2. At the GRUB menu, **press `e`** to edit the boot entry
+3. Find the line starting with `linux /images/pxeboot/vmlinuz ...`
+4. At the **end of that line**, add:
+   ```
+   coreos.inst.ignition_url=http://LEGOPC_IP:8080/NODE_NAME.ign coreos.inst.skip_reboot console=tty0
+   ```
+5. Also verify or change `coreos.inst.install_dev=`:
+   - For NVMe: `/dev/nvme0n1`
+   - For SATA/SAS: `/dev/sda`
+   - **Check which disk to install to** — the provisioner ISO may default to `/dev/vda` (for KVM)
+     which will fail on physical hardware. Change it to the correct device.
+6. Press **Ctrl+X** or **F10** to boot with the edited parameters
+
+#### Step 5 — Wait for install to complete
+
+The installer will:
+1. Write Fedora IoT image to the target disk (~5-15 min depending on disk speed)
+2. Download and embed your ignition config
+3. **Power off** (due to `coreos.inst.skip_reboot`)
+
+Watch the screen for progress. If you see `Install complete` and the machine powers off, proceed.
+
+If the machine reboots instead of powering off (skip_reboot may not work on all hardware),
+immediately remove the USB stick so it boots from the internal disk.
+
+#### Step 6 — First boot
+
+Remove the USB stick and power the machine on. The machine will:
+1. Apply Ignition (~30s) — creates `core` user, writes `/etc/inferno.conf`, installs firstboot service
+2. Run `inferno-firstboot.service` — downloads tarball, Phase 1 (package install), reboots
+3. Phase 2 — deploys Inferno binaries, starts all services, reboots
+4. Machine is operational after the second reboot
+
+**Total time: ~20-45 minutes** depending on internet speed and disk speed.
+
+#### Step 7 — Find the IP and connect
+
+After the machine boots, find its DHCP address:
+```bash
+# From any machine on the same network — scan for the new node
+# If you know the MAC address (from the machine's label or BIOS), check your router/DHCP server
+# Or run a quick ARP scan:
+for i in $(seq 1 254); do ping -c1 -W1 10.10.1.$i &>/dev/null; done
+ip neigh | grep REACHABLE | sort
+```
+
+Then SSH:
+```bash
+ssh core@NODE_IP   # uses ~/.ssh/id_ed25519 automatically
+```
+
+#### Physical hardware notes
+
+**NIC name:** The NIC name on physical hardware may differ from the VM (`ens18`). Common names:
+- `enp1s0`, `enp2s0` — PCI Express NICs (most common on EliteDesk, T470S)
+- `eno1` — onboard (embedded) NICs on servers
+- `eth0` — older naming convention
+
+If you set `INFERNO_NIC=auto` in `inferno.conf`, the deploy script will detect the first
+active NIC automatically.
+
+**Disk device names on physical hardware:**
+- EliteDesk 800G2: likely `/dev/sda` (SATA SSD) or `/dev/nvme0n1` (NVMe)
+- T470S: likely `/dev/nvme0n1` (NVMe SSD)
+
+Check with `lsblk` from a live environment if unsure.
+
+**No monitor after install:** Once the node is deployed and you know the IP, you no longer
+need a monitor. All management is via SSH or Cockpit (`https://NODE_IP:9090`).
+
+**UEFI vs BIOS:** The provisioner ISO requires UEFI boot. Ensure Secure Boot is disabled
+in the BIOS (Fedora IoT does not support Secure Boot out of the box). UEFI mode is required
+— CSM/Legacy mode will not work.
 
 ---
 
@@ -384,13 +480,21 @@ qm create 111 --name inferno-node-01 --machine q35 --bios ovmf \
 qm set 111 --efidisk0 YOUR_STORAGE:4,efitype=4m,pre-enrolled-keys=0
 qm set 111 --scsi0 YOUR_STORAGE:32,cache=none
 qm set 111 --ide2 local:iso/Fedora-IoT-provisioner-43-inferno.iso,media=cdrom
-qm set 111 --boot order="ide2;scsi0"
+qm set 111 --boot order="scsi0;ide2"
 qm start 111
+
+# Always capture the MAC immediately — it changes on every destroy/create:
+qm config 111 | grep net0
+# Record the MAC for ARP lookups: ip neigh | grep -i "XX:XX:XX"
 ```
 
 **⚠ Never attempt to reuse or manually wipe a VM disk that has failed an install.**
 Always `qm destroy` and recreate. The `qm create` process properly initialises the LV
 and udev symlinks.
+
+**⚠ Always read back the MAC after `qm create`** — Proxmox auto-assigns a random MAC
+every time. You need it to find the node's IP after boot via `ip neigh | grep -i MAC`.
+If you skip this step you'll waste time scanning the subnet later.
 
 ---
 
@@ -408,6 +512,43 @@ before install (see Method A above).
 
 ---
 
+### Known issue: coreos-installer does NOT embed ignition when using `file://` URL
+
+**Symptom:** After install completes, p2 (the /boot partition) has no `/ignition/` directory.
+On first boot, ignition runs with no config → no SSH keys, no user password, no firstboot service.
+
+**Cause:** When `coreos.inst.ignition_url=file:///run/media/iso/ignition/config.ign` is used
+in the Fedora IoT 43 provisioner, coreos-installer uses the config internally during install
+but does **not** write it to `p2/ignition/config.ign` on the installed disk. This appears to
+be a Fedora IoT 43 provisioner quirk (possibly a bug).
+
+**Workaround (Proxmox VMs):** After install completes and VM is in emergency mode or has
+rebooted, stop the VM and manually place ignition on p2:
+
+```bash
+# On PRX-01, with VM stopped:
+qm stop 111
+lvchange -ay HVP-PRX-01-VMDISK01/vm-111-disk-1
+udevadm settle
+
+DEV="/dev/mapper/HVP--PRX--01--VMDISK01-vm--111--disk--1"
+LOOP=$(losetup -f --show -o $((1028096 * 512)) $DEV)
+mkdir -p /mnt/p2 && mount $LOOP /mnt/p2
+mkdir -p /mnt/p2/ignition
+cp /tmp/vm111.ign /mnt/p2/ignition/config.ign
+umount /mnt/p2 && losetup -d $LOOP
+
+qm set 111 --boot order="scsi0"
+qm start 111
+```
+
+**For physical hardware:** Serve the ignition config over HTTP from a machine on the same
+network, and change the grub.cfg entry to use `coreos.inst.ignition_url=http://HOST/node.ign`
+instead of `file://`. This way coreos-installer fetches over the network and does write it
+to the installed disk correctly.
+
+---
+
 ### Mounting p2 (boot partition) on Proxmox LVM storage
 
 If you need to place/update the ignition config on p2 after install but before first boot:
@@ -418,21 +559,21 @@ If you need to place/update the ignition config on p2 after install but before f
 lvchange -ay YOUR_VG/vm-111-disk-1
 udevadm settle
 
-# 2. Mount p2 via byte offset (sector 1028096 × 512 = 526385152)
-mkdir -p /mnt/p2
-mount -o offset=526385152 /dev/mapper/YOUR--VG-vm--111--disk--1 /mnt/p2
+# 2. Mount p2 via losetup offset (sector 1028096 × 512 = 526385152 bytes)
+LOOP=$(losetup -f --show -o 526385152 /dev/mapper/YOUR--VG-vm--111--disk--1)
+mkdir -p /mnt/p2 && mount $LOOP /mnt/p2
 
 # 3. Place ignition
 mkdir -p /mnt/p2/ignition
 cp your-node.ign /mnt/p2/ignition/config.ign
 
-# 4. Unmount and deactivate
-umount /mnt/p2
-lvchange -an YOUR_VG/vm-111-disk-1
+# 4. Unmount
+umount /mnt/p2 && losetup -d $LOOP
 ```
 
-**Note:** `losetup` does not work on block devices (LVM LVs). Use the offset mount method above.
-`kpartx` is not installed on Proxmox by default.
+**Note:** Use `losetup -f --show -o OFFSET` (not `mount -o offset=` directly). Direct offset
+mount of XFS/ext4 on a block device may fail; losetup works reliably. `kpartx` is not
+installed on Proxmox by default.
 
 ---
 
