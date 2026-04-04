@@ -15,9 +15,80 @@ to VMs or physical hardware. No HTTP server is needed during install.
 
 | Host | Notes |
 |------|-------|
-| VM 111 (Fedora IoT 43) | Has podman natively. Best option. |
-| PRX-01 (Proxmox/Debian) | `apt install podman`. Create a 20GB LV for output (root FS is tight). |
-| legopc (Ubuntu 24.04) | Needs `sudo apt install podman`. |
+| PRX-01 (Proxmox/Debian) | **Standard build host** — repo + storage LV pre-configured at `/mnt/inferno-build`. See [PRX-01 Standard Build](#prx-01-standard-build-recommended) below. |
+| legopc (Ubuntu 24.04) | Needs `sudo apt install podman`. Works but slow on root FS. |
+
+---
+
+## PRX-01 Standard Build (recommended)
+
+PRX-01 has a **persistent 25GB build LV** at `/mnt/inferno-build` with everything pre-configured:
+- Repo cloned at `/mnt/inferno-build/inferno-aoip-releases`
+- Podman container storage at `/mnt/inferno-build/storage` (bind-mounted as `/var/lib/containers/storage`)
+- `config.toml` at `/mnt/inferno-build/config.toml` (no changes needed)
+- ISO output lands at `/mnt/inferno-build/output/bootiso/install.iso`
+
+> ⚠️ PRX-01 root FS (`/`) is perpetually ~99% full. **All build work must stay on `/mnt/inferno-build`.**
+
+### Quick build (bump version number as needed)
+
+```bash
+VERSION=v6   # change for each release
+
+# 1. Pull latest code
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "
+  cd /mnt/inferno-build/inferno-aoip-releases && git pull
+"
+
+# 2. Build container image
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "
+  cd /mnt/inferno-build/inferno-aoip-releases && \
+  podman build -t inferno-appliance:${VERSION} .
+"
+
+# 3. Clear previous ISO output and build new one (~15-20 min)
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "
+  rm -rf /mnt/inferno-build/output/bootiso && \
+  mkdir -p /mnt/inferno-build/output && \
+  podman run --rm --privileged \
+    -v /var/lib/containers/storage:/var/lib/containers/storage \
+    -v /mnt/inferno-build/output:/output \
+    -v /mnt/inferno-build/config.toml:/config.toml:ro \
+    ghcr.io/osbuild/bootc-image-builder:latest \
+    --type anaconda-iso \
+    --config /config.toml \
+    localhost/inferno-appliance:${VERSION}
+"
+
+# 4. Symlink into Proxmox ISO storage (no copy needed — same host)
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "
+  ln -sf /mnt/inferno-build/output/bootiso/install.iso \
+    /var/lib/vz/template/iso/inferno-appliance-${VERSION}.iso && \
+  ls -lh /var/lib/vz/template/iso/inferno-appliance-${VERSION}.iso
+"
+```
+
+**Expected times**: container build ~10 min, ISO build ~15-20 min.
+
+### Key details about the PRX-01 build environment
+
+| Path | Purpose |
+|------|---------|
+| `/mnt/inferno-build/inferno-aoip-releases` | Git repo (pull before each build) |
+| `/mnt/inferno-build/storage` | Podman graphRoot (bind-mounted as `/var/lib/containers/storage`) |
+| `/mnt/inferno-build/config.toml` | BIB config (credentials baked in image — no user section needed) |
+| `/mnt/inferno-build/output/bootiso/install.iso` | Build output |
+| `/var/lib/vz/template/iso/inferno-appliance-vN.iso` | Proxmox ISO storage (symlink to above) |
+
+**Why `-v /var/lib/containers/storage:/var/lib/containers/storage` in the BIB command**:
+bootc-image-builder runs in a container and needs to pull the `localhost/` image. It finds it by
+bind-mounting the host's container storage into its own `/var/lib/containers/storage`. Without
+this, BIB cannot see `localhost/inferno-appliance:vN` and fails with "image not found".
+
+**config.toml is intentionally minimal** (no `[[customizations.user]]` section):
+All credentials (`core`/`inferno123`, sudoers) are baked into the container image via the
+Containerfile. Adding a user section with a `key` field causes Anaconda to call
+`set_user_ssh_key` before the bootc image is deployed → fatal installer error.
 
 ---
 
