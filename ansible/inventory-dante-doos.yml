@@ -26,8 +26,8 @@ all:
       #        No TRRS adapter needed — separate jacks, independent connections.
       #   Internal speaker (node 0x17, fixed) — auto-muted when headphone jack is occupied
       #
-      # Codec: Realtek ALC221 (card 2) — named simple controls work on this codec.
-      # Run `amixer -c 2 contents` on the node to verify numids if codec is replaced.
+      # Codec: Realtek ALC221 (card 1) — named simple controls work on this codec.
+      # Run `amixer -c 1 contents` on the node to verify numids if codec is replaced.
       inferno_mixer_commands:
         - "amixer -c 1 cset numid=15 on"      # Master Playback Switch: on
         - "amixer -c 1 cset numid=14 87"      # Master Playback Volume: 0 dB (max=87)
