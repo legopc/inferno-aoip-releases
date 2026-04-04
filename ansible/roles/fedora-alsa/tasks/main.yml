@@ -1,0 +1,49 @@
+---
+# Deploy PTP configuration for statime
+- name: Ensure /etc/inferno directory exists
+  ansible.builtin.file:
+    path: /etc/inferno
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Deploy PTP configuration for statime
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates-fedora/inferno-ptpv1.toml.j2"
+    dest: "{{ statime_config }}"
+    mode: "0644"
+  become: true
+
+# Deploy statime system service
+- name: Deploy statime-inferno systemd service
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates-fedora/statime-inferno.service.j2"
+    dest: /etc/systemd/system/statime-inferno.service
+    mode: "0644"
+  become: true
+
+- name: Reload systemd daemon after statime service deployment
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+
+# ALSA system configuration
+- name: Ensure ALSA system config directory exists
+  ansible.builtin.file:
+    path: /etc/alsa/conf.d
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Deploy system-wide ALSA inferno plugin type config
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates-fedora/99-inferno.conf.j2"
+    dest: /etc/alsa/conf.d/99-inferno.conf
+    mode: "0644"
+  become: true
+
+- name: Deploy user ALSA config (~/.asoundrc)
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates-fedora/asoundrc.j2"
+    dest: "{{ inferno_home }}/.asoundrc"
+    mode: "0644"

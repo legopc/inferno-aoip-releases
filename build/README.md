@@ -70,7 +70,7 @@ podman run --rm --privileged \
   ghcr.io/osbuild/bootc-image-builder:latest \
   --type anaconda-iso \
   --config /output/../build/config.toml \
-  --local \
+  --rootfs xfs \
   inferno-appliance:v1
 ```
 
@@ -97,9 +97,24 @@ Output: `output/bootiso/install.iso` (~2-4 GB)
 scp -i ~/.ssh/inferno_proxmox output/bootiso/install.iso \
     root@10.10.1.201:/var/lib/vz/template/iso/inferno-appliance-v1.iso
 
-# In Proxmox web UI:
-#   Create new VM → attach ISO → boot → installer runs automatically
-#   After install completes, detach ISO → boot → first-boot config runs
+# Create VM — IMPORTANT: use --vga std (NOT --vga serial0)
+# Anaconda requires a VGA device to render its TUI. With serial0-only VGA,
+# Anaconda produces no output and appears stuck (near-zero disk write activity).
+qm create 111 \
+  --name inferno-appliance-test \
+  --memory 4096 --cores 4 \
+  --bios ovmf --machine q35 \
+  --efidisk0 HVP-PRX-01-VMDISK01:1,efitype=4m,pre-enrolled-keys=0 \
+  --scsi0 HVP-PRX-01-VMDISK01:20,format=raw \
+  --ide2 local:iso/inferno-appliance-v1.iso,media=cdrom \
+  --net0 virtio,bridge=vmbr0,tag=10 \
+  --boot order=ide2 \
+  --serial0 socket --vga std
+qm start 111
+
+# After install completes (VM stops), switch to disk boot:
+qm set 111 --boot order=scsi0 --ide2 none,media=cdrom
+qm start 111
 ```
 
 ### Physical hardware (EliteDesk 800G2)
@@ -160,6 +175,24 @@ Or rebuild the container, push to a registry, and pull on nodes.
 ---
 
 ## Troubleshooting
+
+### Verifying install is progressing (don't just poll status)
+
+When waiting for Anaconda to finish, confirm it is actually writing to disk — don't rely solely
+on `qm status`. A VM can appear "running" while stuck at a boot prompt or display issue.
+
+```bash
+# Watch disk write activity on the target LV — should show active I/O during install
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 \
+  "iostat -dx /dev/HVP-PRX-01-VMDISK01/vm-111-disk-1 5 3"
+
+# Or watch the block device stats directly
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 \
+  "watch -n5 'cat /sys/block/dm-*/stat' 2>/dev/null | head -5"
+```
+
+If disk writes are zero for several minutes, the VM is stuck (display issue, boot failure, etc.).
+Recreate with `--vga std` if Anaconda shows no serial output — Anaconda needs a VGA device.
 
 ### Configure service failed
 ```bash

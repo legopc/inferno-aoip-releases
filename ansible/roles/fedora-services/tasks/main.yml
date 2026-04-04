@@ -1,0 +1,60 @@
+---
+- name: Ensure librespot cache directory exists
+  ansible.builtin.file:
+    path: "{{ inferno_home }}/.cache/librespot"
+    state: directory
+    mode: "0755"
+
+- name: Ensure user systemd service directory exists
+  ansible.builtin.file:
+    path: "{{ inferno_home }}/.config/systemd/user"
+    state: directory
+    mode: "0755"
+
+- name: Ensure ~/bin directory exists
+  ansible.builtin.file:
+    path: "{{ inferno_home }}/bin"
+    state: directory
+    mode: "0755"
+
+- name: Deploy inferno-sink-event script
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates-fedora/inferno-sink-event.j2"
+    dest: "{{ inferno_home }}/bin/inferno-sink-event"
+    mode: "0755"
+
+- name: Deploy librespot-watchdog script
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates-fedora/librespot-watchdog.j2"
+    dest: "{{ inferno_home }}/bin/librespot-watchdog"
+    mode: "0755"
+
+- name: Deploy librespot user systemd service
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates-fedora/librespot.service.j2"
+    dest: "{{ inferno_home }}/.config/systemd/user/librespot.service"
+    mode: "0644"
+
+- name: Deploy inferno-keepalive user systemd service
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates-fedora/inferno-keepalive.service.j2"
+    dest: "{{ inferno_home }}/.config/systemd/user/inferno-keepalive.service"
+    mode: "0644"
+
+- name: Deploy inferno-bridge user systemd service
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates-fedora/inferno-bridge.service.j2"
+    dest: "{{ inferno_home }}/.config/systemd/user/inferno-bridge.service"
+    mode: "0644"
+
+- name: Deploy librespot-watchdog user systemd service
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates-fedora/librespot-watchdog.service.j2"
+    dest: "{{ inferno_home }}/.config/systemd/user/librespot-watchdog.service"
+    mode: "0644"
+
+- name: Reload user systemd daemon after service deployment
+  ansible.builtin.command: systemctl --user daemon-reload
+  changed_when: false
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ inferno_uid }}"

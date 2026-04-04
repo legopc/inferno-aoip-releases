@@ -1,15 +1,12 @@
 # bootc-image-builder configuration
 #
-# IMPORTANT: Do NOT add [[customizations.user]] here.
-# The 'core' user, SSH authorized_keys, and password are all baked into the
-# container image via the Containerfile. Adding a user section here causes
-# Anaconda to fail with "set_user_ssh_key: user core does not exist" because
-# Anaconda tries to set the SSH key before the bootc image is deployed.
+# Do NOT add [[customizations.user]] here.
+# The 'core' user, password, and sudoers are baked into the container image
+# via the Containerfile. Adding a user section with a 'key' field causes Anaconda
+# to call set_user_ssh_key BEFORE the bootc image is deployed → fail.
 #
-# The config.toml is optional for the anaconda-iso type when all user/SSH
-# configuration is already in the container image.
+# The BIB-generated kickstart is complete without a user section.
+# If Anaconda shows "kickstart insufficient", the real fix is using --vga std
+# (not --vga serial0) so Anaconda can render its TUI.
 #
 # See: https://github.com/osbuild/bootc-image-builder#-configuration-file
-#
-# If you need to add extra users NOT in the container image, you can add them
-# here — but 'core' must not be listed as it already exists in the image.

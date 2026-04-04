@@ -1,0 +1,22 @@
+---
+all:
+  hosts:
+    inferno-node:
+      # EliteDesk-01 (800G2-1) — physical HP EliteDesk 800 G2 Mini, 192.168.1.43
+      # Intel I219-LM NIC (eno1), MAC 10:e7:c6:11:0f:04, DEVICE_ID 10e7c6110f040000 (auto-derived)
+      ansible_host: 192.168.1.43
+      ansible_user: "{{ inferno_user }}"
+      ansible_ssh_private_key_file: "~/.ssh/inferno_proxmox"
+      ansible_become_password: "312858"
+
+  vars:
+    inferno_user: legopc
+    # Confirmed via `ip link show` on 800G2-1: Intel I219-LM uses onboard naming (eno1)
+    inferno_interface: eno1
+    inferno_hostname: dante-elitedesk
+    # IP of the Dante hardware device (MXWANI8) on 192.168.1.x LAN.
+    dante_device_ip: 192.168.1.34
+    # Spotify Connect device name visible in the Spotify app
+    inferno_name: "EliteDesk-HW-PTP"
+    # inferno_device_id is auto-derived from inferno_interface MAC in site.yml pre_tasks.
+    # Result: 10e7c6110f040000 (from MAC 10:e7:c6:11:0f:04)

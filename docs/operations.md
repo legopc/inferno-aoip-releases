@@ -1,0 +1,171 @@
+# Inferno AoIP — Operations Reference
+
+> Internal lab documentation. Credentials are lab-use only — security is not a concern.
+> **GitHub PAT**: stored in `~/copilot_projects/key` — never commit to repo.
+
+---
+
+## Hosts
+
+### Proxmox Cluster
+
+| Node | IP | Hostname |
+|------|-----|----------|
+| PRX-01 | 10.10.1.201 | HVP-PRX-01-MGMT |
+| PRX-02 | 10.10.1.202 | HVP-PRX-02-MGMT |
+
+**SSH:**
+```bash
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201   # PRX-01
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.202   # PRX-02
+```
+
+**API:**
+- Endpoint: `https://10.10.1.201:8006/api2/json`
+- Token ID: `root@pam!api_user`
+- Token secret: `c8e5c26d-da78-4e38-aa9e-c7a08b363e14`
+- Header: `PVEAPIToken=root@pam!api_user=c8e5c26d-da78-4e38-aa9e-c7a08b363e14`
+
+**Storage (PRX-01):**
+- `HVP-PRX-01-VMDISK01` — VM disks (preferred)
+- `/mnt/inferno-build` — 25GB LV for ISO builds (also bind-mounted as `/var/lib/containers/storage`)
+- **Root FS is 99% full — never write large files to /**
+
+### Physical Inferno Nodes
+
+| Host | IP | User | Notes |
+|------|----|------|-------|
+| dante-doos | 192.168.1.25 | legopc | **Production** — Dante RX → Analog Out, Arch Linux, RTL8111 |
+| 800G2-1 (EliteDesk-01) | 192.168.1.43 | legopc | **Production TX** — Arch Linux, Intel I219-LM, HW PTP ~100ns |
+| 800G3-1 | 192.168.1.46 | legopc | Arch Linux, Intel I219-LM, `/dev/ptp0` ✅, NIC `eno1` — not yet configured |
+| EliteDesk-02 | TBD | core | Fedora IoT — not yet deployed |
+| T470s | 192.168.1.45 | legopc | Bluetooth bridge node, pw: `312858` |
+
+**SSH (all physical nodes):**
+```bash
+ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.25   # dante-doos
+ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.43   # EliteDesk-01 (800G2-1)
+ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.46   # 800G3-1
+ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # T470s (pw: 312858)
+```
+
+### Proxmox VMs — Inferno Test
+
+| VMID | Name | Node | IP | Notes |
+|------|------|------|----|-------|
+| 105 | COPILOT-ARCH-TEST-01 | PRX-02 | 10.10.1.75 | Arch Linux — Ansible e2e test complete |
+| 106 | COPILOT-NIXOS-TEST-01 | PRX-02 | 10.10.1.74 | NixOS 24.11 live ISO |
+| 109 | COPILOT-FEDORA-IOT-TEST-02 | PRX-01 | 10.10.1.78 | Fedora IoT 42 — OS only |
+| 110 | COPILOT-FEDORA-IOT-TEST-03 | PRX-01 | 10.10.1.79 | Fedora IoT 42 — Inferno stack |
+| 111 | inferno-appliance-test | PRX-01 | 10.10.1.95 (MAC: BC:24:11:34:DE:94) | Inferno Appliance bootc image — verified working |
+
+### Proxmox VMs — Production (do not touch)
+
+| VMID | Name | Node |
+|------|------|------|
+| 100 | HVP-VM-01-MGMT01 | PRX-01 |
+| 103 | HVP-VM-04-JUMPHOST01 | PRX-01 |
+| 104 | HVP-VM-05-OXIDIZED01 | PRX-01 |
+| 201 | HVP-VM-13-WLC01-OLD | PRX-01 |
+| 107 | HVP-VM-06-LIBRENMS01 | PRX-02 |
+| 202 | HVP-VM-14-WLC02-OLD | PRX-02 |
+
+---
+
+## Credentials
+
+| Resource | Username | Password / Key |
+|----------|----------|----------------|
+| Proxmox root SSH | `root` | key: `~/.ssh/inferno_proxmox` / pw: `Schnitzel-king1` |
+| Inferno `core` user (VMs/physical) | `core` | `inferno123` |
+| LUKS (Fedora IoT VMs) | — | `inferno123` |
+| EliteDesk-01 / T470s | `legopc` | `312858` |
+| All other nodes | `legopc` | `inferno123` |
+| Proxmox API token | `root@pam!api_user` | `c8e5c26d-da78-4e38-aa9e-c7a08b363e14` |
+| GitHub account | `legopc` | PAT in `~/copilot_projects/key` (scopes: repo, workflow) |
+
+SSH key for all nodes: `~/.ssh/inferno_proxmox` (ed25519)
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILI+T7Koyd+yPIskHka+byxPdg/oQ4Zr7LEoWKI8G/6d copilot-inferno
+```
+
+---
+
+## Web Interfaces
+
+| Interface | URL | Credentials |
+|-----------|-----|-------------|
+| Proxmox Cockpit (PRX-01) | `https://10.10.1.201:9090` | `core` / `inferno123` |
+| Proxmox Cockpit (PRX-02) | `https://10.10.1.202:9090` | `core` / `inferno123` |
+| Inferno Web UI | `http://<node-ip>:8080` | — |
+| Proxmox UI | `https://10.10.1.201:8006` | API token or root |
+| FortiGate | `https://10.10.1.1` | — |
+
+---
+
+## GitHub / CI
+
+| Resource | Value |
+|----------|-------|
+| Account | `legopc` |
+| CI repo | `legopc/inferno-aoip-releases` (public) |
+| Workflow | `.github/workflows/nightly-build.yml` |
+| Stable tarball | `https://github.com/legopc/inferno-aoip-releases/releases/latest/download/inferno-aoip.tar.gz` |
+
+**Trigger CI run:**
+```bash
+TOKEN=$(cat ~/copilot_projects/key | tr -d '[:space:]')
+curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -H "Accept: application/vnd.github+json" \
+  -H "Authorization: Bearer $TOKEN" \
+  "https://api.github.com/repos/legopc/inferno-aoip-releases/actions/workflows/nightly-build.yml/dispatches" \
+  -d '{"ref":"main"}'
+# 204 = success
+```
+
+---
+
+## DHCP / IP Lookup
+
+FortiGate DHCP leases API (read-only token):
+```bash
+curl -sk -H "Authorization: Bearer mH1x975mHzfQwHQznf5qnf1gys5dGp" \
+  "https://10.10.1.1/api/v2/monitor/system/dhcp?vdom=root"
+```
+
+Find VM by MAC on PRX-01:
+```bash
+ip neigh | grep -i "XX:XX:XX"   # use last 3 octets of MAC
+```
+
+---
+
+## Production Architecture
+
+```
+EliteDesk-01 (192.168.1.43)              dante-doos (192.168.1.25)
+  Spotify Connect (librespot)              inferno_rx (Dante RX)
+      ↓ speexrate_best                          ↓ arecord S32_LE
+  inferno_spotify (TX, Dante)              ALC221 DAC → 3.5mm analog out
+      ↓↓↓↓↓ Dante network ↓↓↓↓↓↓↓↓↓↓↓↓↓↑↑↑
+  Dante Controller: subscribe dante-doos RX ← EliteDesk-01 TX
+```
+
+PTP: Both nodes slave to MXWANI8 grandmaster. EliteDesk-01 has hardware timestamping (~100ns offset). dante-doos has software PTP (~500µs offset — adequate for Dante).
+
+---
+
+## Key File Locations
+
+| File | Purpose |
+|------|---------|
+| `build/config.toml` | bootc-image-builder ISO config |
+| `build/inferno-configure.sh` | First-boot config script |
+| `Containerfile` | Appliance container image definition |
+| `docs/install-guide.md` | Authoritative install guide |
+| `docs/bluetooth-bridge.md` | Bluetooth bridge docs |
+| `config/bluetooth/inferno-bt-bridge.service` | BT bridge — requires `--volume=software` |
+| `ignition/inferno-template.ign` | Ignition template for appliance VMs |
+| `ansible/` | Ansible roles and playbooks |
+| `~/copilot_projects/key` | GitHub PAT — never commit |
+| PRX-01: `/mnt/inferno-build/` | ISO build workspace (25GB LV) |

@@ -1,0 +1,33 @@
+---
+- name: Check if rustup is already installed
+  ansible.builtin.stat:
+    path: "{{ inferno_home }}/.cargo/bin/rustup"
+  register: rustup_stat
+
+- name: Install rustup via official installer
+  ansible.builtin.shell: >
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
+  args:
+    creates: "{{ inferno_home }}/.cargo/bin/rustup"
+  environment:
+    HOME: "{{ inferno_home }}"
+    RUSTUP_HOME: "{{ inferno_home }}/.rustup"
+    CARGO_HOME: "{{ inferno_home }}/.cargo"
+  when: not rustup_stat.stat.exists
+
+- name: Ensure Rust stable toolchain is installed
+  ansible.builtin.command: "{{ inferno_home }}/.cargo/bin/rustup toolchain install stable"
+  register: rustup_toolchain
+  changed_when: "'installed' in rustup_toolchain.stdout"
+  environment:
+    HOME: "{{ inferno_home }}"
+    RUSTUP_HOME: "{{ inferno_home }}/.rustup"
+    CARGO_HOME: "{{ inferno_home }}/.cargo"
+
+- name: Set stable as default Rust toolchain
+  ansible.builtin.command: "{{ inferno_home }}/.cargo/bin/rustup default stable"
+  changed_when: false
+  environment:
+    HOME: "{{ inferno_home }}"
+    RUSTUP_HOME: "{{ inferno_home }}/.rustup"
+    CARGO_HOME: "{{ inferno_home }}/.cargo"

@@ -1,0 +1,216 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# inferno ALSA plugin
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: Clone inferno repository
+  ansible.builtin.git:
+    repo: https://gitlab.com/lumifaza/inferno.git
+    dest: "{{ inferno_home }}/inferno"
+    recursive: true
+    update: true
+  register: inferno_git
+
+- name: Get current inferno commit hash
+  ansible.builtin.command: git rev-parse HEAD
+  args:
+    chdir: "{{ inferno_home }}/inferno"
+  register: inferno_commit
+  changed_when: false
+
+- name: Read inferno build stamp (if present)
+  ansible.builtin.slurp:
+    src: "{{ inferno_home }}/inferno/.build-stamp"
+  register: inferno_stamp_raw
+  failed_when: false
+
+- name: Determine whether inferno needs rebuilding
+  ansible.builtin.set_fact:
+    inferno_build_needed: >-
+      {{
+        inferno_stamp_raw.content is not defined
+        or (inferno_stamp_raw.content | b64decode | trim) != inferno_commit.stdout
+      }}
+
+- name: Build inferno ALSA plugin via podman container
+  when: inferno_build_needed | bool
+  block:
+    - name: Ensure /var/lib/inferno/alsa-plugins directory exists
+      ansible.builtin.file:
+        path: "{{ inferno_plugin_dir }}"
+        state: directory
+        mode: "0755"
+      become: true
+
+    # Build inside a Fedora 42 container (gcc can't be layered on Fedora IoT).
+    # The workspace mounts the home dir so cargo builds to ~/inferno/target/.
+    # Cargo workspace: output is at ~/inferno/target/release/ NOT alsa_pcm_inferno/target/
+    - name: Compile inferno ALSA plugin in fedora:42 container
+      ansible.builtin.command: >
+        podman run --rm --security-opt label=disable
+        -v {{ inferno_home }}:{{ inferno_home }}
+        fedora:42 bash -c '
+          dnf install -y gcc openssl-devel alsa-lib-devel &&
+          export HOME={{ inferno_home }} &&
+          export CARGO_HOME={{ inferno_home }}/.cargo &&
+          export RUSTUP_HOME={{ inferno_home }}/.rustup &&
+          source {{ inferno_home }}/.cargo/env &&
+          cd {{ inferno_home }}/inferno &&
+          cargo build --release -p alsa_pcm_inferno
+        '
+      environment:
+        HOME: "{{ inferno_home }}"
+
+    - name: Install inferno ALSA plugin to /var/lib/inferno/alsa-plugins/
+      ansible.builtin.copy:
+        src: "{{ inferno_home }}/inferno/target/release/libasound_module_pcm_inferno.so"
+        dest: "{{ inferno_plugin_path }}"
+        remote_src: true
+        mode: "0755"
+      become: true
+
+    - name: Set SELinux context for ALSA plugin (lib_t — required for dlopen)
+      ansible.builtin.command: >
+        semanage fcontext -a -t lib_t '{{ inferno_plugin_dir }}(/.*)?'
+      become: true
+      failed_when: false
+
+    - name: Restore SELinux context on plugin directory
+      ansible.builtin.command: restorecon -Rv "{{ inferno_plugin_dir }}"
+      become: true
+
+    - name: Write inferno build stamp
+      ansible.builtin.copy:
+        content: "{{ inferno_commit.stdout }}"
+        dest: "{{ inferno_home }}/inferno/.build-stamp"
+        mode: "0644"
+
+  rescue:
+    - name: Fail with descriptive message on inferno build failure
+      ansible.builtin.fail:
+        msg: "inferno cargo build --release failed. See output above."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# statime PTP daemon
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: Clone statime (Inferno fork) repository
+  ansible.builtin.git:
+    repo: https://github.com/teodly/statime
+    dest: "{{ inferno_home }}/statime"
+    version: inferno-dev
+    recursive: true
+    update: true
+    force: true
+  register: statime_git
+
+- name: Get current statime commit hash
+  ansible.builtin.command: git rev-parse HEAD
+  args:
+    chdir: "{{ inferno_home }}/statime"
+  register: statime_commit
+  changed_when: false
+
+- name: Read statime build stamp (if present)
+  ansible.builtin.slurp:
+    src: "{{ inferno_home }}/statime/.build-stamp"
+  register: statime_stamp_raw
+  failed_when: false
+
+- name: Determine whether statime needs rebuilding
+  ansible.builtin.set_fact:
+    statime_build_needed: >-
+      {{
+        statime_stamp_raw.content is not defined
+        or (statime_stamp_raw.content | b64decode | trim) != statime_commit.stdout
+      }}
+
+- name: Build statime via podman container
+  when: statime_build_needed | bool
+  block:
+    - name: Ensure /var/lib/inferno/bin directory exists
+      ansible.builtin.file:
+        path: "{{ inferno_bin_dir }}"
+        state: directory
+        mode: "0755"
+      become: true
+
+    # Binary name is 'statime' (NOT 'statime-linux') in the inferno-dev branch
+    - name: Compile statime in fedora:42 container
+      ansible.builtin.command: >
+        podman run --rm --security-opt label=disable
+        -v {{ inferno_home }}:{{ inferno_home }}
+        fedora:42 bash -c '
+          dnf install -y gcc &&
+          export HOME={{ inferno_home }} &&
+          export CARGO_HOME={{ inferno_home }}/.cargo &&
+          export RUSTUP_HOME={{ inferno_home }}/.rustup &&
+          source {{ inferno_home }}/.cargo/env &&
+          cd {{ inferno_home }}/statime &&
+          cargo build --release --bin statime
+        '
+      environment:
+        HOME: "{{ inferno_home }}"
+
+    - name: Install statime binary to /var/lib/inferno/bin/
+      ansible.builtin.copy:
+        src: "{{ inferno_home }}/statime/target/release/statime"
+        dest: "{{ statime_bin }}"
+        remote_src: true
+        mode: "0755"
+      become: true
+
+    - name: Set SELinux context for statime binary (bin_t — required for execution)
+      ansible.builtin.command: >
+        semanage fcontext -a -t bin_t '{{ inferno_bin_dir }}(/.*)?'
+      become: true
+      failed_when: false
+
+    - name: Restore SELinux context on bin directory
+      ansible.builtin.command: restorecon -Rv "{{ inferno_bin_dir }}"
+      become: true
+
+    - name: Write statime build stamp
+      ansible.builtin.copy:
+        content: "{{ statime_commit.stdout }}"
+        dest: "{{ inferno_home }}/statime/.build-stamp"
+        mode: "0644"
+
+  rescue:
+    - name: Fail with descriptive message on statime build failure
+      ansible.builtin.fail:
+        msg: "statime cargo build failed. See output above."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# librespot (Spotify Connect)
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: Check if librespot binary exists
+  ansible.builtin.stat:
+    path: "{{ librespot_bin }}"
+  register: librespot_stat
+
+# Must build with --features=alsa-backend; default build has no ALSA support.
+# cargo install puts the binary at ~/.cargo/bin/librespot (not /usr/bin).
+- name: Build and install librespot via podman container
+  when: not librespot_stat.stat.exists
+  block:
+    - name: Install librespot with alsa-backend feature in fedora:42 container
+      ansible.builtin.command: >
+        podman run --rm --security-opt label=disable
+        -v {{ inferno_home }}:{{ inferno_home }}
+        fedora:42 bash -c '
+          dnf install -y gcc openssl-devel alsa-lib-devel &&
+          export HOME={{ inferno_home }} &&
+          export CARGO_HOME={{ inferno_home }}/.cargo &&
+          export RUSTUP_HOME={{ inferno_home }}/.rustup &&
+          source {{ inferno_home }}/.cargo/env &&
+          cargo install librespot --features=alsa-backend --locked
+        '
+      environment:
+        HOME: "{{ inferno_home }}"
+
+  rescue:
+    - name: Fail with descriptive message on librespot build failure
+      ansible.builtin.fail:
+        msg: "librespot cargo install failed. See output above."

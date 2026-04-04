@@ -1,0 +1,29 @@
+[Unit]
+Description=Librespot Spotify Connect
+After=default.target
+Wants=default.target
+
+[Service]
+ExecStartPre=/bin/sh -c 'while [ ! -S /tmp/ptp-usrvclock ]; do sleep 1; done'
+ExecStartPre=/bin/sh -c 'UP=$(cut -d. -f1 /proc/uptime); [ "$UP" -gt 60 ] || sleep 10'
+ExecStart={{ librespot_bin }} \
+    --name "{{ inferno_name }}" \
+    --device-type avr \
+    --backend alsa \
+    --device spotifyd \
+    --format S32 \
+    --bitrate 320 \
+    --volume-ctrl log \
+    --initial-volume 50 \
+    --autoplay off \
+    --disable-audio-cache \
+    --cache {{ inferno_home }}/.cache/librespot \
+    --system-cache {{ inferno_home }}/.cache/librespot \
+    --disable-gapless \
+    --emit-sink-events \
+    --onevent {{ inferno_home }}/bin/inferno-sink-event
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

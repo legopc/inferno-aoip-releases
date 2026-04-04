@@ -1,0 +1,17 @@
+---
+all:
+  hosts:
+    inferno-node:
+      ansible_host: 192.168.1.25
+      ansible_user: "{{ inferno_user }}"
+      ansible_ssh_private_key_file: "~/.ssh/inferno_proxmox"
+
+  vars:
+    inferno_user: legopc
+    inferno_interface: enp1s0
+    inferno_hostname: dante-doos
+    inferno_name: "EliteDesk"
+    dante_device_ip: 192.168.1.34
+    # inferno_device_id is auto-derived from the interface MAC in site.yml pre_tasks.
+    # Override here only if auto-derivation is not suitable:
+    # inferno_device_id: "9c8e99eefa060000"

@@ -1,0 +1,60 @@
+---
+# rpm-ostree install --idempotent exits 0 and prints "No change." if all packages already present.
+# If it does stage a new deployment, the playbook will fail with a reboot-required message.
+- name: Install required packages via rpm-ostree (stages new deployment — reboot required)
+  ansible.builtin.command: >
+    rpm-ostree install --idempotent --allow-inactive
+    alsa-lib alsa-lib-devel alsa-utils alsa-plugins-speex speexdsp
+    git avahi nss-mdns podman policycoreutils-python-utils
+  become: true
+  register: ostree_install_result
+  changed_when: "'No change' not in ostree_install_result.stdout"
+  failed_when: ostree_install_result.rc != 0
+
+- name: Warn if reboot is needed to activate new packages
+  ansible.builtin.debug:
+    msg: >
+      rpm-ostree staged a new deployment. You must reboot the host
+      (sudo reboot) and re-run this playbook to continue.
+      On Fedora IoT VMs, re-embed the LUKS keyfile after rebooting — see FEDORA_IOT_BUILD.md Phase 3.
+  when: ostree_install_result.changed
+
+- name: Fail if rpm-ostree staged a new deployment (reboot required before continuing)
+  ansible.builtin.fail:
+    msg: "Reboot required. Re-run playbook after rebooting the host."
+  when: ostree_install_result.changed
+
+# Load snd-aloop kernel module — required for ALSA loopback (Loopback card)
+- name: Deploy snd-aloop module-load config
+  ansible.builtin.copy:
+    content: "snd-aloop\n"
+    dest: /etc/modules-load.d/snd-aloop.conf
+    mode: "0644"
+  become: true
+
+- name: Load snd-aloop kernel module if not already loaded
+  ansible.builtin.command: modprobe snd-aloop
+  become: true
+  changed_when: false
+  failed_when: false
+
+# Fedora IoT: 'audio' group exists only in /usr/lib/group (immutable OSTree vendor layer).
+# usermod -aG audio core silently does nothing. Must append to /etc/group directly.
+# audio GID is 63 (standard Linux convention, matches Fedora vendor layer).
+- name: Check if core is already in audio group in /etc/group
+  ansible.builtin.command: grep -q "audio:.*{{ inferno_user }}" /etc/group
+  register: audio_group_check
+  changed_when: false
+  failed_when: false
+
+- name: Add {{ inferno_user }} to audio group via /etc/group append
+  ansible.builtin.shell: echo "audio:x:63:{{ inferno_user }}" >> /etc/group
+  become: true
+  when: audio_group_check.rc != 0
+
+- name: Restart user session to apply group membership
+  ansible.builtin.systemd:
+    name: "user@{{ inferno_uid }}.service"
+    state: restarted
+  become: true
+  when: audio_group_check.rc != 0

@@ -1,0 +1,14 @@
+[Unit]
+Description=Inferno Dante Keepalive
+Documentation=https://gitlab.com/lumifaza/inferno
+After=inferno-bridge.service
+After=default.target
+
+[Service]
+ExecStart=/usr/bin/aplay -D inferno_mix -r 48000 -f S32_LE -c 2 /dev/zero
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=5
+
+[Install]
+WantedBy=default.target

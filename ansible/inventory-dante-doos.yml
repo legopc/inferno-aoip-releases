@@ -1,0 +1,38 @@
+all:
+  hosts:
+    inferno-node:
+      # HP EliteDesk 800 G2 DM — dante-doos, 192.168.1.25 (production node)
+      ansible_host: 192.168.1.25
+      ansible_user: legopc
+      ansible_ssh_private_key_file: ~/.ssh/inferno_proxmox
+
+      inferno_user: legopc
+      inferno_interface: enp1s0
+      inferno_name: "dante-doos"
+      inferno_mode: aux
+
+      # Analog audio is card 2 on dante-doos:
+      #   card 0 = snd-aloop (loopback, pinned by base role)
+      #   card 1 = HDA ATI HDMI
+      #   card 2 = HD-Audio Generic / ALC221 Analog  ← analog I/O
+      inferno_audio_card: 2
+
+      # Physical jack layout (HP EliteDesk 800 G2 DM front panel, two separate jacks):
+      #   BLACK headphone jack (node 0x19, 3-pole TRS) — RX output: Dante → analog line out
+      #   PINK  mic jack       (node 0x1a, 3-pole TRS) — TX input:  analog line in → Dante
+      #     ↳ Mic input has VREF_80 bias (designed for headset mic).
+      #        For line-level sources: use a standard 3.5mm TRS mono cable.
+      #        No TRRS adapter needed — separate jacks, independent connections.
+      #   Internal speaker (node 0x17, fixed) — auto-muted when headphone jack is occupied
+      #
+      # Codec: Realtek ALC221 (card 2) — named simple controls work on this codec.
+      # Run `amixer -c 2 contents` on the node to verify numids if codec is replaced.
+      inferno_mixer_commands:
+        - "amixer -c 2 cset numid=15 on"      # Master Playback Switch: on
+        - "amixer -c 2 cset numid=14 87"      # Master Playback Volume: 0 dB (max=87)
+        - "amixer -c 2 cset numid=2 on,on"    # Headphone Playback Switch: on — black headphone jack
+        - "amixer -c 2 cset numid=1 87,87"    # Headphone Playback Volume: 0 dB (max=87)
+        - "amixer -c 2 cset numid=8 1"        # Auto-Mute Mode: Enabled — mutes internal speaker when HP plugged in
+        - "amixer -c 2 cset numid=10 on,on"   # Capture Switch: on — pink mic jack
+        - "amixer -c 2 cset numid=9 0,0"     # Capture Volume: -16.5 dB (value 0; min of range — use Dante Controller for fine gain)
+        - "amixer -c 2 cset numid=11 0,0"     # Mic Boost Volume: 0 dB (line-level source, no boost needed)

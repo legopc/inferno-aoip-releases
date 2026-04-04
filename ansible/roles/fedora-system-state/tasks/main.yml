@@ -1,0 +1,65 @@
+---
+- name: Mask systemd-timesyncd (conflicts with statime PTP daemon)
+  ansible.builtin.systemd:
+    name: systemd-timesyncd.service
+    masked: true
+    state: stopped
+  become: true
+
+- name: Enable systemd-networkd-wait-online
+  ansible.builtin.systemd:
+    name: systemd-networkd-wait-online.service
+    enabled: true
+    daemon_reload: false
+  become: true
+  failed_when: false
+
+- name: Check linger status for {{ inferno_user }}
+  ansible.builtin.command: "loginctl show-user {{ inferno_user }} --property=Linger --value"
+  register: linger_status
+  changed_when: false
+  failed_when: false
+
+- name: Enable linger for {{ inferno_user }}
+  ansible.builtin.command: "loginctl enable-linger {{ inferno_user }}"
+  become: true
+  when: linger_status.stdout | trim != 'yes'
+
+- name: Enable and start avahi-daemon (mDNS/DNS-SD for Spotify discovery)
+  ansible.builtin.systemd:
+    name: avahi-daemon.service
+    enabled: true
+    state: started
+  become: true
+
+- name: Enable and start statime-inferno PTP daemon
+  ansible.builtin.systemd:
+    name: statime-inferno.service
+    enabled: true
+    state: started
+  become: true
+
+# Enable user services — use systemctl --user with XDG_RUNTIME_DIR
+- name: Enable and start inferno-bridge user service
+  ansible.builtin.command: systemctl --user enable --now inferno-bridge.service
+  changed_when: false
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ inferno_uid }}"
+
+- name: Enable and start inferno-keepalive user service
+  ansible.builtin.command: systemctl --user enable --now inferno-keepalive.service
+  changed_when: false
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ inferno_uid }}"
+
+- name: Enable and start librespot user service
+  ansible.builtin.command: systemctl --user enable --now librespot.service
+  changed_when: false
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ inferno_uid }}"
+
+- name: Enable and start librespot-watchdog user service
+  ansible.builtin.command: systemctl --user enable --now librespot-watchdog.service
+  changed_when: false
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ inferno_uid }}"

@@ -1,0 +1,37 @@
+all:
+  hosts:
+    inferno-node:
+      # HP EliteDesk 800 G3 DM 35W — 192.168.1.46
+      ansible_host: 192.168.1.46
+      ansible_user: legopc
+      ansible_ssh_private_key_file: ~/.ssh/inferno_proxmox
+
+      inferno_user: legopc
+      inferno_interface: eno1
+      inferno_name: "800G3-1"
+      inferno_mode: aux
+
+      # Analog audio is card 0 on the G3 (Intel HDA / CX20632).
+      # snd-aloop is pinned to card 5 by the base role.
+      inferno_audio_card: 0
+
+      # Physical jack layout (HP EliteDesk 800 G3 DM front panel):
+      #   BLACK jack (3-pole TRS, node 0x19) — RX output: Dante → analog line out
+      #   GREEN jack (4-pole TRRS, node 0x1c output + 0x1a mic Ring2) — TX input: analog in → Dante
+      #     ↳ TX input requires TRRS headset Y-splitter: pink/mic plug → audio source
+      #        (standard TRS plug shorts Ring2 to GND → no signal on mic input)
+      #   Internal speaker (node 0x1f, fixed) — muted via Speaker Playback Switch
+      #
+      # Codec: CX20632 — named simple controls not exposed by driver; must use numids.
+      # Run `amixer -c 0 contents` on the node to verify if codec is replaced.
+      inferno_mixer_commands:
+        - "amixer -c 0 cset numid=15 on"      # Master Playback Switch: on
+        - "amixer -c 0 cset numid=14 74"      # Master Playback Volume: 0 dB (max=74)
+        - "amixer -c 0 cset numid=8 off,off"  # Speaker Playback Switch: off — mute internal speaker
+        - "amixer -c 0 cset numid=4 on,on"    # Headphone Playback Switch [black jack]: on
+        - "amixer -c 0 cset numid=6 on,on"    # Headphone Playback Switch [green jack]: on
+        - "amixer -c 0 cset numid=3 74,74"    # Headphone Playback Volume [black jack]: 0 dB
+        - "amixer -c 0 cset numid=5 74,74"    # Headphone Playback Volume [green jack]: 0 dB
+        - "amixer -c 0 cset numid=12 on,on"   # Capture Switch: on
+        - "amixer -c 0 cset numid=11 74,74"   # Capture Volume: 0 dB (max=80)
+        - "amixer -c 0 cset numid=13 0,0"     # Headset Mic Boost: 0 dB (line-level via TRRS splitter)
