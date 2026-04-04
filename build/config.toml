@@ -1,47 +1,15 @@
 # bootc-image-builder configuration
 #
-# This file configures the USER and SSH keys for the Inferno appliance image.
-# It is read by bootc-image-builder at ISO/disk-image build time.
-# Keys are NOT baked into the container image layer — they live here.
+# IMPORTANT: Do NOT add [[customizations.user]] here.
+# The 'core' user, SSH authorized_keys, and password are all baked into the
+# container image via the Containerfile. Adding a user section here causes
+# Anaconda to fail with "set_user_ssh_key: user core does not exist" because
+# Anaconda tries to set the SSH key before the bootc image is deployed.
 #
-# Usage:
-#   Place your actual SSH public key in the [[blueprint.customizations.user.key]] field.
-#   Then pass this file to bootc-image-builder with --config config.toml
+# The config.toml is optional for the anaconda-iso type when all user/SSH
+# configuration is already in the container image.
 #
 # See: https://github.com/osbuild/bootc-image-builder#-configuration-file
-
-[blueprint.customizations]
-hostname = "inferno-node"
-
-[[blueprint.customizations.user]]
-name = "core"
-# Password hash for emergency console login.
-# Generate with: openssl passwd -6 YourPassword
-# Replace the placeholder below — do NOT commit real hashes to the repo.
-password = "REPLACE_WITH_OPENSSL_PASSWD_HASH"
-groups = ["wheel", "audio"]
-home = "/var/home/core"
-shell = "/bin/bash"
-
-# SSH public key(s) for passwordless login.
-# Add all keys that need access to this node.
-key = "REPLACE_WITH_SSH_PUBLIC_KEY"
-
-# Firewall ports opened for Inferno operation.
-[blueprint.customizations.firewall]
-ports = [
-    "22:tcp",        # SSH
-    "9090:tcp",      # Cockpit web UI
-    "8080:tcp",      # inferno-web config UI
-    "5353:udp",      # mDNS (Avahi / Dante discovery)
-    "4455:udp",      # Dante audio
-    "8700:udp",      # Dante control
-    "4400:udp",      # Dante
-    "8800:udp",      # Dante
-    "6000:udp",      # Inferno ALT_PORT spotify-ch0
-    "6001:udp",      # Inferno ALT_PORT spotify-ch1
-    "6004:udp",      # Inferno ALT_PORT aux-tx-ch0
-    "6005:udp",      # Inferno ALT_PORT aux-tx-ch1
-    "6008:udp",      # Inferno ALT_PORT aux-rx-ch0
-    "6009:udp",      # Inferno ALT_PORT aux-rx-ch1
-]
+#
+# If you need to add extra users NOT in the container image, you can add them
+# here — but 'core' must not be listed as it already exists in the image.
