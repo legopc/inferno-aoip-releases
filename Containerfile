@@ -108,5 +108,10 @@ RUN mkdir -p /var/home && \
     useradd -m -d /var/home/core -G wheel -s /bin/bash core && \
     echo "core:inferno123" | chpasswd && \
     echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd && \
-    # Add core to audio group so user services can open /dev/snd/* (crw-rw---- root:audio)
+    # Add core to audio group so user services can open /dev/snd/* (crw-rw---- root:audio).
+    # On Fedora bootc, the audio group (GID 63) is defined in /usr/lib/group (system-provided,
+    # read-only). usermod -aG requires the group to exist in /etc/group (the writable file) to
+    # write membership there. groupadd --system ensures the entry exists in /etc/group first,
+    # then usermod adds core. Without this, membership is silently lost after reboot.
+    groupadd --system -g 63 audio 2>/dev/null || true && \
     usermod -aG audio core

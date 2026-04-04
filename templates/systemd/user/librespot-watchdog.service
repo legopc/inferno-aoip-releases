@@ -1,6 +1,5 @@
 [Unit]
 Description=Librespot Audio Key Error Watchdog
-After=librespot.service
 
 [Service]
 ExecStart=/var/home/core/bin/librespot-watchdog
