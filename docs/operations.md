@@ -195,9 +195,28 @@ systemctl --user restart inferno-bt-loop
 ```
 Then re-attempt the subscription in Dante Controller. The service reinitializes cleanly with a fresh ring buffer.
 
-**Long-term fix (deployed):** Added `RuntimeMaxSec=6h` to `inferno-bt-loop.service` on T470s. Systemd will restart the service every 6 hours automatically (with `Restart=always, RestartSec=5`), preventing lag accumulation. A brief 5-second audio gap occurs at restart — acceptable for Bluetooth bridge use case.
+**Long-term fix (deployed):** Added `RuntimeMaxSec=6h` to `inferno-bt-loop.service` on T470s. Systemd restarts every 6 hours automatically, preventing long-uptime lag accumulation. A brief 2-second audio gap occurs at restart — acceptable for Bluetooth bridge use case.
 
 **Service file location on T470s:** `~/.config/systemd/user/inferno-bt-loop.service`
+
+---
+
+### T470s: Phone pause causes new inferno subscribers to fail ("flow creation in progress" → "unresolved")
+
+**Symptom:** After the phone pauses A2DP playback, new inferno Dante subscribers (e.g. dante-doos `inferno-aux-rx`) cannot establish a flow. Existing hardware Dante connections (e.g. Shure) may persist, but new inferno flows fail with the same TX lag error:
+```
+ERROR flows_tx] tx lag of 115702 samples detected, or media clock jumped, dropout occurs!
+```
+
+**Root cause:** When the phone pauses, `bluealsa-aplay` stops writing to `hw:Loopback,0,2`. The snd-aloop loopback goes idle, but `inferno-bt-loop` (alsaloop reading `hw:Loopback,1,2`) keeps running. With no writer on the playback side, the loopback is starved and the TX ring buffer accumulates massive lag. When a new subscriber connects, the lag is detected and the flow is destroyed before any RTP is sent.
+
+**Immediate fix:** Restart bt-loop manually:
+```bash
+ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # pw: 312858
+systemctl --user restart inferno-bt-loop
+```
+
+**Long-term fix (deployed):** Added `PartOf=inferno-bt-bridge.service` to `inferno-bt-loop.service`. When `inferno-bt-bridge` stops (phone pauses → bluealsa-aplay exits), systemd stops `inferno-bt-loop` too. When `inferno-bt-bridge` restarts (phone resumes + A2DP reconnects), `inferno-bt-loop` restarts fresh with a clean ring buffer. `RestartSec` also reduced to 2s for faster recovery.
 
 ---
 

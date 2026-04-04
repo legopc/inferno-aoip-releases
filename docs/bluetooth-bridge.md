@@ -170,11 +170,13 @@ Forwards audio from the loopback capture side to the Dante TX plugin.
 [Unit]
 Description=Loopback to Dante TX (alsaloop)
 After=sound.target
+PartOf=inferno-bt-bridge.service
 
 [Service]
 Type=simple
 Restart=always
-RestartSec=3
+RestartSec=2
+RuntimeMaxSec=6h
 ExecStart=/usr/bin/alsaloop \
     -C hw:Loopback,1,2 \
     -P inferno_bluetooth \
@@ -186,6 +188,8 @@ ExecStart=/usr/bin/alsaloop \
 [Install]
 WantedBy=default.target
 ```
+
+`PartOf=inferno-bt-bridge.service` ensures bt-loop stops when bt-bridge stops (e.g. phone pauses A2DP). When bt-bridge restarts (phone resumes), bt-loop restarts with a clean TX ring buffer. `RuntimeMaxSec=6h` handles the long-uptime lag case independently.
 
 ### Enable services
 
@@ -276,6 +280,17 @@ Changing `period_size` in a dmix config while old IPC segments exist causes
 conflicts.
 
 **Fix:** `ipcrm -a` (remove all IPC segments) before restarting after dmix config changes.
+
+### Phone pause triggers TX ring buffer lag
+When the phone pauses A2DP, `bluealsa-aplay` stops writing to the loopback.
+`inferno-bt-loop` (alsaloop) keeps consuming the idle loopback, accumulating
+TX ring buffer lag. New inferno Dante subscribers detect the lag and fail.
+Existing hardware Dante connections (e.g. Shure) may persist but new inferno
+flows won't establish until the lag is cleared.
+
+**Fix:** `PartOf=inferno-bt-bridge.service` in `inferno-bt-loop.service` — when
+the bridge stops (phone pauses), the loop stops too. When bridge restarts
+(phone resumes + A2DP reconnects), loop restarts fresh with clean ring buffer.
 
 ---
 
