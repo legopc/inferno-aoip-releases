@@ -107,4 +107,6 @@ RUN systemctl mask systemd-timesyncd chronyd ntpd
 RUN mkdir -p /var/home && \
     useradd -m -d /var/home/core -G wheel -s /bin/bash core && \
     echo "core:inferno123" | chpasswd && \
-    echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd
+    echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd && \
+    # Add core to audio group so user services can open /dev/snd/* (crw-rw---- root:audio)
+    usermod -aG audio core
