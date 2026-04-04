@@ -57,7 +57,7 @@ ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # T470s (pw: 312858)
 | 106 | COPILOT-NIXOS-TEST-01 | PRX-02 | 10.10.1.74 | NixOS 24.11 live ISO |
 | 109 | COPILOT-FEDORA-IOT-TEST-02 | PRX-01 | 10.10.1.78 | Fedora IoT 42 — OS only |
 | 110 | COPILOT-FEDORA-IOT-TEST-03 | PRX-01 | 10.10.1.79 | Fedora IoT 42 — Inferno stack |
-| 111 | inferno-appliance-test | PRX-01 | 10.10.1.95 (MAC: BC:24:11:34:DE:94) | Inferno Appliance bootc image — verified working |
+| 111 | inferno-eea64f | PRX-01 | 10.10.1.97 (MAC: BC:24:11:EE:A6:4F) | Inferno Appliance bootc image v5 — verified working. Dante TX: `Inferno-EEA64F`. SSH: `core@10.10.1.97` via PRX-01 jump (pw: inferno123) |
 
 ### Proxmox VMs — Production (do not touch)
 
