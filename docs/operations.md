@@ -155,6 +155,58 @@ PTP: Both nodes slave to MXWANI8 grandmaster. EliteDesk-01 has hardware timestam
 
 ---
 
+## Troubleshooting
+
+### dante-doos: Inferno stream changes fail / `inferno-aux-rx` won't open
+
+**Symptom:** Changing the Dante Controller subscription on dante-doos fails or `inferno-aux-rx` errors on restart.
+
+**Cause:** `inferno-aux-keepalive.service` was dual-opening `inferno_aux_rx`, holding the device and blocking stream changes.
+
+**Fix:** `inferno-aux-keepalive` was stopped and **disabled permanently**. Do not re-enable it.
+
+---
+
+### dante-doos: "flow creation in progress" → "unresolved" loop when subscribing to T470s-Bluetooth
+
+**Symptom:** dante-doos (`inferno-aux-rx`) subscribes to `TX 1@T470s-Bluetooth` and `TX 2@T470s-Bluetooth`. Subscription handshake succeeds (mDNS resolves, control messages exchange), but dante-doos logs:
+```
+WARN  channels_subscriber] flow index=0 timeout (not receiving media packets)
+WARN  channels_subscriber] channel subscribed to TX 1@T470s-Bluetooth is orphaned now
+```
+This repeats in a 10-second retry loop.
+
+**Root cause (confirmed 2026-04-04):** The T470s `inferno-bt-loop.service` (alsaloop Loopback→Dante TX) develops a **TX ring buffer lag** after extended uptime (~14+ hours). When a new Dante subscriber connects and the TX plugin tries to create a new multicast flow, it detects a massive lag (~115702 samples = 2.4 seconds at 48kHz) and **destroys the flow** before transmitting any RTP:
+```
+ERROR flows_tx] tx lag of 115702 samples detected, or media clock jumped, dropout occurs!
+WARN  tx_multicasts] flows_tx will be destroyed soon, not activating transmitter
+```
+The control-plane subscription succeeds but no audio RTP packets are ever sent, causing the 8-second media timeout on dante-doos.
+
+**This is NOT a network/WiFi issue.** Both dante-doos and T470s are on wired ethernet, same L2 segment, multicast group join is confirmed on both sides.
+
+**This is NOT a PTP clock mismatch.** Both run `statime` with `protocol-version = "PTPv1"`, `domain = 0` — both synced to same grandmaster with <5µs offset.
+
+**Immediate fix:**
+```bash
+# SSH to T470s and restart the Dante TX service
+ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # pw: 312858
+systemctl --user restart inferno-bt-loop
+```
+Then re-attempt the subscription in Dante Controller. The service reinitializes cleanly with a fresh ring buffer.
+
+**Long-term fix (deployed):** Added `RuntimeMaxSec=6h` to `inferno-bt-loop.service` on T470s. Systemd will restart the service every 6 hours automatically (with `Restart=always, RestartSec=5`), preventing lag accumulation. A brief 5-second audio gap occurs at restart — acceptable for Bluetooth bridge use case.
+
+**Service file location on T470s:** `~/.config/systemd/user/inferno-bt-loop.service`
+
+---
+
+### T470s: `inferno-bt-keepalive` and `inferno-keepalive` are in failed state
+
+**Expected.** Both services were intentionally stopped and disabled (similar to `inferno-aux-keepalive` on dante-doos). Keepalive services that write silence (`aplay /dev/zero`) to ALSA devices were causing interference with the main audio services. They are **disabled** and will not restart on reboot. Ignore the `failed` status.
+
+---
+
 ## Key File Locations
 
 | File | Purpose |
