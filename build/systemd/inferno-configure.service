@@ -1,0 +1,19 @@
+[Unit]
+Description=Inferno AoIP First-Boot Node Configuration
+Documentation=https://github.com/legopc/inferno-aoip-releases
+# Only runs if /etc/inferno.conf is absent (i.e., never configured yet)
+ConditionPathExists=!/etc/inferno.conf
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/inferno-configure.sh
+StandardOutput=journal+console
+StandardError=journal+console
+# Give the script up to 5 minutes to complete (package manager operations)
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

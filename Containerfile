@@ -1,0 +1,112 @@
+# Inferno AoIP Appliance — Containerfile
+#
+# Produces a fully self-contained Inferno appliance image.
+# Build → convert to installer ISO with bootc-image-builder.
+#
+# Quick build:
+#   podman build -t inferno-appliance:v1 .
+#
+# Convert to installer ISO (one-shot, no HTTP server needed):
+#   see build/README.md
+#
+# Base image notes:
+#   fedora-bootc:43 = standard Fedora 43 with bootc support (atomic updates)
+#   Uses dnf for packages (no rpm-ostree parsec/dbus-parsec dependency)
+#   Result is a bootc-managed system — atomic updates via 'bootc upgrade'
+
+FROM registry.fedoraproject.org/fedora-bootc:43
+
+# ── Packages ──────────────────────────────────────────────────────────────────
+RUN dnf install -y --setopt=install_weak_deps=False \
+    # Cockpit web UI (management interface — https://node:9090)
+    cockpit-system \
+    # ALSA audio stack
+    alsa-lib alsa-utils alsa-plugins-speex speexdsp \
+    # Avahi / mDNS (Dante discovery)
+    avahi avahi-tools nss-mdns \
+    # Web UI backend
+    python3 \
+    # Required for inferno-configure.sh
+    curl \
+    # SSH server
+    openssh-server \
+    && dnf clean all
+
+# ── Directory structure ────────────────────────────────────────────────────────
+RUN mkdir -p \
+    /var/lib/inferno/bin \
+    /var/lib/inferno/lib \
+    /etc/inferno/systemd/user \
+    /etc/alsa/conf.d
+
+# ── Download release binaries (built nightly by CI) ───────────────────────────
+# Tarball contains: bin/statime, bin/librespot, lib/libasound_module_pcm_inferno.so
+ARG RELEASES_URL=https://github.com/legopc/inferno-aoip-releases/releases/latest/download
+RUN TARBALL=inferno-aoip.tar.gz && \
+    curl -fsSL "${RELEASES_URL}/${TARBALL}" -o "/tmp/${TARBALL}" && \
+    curl -fsSL "${RELEASES_URL}/${TARBALL}.sha256" -o "/tmp/${TARBALL}.sha256" && \
+    (cd /tmp && sha256sum -c "${TARBALL}.sha256") && \
+    tar -xzf "/tmp/${TARBALL}" -C /tmp/ && \
+    cp /tmp/inferno-aoip/bin/statime              /var/lib/inferno/bin/ && \
+    cp /tmp/inferno-aoip/bin/librespot            /var/lib/inferno/bin/ && \
+    cp /tmp/inferno-aoip/lib/libasound_module_pcm_inferno.so /var/lib/inferno/lib/ && \
+    chmod +x /var/lib/inferno/bin/statime /var/lib/inferno/bin/librespot && \
+    rm -rf /tmp/inferno-aoip /tmp/${TARBALL} /tmp/${TARBALL}.sha256
+
+# ── Templates (stored with %%PLACEHOLDER%% values, substituted at first boot) ─
+# System config templates
+COPY templates/inferno-ptpv1.toml         /etc/inferno/statime-inferno.toml.template
+COPY templates/alsa/99-inferno.conf       /etc/inferno/99-inferno.conf.template
+COPY templates/alsa/asoundrc.spotify      /etc/inferno/asoundrc.spotify.template
+# Per-user scripts (installed to ~/bin at first boot)
+COPY templates/inferno-sink-event         /etc/inferno/inferno-sink-event
+COPY templates/librespot-watchdog         /etc/inferno/librespot-watchdog
+# Web management UI
+COPY scripts/inferno-web.py               /var/lib/inferno/bin/inferno-web.py
+
+# ── Systemd SYSTEM units ───────────────────────────────────────────────────────
+COPY templates/systemd/system/statime-inferno.service /etc/systemd/system/
+
+# ── Systemd USER units (templates — copied to user dir at first boot) ─────────
+# inferno-bridge, inferno-keepalive are static (no placeholders)
+# librespot.service has %%INFERNO_NAME%% — substituted by inferno-configure.sh
+COPY templates/systemd/user/inferno-bridge.service      /etc/inferno/systemd/user/
+COPY templates/systemd/user/inferno-keepalive.service   /etc/inferno/systemd/user/
+COPY templates/systemd/user/librespot.service           /etc/inferno/systemd/user/
+COPY templates/systemd/user/librespot-watchdog.service  /etc/inferno/systemd/user/
+COPY templates/systemd/user/inferno-web.service         /etc/inferno/systemd/user/
+
+# ── snd-aloop kernel module (pinned to card 5 — avoids card number conflicts) ─
+RUN echo "options snd-aloop index=5" > /etc/modprobe.d/snd-aloop.conf && \
+    echo "snd-aloop" > /etc/modules-load.d/snd-aloop.conf
+
+# ── First-boot configuration service ──────────────────────────────────────────
+# Detects NIC/MAC, derives DEVICE_ID, substitutes placeholders,
+# sets up core user environment. Runs once (gated on /etc/inferno.conf absent).
+COPY build/inferno-configure.sh /usr/local/sbin/inferno-configure.sh
+COPY build/systemd/inferno-configure.service /etc/systemd/system/inferno-configure.service
+RUN chmod +x /usr/local/sbin/inferno-configure.sh
+
+# ── Enable system services ─────────────────────────────────────────────────────
+RUN systemctl enable \
+    sshd \
+    cockpit.socket \
+    avahi-daemon \
+    statime-inferno \
+    inferno-configure
+
+# ── Mask conflicting time sync services (PTP manages the clock) ───────────────
+RUN systemctl mask systemd-timesyncd chronyd ntpd
+
+# ── core user (Fedora IoT convention) ─────────────────────────────────────────
+# SSH authorized_keys: provide via build arg OR bootc-image-builder config.toml
+# (see build/README.md — config.toml is preferred for key management)
+ARG SSH_AUTHORIZED_KEY=""
+RUN useradd -m -d /var/home/core -G wheel,audio -s /bin/bash core 2>/dev/null || true && \
+    if [ -n "${SSH_AUTHORIZED_KEY}" ]; then \
+        mkdir -p /var/home/core/.ssh && \
+        printf '%s\n' "${SSH_AUTHORIZED_KEY}" > /var/home/core/.ssh/authorized_keys && \
+        chmod 700 /var/home/core/.ssh && \
+        chmod 600 /var/home/core/.ssh/authorized_keys && \
+        chown -R core:core /var/home/core/.ssh; \
+    fi
