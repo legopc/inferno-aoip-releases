@@ -53,10 +53,20 @@ Copy `ignition/inferno-template.ign` and fill in:
 | Field | Location in JSON | Example |
 |-------|-----------------|---------|
 | Password hash | `passwd.users[0].passwordHash` | output of `openssl passwd -6` |
-| `INFERNO_MODE` | `/etc/inferno.conf` inline content | `spotify` or `aux` |
+| SSH public key | `passwd.users[0].sshAuthorizedKeys` | your `~/.ssh/id_rsa.pub` or `id_ed25519.pub` |
+| `INFERNO_MODE` | `/etc/inferno.conf` inline content | `spotify`, `aux`, or `bluetooth` |
 | `INFERNO_NAME` | `/etc/inferno.conf` inline content | `Dante-Node-01` |
 | `INFERNO_NIC` | `/etc/inferno.conf` inline content | `enp1s0` or `auto` |
 | `INFERNO_AUDIO_CARD` | `/etc/inferno.conf` inline content | `0` (first sound card) |
+
+**⚠ Ignition version:** Use `3.4.0` (the template ships with this). Version 3.3.0 does
+not support `data:` URI sources or `overwrite: true`, which are required for reliable
+file placement.
+
+**⚠ Groups:** Do NOT add `audio` to the groups list in the ignition config.
+The `audio` group does not exist in the initramfs environment where Ignition runs on
+Fedora IoT 43. Only `wheel` is safe. The deploy script adds the user to `audio`
+as part of Phase 2.
 
 Example `/etc/inferno.conf` section in the ignition JSON:
 ```json
@@ -257,18 +267,27 @@ socat - UNIX-CONNECT:/var/run/qemu-server/111.serial0
 
 ### Monitoring via SSH
 
-The node should get a DHCP address. Check your DHCP leases or ARP table:
+The node gets a DHCP address. **Important: The IP may change between reboots** (e.g. after
+the Phase 1 rpm-ostree reboot). Always discover the IP fresh after each reboot.
+
 ```bash
-# On gateway/router, or on the network:
-arp -n | grep BC:24:11  # replace with your VM's MAC
-# Or check Proxmox DHCP logs if using Proxmox built-in DHCP
+# On Proxmox host — check which IP the VM got (replace MAC with your VM's MAC):
+grep -i "BC:24:11" /var/lib/misc/dnsmasq.leases 2>/dev/null
+# Or via ARP:
+arp -n | grep -i "BC:24:11"
+# Or check serial console after boot — look for "Started Network Manager" then:
+#   ip addr show   (via socat session)
 ```
 
 Once you have the IP, SSH with the credentials from your ignition config:
 ```bash
 ssh core@NODE_IP
 # Password: whatever you set in the ignition config (default: inferno123)
+# SSH public key auth works if sshAuthorizedKeys are set in the ignition template
 ```
+
+**⚠ If SSH publickey auth fails silently:** Verify you are connecting to the correct IP.
+The most common cause is connecting to a stale/old IP that belongs to a different device.
 
 ---
 
@@ -376,6 +395,48 @@ sudo nano /etc/inferno.conf
 sudo rm /var/lib/inferno/.deployed
 sudo systemctl reboot
 ```
+
+### SELinux denying inferno binary execution
+
+**Symptom:** `statime-inferno.service` fails with SELinux AVC denial for `execute` on
+files in `/var/lib/inferno/bin/`.
+
+**Cause:** SELinux `var_lib_t` context does not allow execute.
+
+**Fix:**
+```bash
+sudo chcon -t bin_t /var/lib/inferno/bin/*
+sudo systemctl restart statime-inferno
+```
+
+This is applied automatically by `inferno-deploy.sh` since the VM 111 session.
+If you are on an older tarball, apply manually.
+
+### SSH public key auth failing after deploy script runs
+
+**Symptom:** SSH connects but rejects the key without logging anything to journal.
+
+**Cause 1:** Wrong IP — the DHCP lease changed between reboots (especially after
+Phase 1 rpm-ostree reboot). Check the actual IP via DHCP/ARP/serial console.
+
+**Cause 2:** `AuthorizedKeysCommand /usr/libexec/ssh-key-dir` in the Red Hat drop-in
+config (`/etc/ssh/sshd_config.d/40-ssh-key-dir.conf`) returning an error. If the
+authorized_keys.d directory referenced by ssh-key-dir doesn't exist, it may cause
+auth to fail silently.
+
+**Fix:**
+```bash
+# Verify the actual VM IP first:
+ip addr show   # run from serial console if SSH is broken
+
+# If IP is correct and key auth still fails, check and disable AuthorizedKeysCommand:
+sudo bash -c "echo 'AuthorizedKeysCommand none' > /etc/ssh/sshd_config.d/40-ssh-key-dir.conf"
+sudo bash -c "echo 'AuthorizedKeysCommandUser nobody' >> /etc/ssh/sshd_config.d/40-ssh-key-dir.conf"
+sudo systemctl restart sshd
+```
+
+**Note:** Including SSH public keys directly in the ignition config (via `sshAuthorizedKeys`
+in the `passwd.users` section) is the most reliable approach and avoids this issue entirely.
 
 ---
 

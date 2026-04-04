@@ -1,13 +1,16 @@
 {
-  "ignition": { "version": "3.3.0" },
+  "ignition": { "version": "3.4.0" },
   "passwd": {
     "users": [
       {
         "name": "core",
         "passwordHash": "INFERNO_CORE_PASSWORD_HASH",
-        "groups": ["wheel", "audio"],
+        "groups": ["wheel"],
         "homeDir": "/var/home/core",
-        "shell": "/bin/bash"
+        "shell": "/bin/bash",
+        "sshAuthorizedKeys": [
+          "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCctsndHKV6ciMj9/6ngpzVsuJHFgsnCGxcUbAK20lgx2H3hXYWp2a/igydt0ghyGZWAoeEtcH5JySR3z8oBz+0eOeMqY/wnSVVBZ7qQCyGlq8n2Nd9ovbHbGHKw+30SWkZjapHxPmqc3z0oXX81tiKfW1kWN9Va3jW1Fnu59onrzJYV4UCQeSmTbWWD9eotPU88JwZjDaybX3Zx4wq9jlffdioQsOOyXdsH+NNRVyhMLXZ55f5W3zllWCryUlRmssOMctbuA7CM4Na0vGZcCvDHwqRMat3Y7IvwGxDp87U8cdm3XdEmj1xolyHQ2m3I8d0YlR4mQSdoFy4XtSisZHzuVndcoZo2hPVE2fbezByFAxyqQvYARFfGwQEgtwREJ4S0vOHdkx1dyFit0wHBxhhFxagTfLio7SKI9brmDqHsx8Ma7WRg0KDbxPWLVGAyWaJeBov9IKQsYqx7oWwb7UM01gM/zqEmA5jHwFMKcCMOJ2T0A55yIBNnMlsEI2M2BLLh7LRhq0VLqk9SwJubfIg1DYdu4bSNbaLeBzcauptoSjN/QSk0hPKmCvcYkJ5eiE4ClNaZtTNlhDKyGnGEawWK2W8VKdFKcGtkmBkZiQVxhIOeJORYDgfwn8az9aLcCovrZkRmlQ26xALhHXtbuzFB83XnP2K6b+wZnDwZWpnzQ== root@HVP-PRX-01-MGMT"
+        ]
       }
     ]
   },
@@ -16,22 +19,25 @@
       {
         "path": "/etc/sudoers.d/core-nopasswd",
         "mode": 288,
+        "overwrite": true,
         "contents": {
-          "inline": "core ALL=(ALL) NOPASSWD:ALL\n"
+          "source": "data:,core%20ALL%3D(ALL)%20NOPASSWD%3AALL%0A"
         }
       },
       {
         "path": "/etc/inferno.conf",
         "mode": 420,
+        "overwrite": true,
         "contents": {
-          "inline": "# Inferno AoIP node configuration — seed file written by Ignition\n# inferno-deploy.sh reads this on first boot and replaces it with derived values.\n\n# Mode: spotify or aux\nINFERNO_MODE=spotify\n\n# Dante/Spotify device name (appears in Dante Controller and Spotify app)\nINFERNO_NAME=InfernoNode\n\n# NIC name or 'auto' (auto = first non-loopback interface)\nINFERNO_NIC=auto\n\n# Physical audio card number for aux mode (0 = first card, usually the onboard codec)\n# For spotify mode this is unused.\nINFERNO_AUDIO_CARD=0\n"
+          "source": "data:,%23%20Inferno%20AoIP%20node%20configuration%20%E2%80%94%20seed%20file%20written%20by%20Ignition%0A%23%20inferno-deploy.sh%20reads%20this%20on%20first%20boot%20and%20replaces%20it%20with%20derived%20values.%0A%0A%23%20Mode%3A%20spotify%20or%20aux%20or%20bluetooth%0AINFERNO_MODE%3Dspotify%0A%0A%23%20Dante%20device%20name%20(appears%20in%20Dante%20Controller)%0AINFERNO_NAME%3DInfernoNode%0A%0A%23%20NIC%20name%20or%20'auto'%20(auto%20%3D%20first%20non-loopback%20interface)%0AINFERNO_NIC%3Dauto%0A%0A%23%20Physical%20audio%20card%20number%20(0%20%3D%20first%20card)%0AINFERNO_AUDIO_CARD%3D0%0A"
         }
       },
       {
         "path": "/usr/local/bin/inferno-firstboot.sh",
         "mode": 493,
+        "overwrite": true,
         "contents": {
-          "inline": "#!/bin/bash\n# Bootstrap script — downloads and runs the full inferno-deploy.sh from the tarball.\n# This avoids embedding the full deploy script in Ignition JSON.\nset -euo pipefail\n\nRELEASES_BASE=\"https://github.com/legopc/inferno-aoip-releases/releases/latest/download\"\nSENTINEL=\"/var/lib/inferno/.deployed\"\n\n[ -f \"${SENTINEL}\" ] && exit 0\n\nmkdir -p /var/lib/inferno/bin\ncurl -fsSL \"${RELEASES_BASE}/inferno-aoip.tar.gz\" -o /tmp/inferno-aoip.tar.gz\ncurl -fsSL \"${RELEASES_BASE}/inferno-aoip.tar.gz.sha256\" -o /tmp/inferno-aoip.tar.gz.sha256\n(cd /tmp && sha256sum -c inferno-aoip.tar.gz.sha256)\ntar -xzf /tmp/inferno-aoip.tar.gz -C /tmp/\nbash /tmp/inferno-aoip/scripts/inferno-deploy.sh\n"
+          "source": "data:,%23%21%2Fbin%2Fbash%0A%23%20Bootstrap%20script%20%E2%80%94%20downloads%20and%20runs%20the%20full%20inferno-deploy.sh%20from%20the%20tarball.%0Aset%20-euo%20pipefail%0A%0ARELEASES_BASE%3D%22https%3A%2F%2Fgithub.com%2Flegopc%2Finferno-aoip-releases%2Freleases%2Flatest%2Fdownload%22%0ASENTINEL%3D%22%2Fvar%2Flib%2Finferno%2F.deployed%22%0A%0A%5B%20-f%20%22%24%7BSENTINEL%7D%22%20%5D%20%26%26%20exit%200%0A%0Amkdir%20-p%20%2Fvar%2Flib%2Finferno%2Fbin%0Acurl%20-fsSL%20%22%24%7BRELEASES_BASE%7D%2Finferno-aoip.tar.gz%22%20-o%20%2Ftmp%2Finferno-aoip.tar.gz%0Acurl%20-fsSL%20%22%24%7BRELEASES_BASE%7D%2Finferno-aoip.tar.gz.sha256%22%20-o%20%2Ftmp%2Finferno-aoip.tar.gz.sha256%0A(cd%20%2Ftmp%20%26%26%20sha256sum%20-c%20inferno-aoip.tar.gz.sha256)%0Atar%20-xzf%20%2Ftmp%2Finferno-aoip.tar.gz%20-C%20%2Ftmp%2F%0Abash%20%2Ftmp%2Finferno-aoip%2Fscripts%2Finferno-deploy.sh%0A"
         }
       }
     ]
