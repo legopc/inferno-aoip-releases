@@ -7,7 +7,7 @@ Wants=default.target
 ExecStartPre=/bin/sh -c 'while [ ! -S /tmp/ptp-usrvclock ]; do sleep 1; done'
 # Only wait for PTP to stabilise on first boot (uptime < 60s).
 ExecStartPre=/bin/sh -c 'UP=$(cut -d. -f1 /proc/uptime); [ "$UP" -gt 60 ] || sleep 10'
-ExecStart=/var/lib/inferno/bin/librespot \
+ExecStart=/usr/local/bin/librespot \
     --name "%%INFERNO_NAME%%" \
     --device-type avr \
     --backend alsa \

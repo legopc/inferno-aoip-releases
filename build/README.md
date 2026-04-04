@@ -176,6 +176,37 @@ Or rebuild the container, push to a registry, and pull on nodes.
 
 ## Troubleshooting
 
+### SELinux: statime/librespot fail with `Permission denied` (status=203/EXEC)
+
+**Symptom**: `statime-inferno.service` loops with `Failed at step EXEC spawning ...: Permission denied`
+and `status=203/EXEC` in `systemctl status`.
+
+**Cause**: Binaries placed in `/var/lib/` get SELinux context `var_lib_t`. Systemd cannot exec files
+with this context — it needs `bin_t`. Files in `/var/lib` are NOT in the immutable ostree layer and
+get labeled by the default file context policy at runtime.
+
+**Fix (already applied in v4+)**: Binaries are now installed to `/usr/local/bin/` (part of the
+immutable ostree layer, `bin_t` context). ALSA plugin goes to `/usr/lib64/alsa-lib/` (`lib_t`).
+
+**Lesson**: Never place executables in `/var/lib/`, `/var/home/`, or other runtime-writable paths
+in a bootc image. Use `/usr/local/bin/` for executables, `/usr/local/lib/` for data files.
+
+### User services dead after first boot (port 8080 not responding, inferno-bridge/librespot inactive)
+
+**Symptom**: After first boot, user services (`inferno-web`, `inferno-bridge`, `librespot`) are
+enabled but `inactive (dead)`. Port 8080 returns connection refused.
+
+**Cause**: `inferno-configure.sh` enables user services during the first boot, but systemd user
+lingering takes effect on the *next* boot. The services are enabled but never started on the same
+boot they were registered.
+
+**Fix (already applied in v4+)**: `inferno-configure.sh` now calls `systemctl reboot` at the end.
+The appliance auto-reboots after first-boot configuration — no manual intervention needed. On the
+second boot, all user services start automatically via lingering.
+
+**Lesson**: When enabling systemd user services from a root script, always trigger a reboot after
+`loginctl enable-linger` — user services will not start until the next boot.
+
 ### Verifying install is progressing (don't just poll status)
 
 When waiting for Anaconda to finish, confirm it is actually writing to disk — don't rely solely

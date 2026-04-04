@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=root
-ExecStart=/var/lib/inferno/bin/statime -c /etc/statime-inferno.toml
+ExecStart=/usr/local/bin/statime -c /etc/statime-inferno.toml
 Restart=on-failure
 RestartSec=5
 

@@ -34,9 +34,12 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     && dnf clean all
 
 # ── Directory structure ────────────────────────────────────────────────────────
+# NOTE: binaries go in /usr/local/bin/ and /usr/lib64/alsa-lib/ (immutable ostree layer, correct
+# SELinux contexts: bin_t and lib_t). Do NOT place executables in /var/lib/ — that path gets
+# var_lib_t context which systemd cannot exec (status=203/EXEC Permission denied).
 RUN mkdir -p \
-    /var/lib/inferno/bin \
-    /var/lib/inferno/lib \
+    /var/lib/inferno \
+    /usr/local/lib/inferno \
     /etc/inferno/systemd/user \
     /etc/alsa/conf.d
 
@@ -48,10 +51,10 @@ RUN TARBALL=inferno-aoip.tar.gz && \
     curl -fsSL "${RELEASES_URL}/${TARBALL}.sha256" -o "/tmp/${TARBALL}.sha256" && \
     (cd /tmp && sha256sum -c "${TARBALL}.sha256") && \
     tar -xzf "/tmp/${TARBALL}" -C /tmp/ && \
-    cp /tmp/inferno-aoip/bin/statime              /var/lib/inferno/bin/ && \
-    cp /tmp/inferno-aoip/bin/librespot            /var/lib/inferno/bin/ && \
-    cp /tmp/inferno-aoip/lib/libasound_module_pcm_inferno.so /var/lib/inferno/lib/ && \
-    chmod +x /var/lib/inferno/bin/statime /var/lib/inferno/bin/librespot && \
+    cp /tmp/inferno-aoip/bin/statime              /usr/local/bin/ && \
+    cp /tmp/inferno-aoip/bin/librespot            /usr/local/bin/ && \
+    cp /tmp/inferno-aoip/lib/libasound_module_pcm_inferno.so /usr/lib64/alsa-lib/ && \
+    chmod +x /usr/local/bin/statime /usr/local/bin/librespot && \
     rm -rf /tmp/inferno-aoip /tmp/${TARBALL} /tmp/${TARBALL}.sha256
 
 # ── Templates (stored with %%PLACEHOLDER%% values, substituted at first boot) ─
@@ -63,7 +66,7 @@ COPY templates/alsa/asoundrc.spotify      /etc/inferno/asoundrc.spotify.template
 COPY templates/inferno-sink-event         /etc/inferno/inferno-sink-event
 COPY templates/librespot-watchdog         /etc/inferno/librespot-watchdog
 # Web management UI
-COPY scripts/inferno-web.py               /var/lib/inferno/bin/inferno-web.py
+COPY scripts/inferno-web.py               /usr/local/lib/inferno/inferno-web.py
 
 # ── Systemd SYSTEM units ───────────────────────────────────────────────────────
 COPY templates/systemd/system/statime-inferno.service /etc/systemd/system/

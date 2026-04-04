@@ -53,7 +53,7 @@ INFERNO_DEVICE_ID_RX="${MAC_CLEAN}0002"
 MAC_SUFFIX=$(echo "${MAC_CLEAN}" | tail -c 7)  # last 6 hex chars
 INFERNO_NAME="Inferno-${MAC_SUFFIX^^}"
 
-PLUGIN_PATH="/var/lib/inferno/lib/libasound_module_pcm_inferno.so"
+PLUGIN_PATH="/usr/lib64/alsa-lib/libasound_module_pcm_inferno.so"
 
 echo "MAC: ${MAC}  DEVICE_ID: ${INFERNO_DEVICE_ID}  NAME: ${INFERNO_NAME}"
 
@@ -148,4 +148,6 @@ echo "=== Inferno AoIP configuration complete ==="
 echo "    Name:      ${INFERNO_NAME}"
 echo "    NIC:       ${INFERNO_NIC} (${INFERNO_INTERFACE})"
 echo "    DEVICE_ID: ${INFERNO_DEVICE_ID}"
-echo "    Reboot to start all services."
+echo "    Rebooting in 5 seconds to start all services..."
+sleep 5
+systemctl reboot
