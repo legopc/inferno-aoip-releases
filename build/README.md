@@ -56,6 +56,7 @@ ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "
     -v /mnt/inferno-build/config.toml:/config.toml:ro \
     ghcr.io/osbuild/bootc-image-builder:latest \
     --type anaconda-iso \
+    --rootfs xfs \
     --config /config.toml \
     localhost/inferno-appliance:${VERSION}
 "
