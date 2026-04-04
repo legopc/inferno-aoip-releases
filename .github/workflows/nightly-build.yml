@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-24.04
     # ubuntu-24.04 = glibc 2.39 — compatible with Fedora IoT 43 (glibc 2.40 is ABI-forward-compatible)
     timeout-minutes: 90
+    permissions:
+      contents: write   # required to create GitHub Releases and upload assets
 
     steps:
       # ── Rust toolchain ────────────────────────────────────────────────────
