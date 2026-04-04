@@ -46,6 +46,14 @@
         }
       },
       {
+        "path": "/usr/local/bin/inferno-postdeploy.sh",
+        "mode": 493,
+        "overwrite": true,
+        "contents": {
+          "source": "data:,%23%21%2Fbin%2Fbash%0Aset%20-euo%20pipefail%0A%23%20Fix%20SELinux%20context%20on%20inferno%20binaries%20so%20they%20can%20execute%0Achcon%20-t%20bin_t%20%2Fvar%2Flib%2Finferno%2Fbin%2F%2A%202%3E%2Fdev%2Fnull%20%7C%7C%20true%0A%23%20Enable%20and%20start%20statime%20%28OSTree%20merge%20doesn%27t%20reliably%20carry%20over%20enables%29%0Asystemctl%20enable%20--now%20statime-inferno.service%202%3E%2Fdev%2Fnull%20%7C%7C%20true%0A%23%20Mark%20done%0Atouch%20%2Fvar%2Flib%2Finferno%2F.postdeploy-done%0A"
+        }
+      },
+      {
         "path": "/usr/local/bin/inferno-firstboot.sh",
         "mode": 493,
         "overwrite": true,
@@ -63,8 +71,25 @@
         "contents": "[Unit]\nDescription=Inferno AoIP first-boot deployment\nAfter=network-online.target\nWants=network-online.target\nConditionPathExists=!/var/lib/inferno/.deployed\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/usr/local/bin/inferno-firstboot.sh\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=multi-user.target\n"
       },
       {
+        "name": "inferno-postdeploy.service",
+        "enabled": true,
+        "contents": "[Unit]\nDescription=Inferno AoIP post-deploy fixup\nAfter=inferno-firstboot.service network-online.target\nWants=network-online.target\nConditionPathExists=/var/lib/inferno/.deployed\nConditionPathExists=!/var/lib/inferno/.postdeploy-done\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/usr/local/bin/inferno-postdeploy.sh\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=multi-user.target\n"
+      },
+      {
         "name": "getty@tty1.service",
         "enabled": true
+      },
+      {
+        "name": "coreos-installer-growfs.service",
+        "mask": true
+      },
+      {
+        "name": "systemd-remount-fs.service",
+        "mask": true
+      },
+      {
+        "name": "greenboot-set-rollback-trigger.service",
+        "mask": true
       }
     ]
   }
