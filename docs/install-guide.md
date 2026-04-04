@@ -679,11 +679,240 @@ The ignition config that ships with this repo (`ignition/inferno-template.ign`) 
 | `/etc/sudoers.d/core-nopasswd` | `storage.files` |
 | `/etc/inferno.conf` seed | `storage.files` |
 | `/usr/local/bin/inferno-firstboot.sh` | `storage.files` (bootstrap script) |
-| `inferno-firstboot.service` | `systemd.units` (runs firstboot script) |
+| `/usr/local/bin/inferno-postdeploy.sh` | `storage.files` (Boot 2 fixup script) |
+| `inferno-firstboot.service` | `systemd.units` (Boot 1 — deploys Inferno) |
+| `inferno-postdeploy.service` | `systemd.units` (Boot 2 — SELinux + statime) |
 | `getty@tty1.service` enabled | `systemd.units` (keyboard/display login) |
+| `coreos-installer-growfs.service` | **masked** — see troubleshooting |
+| `systemd-remount-fs.service` | **masked** — see troubleshooting |
+| `greenboot-set-rollback-trigger.service` | **masked** — see troubleshooting |
 
 The firstboot script downloads the tarball from GitHub and runs `inferno-deploy.sh`.
 No binaries are embedded in the ignition config itself — it stays small and version-agnostic.
+
+---
+
+## Lessons Learned — Session Notes
+
+This section documents every significant issue encountered and fixed during the VM 111 validation
+sessions. Each issue wasted hours before being understood. Read this before debugging.
+
+---
+
+### L1: Always capture the MAC immediately after `qm create`
+
+Proxmox assigns a **random** MAC every time a VM is created. It changes on every
+`qm destroy` + `qm create`. You need the MAC to find the node's DHCP IP after boot.
+
+```bash
+# Read it immediately after qm create:
+qm config 111 | grep net0
+# net0: virtio=BC:24:11:D1:3D:57,bridge=vmbr0,tag=10
+#                ^^^^^^^^^^^^^^^^ — record this
+
+# Find IP later:
+ip neigh | grep -i "d1:3d:57"
+```
+
+If you lose track of the MAC: `qm config 111 | grep net0` always shows it.
+Record it in `files/inferno-access.md` every time you recreate a VM.
+
+---
+
+### L2: Never try to salvage a failed install — always destroy and recreate
+
+When a VM disk install fails (ENOSPC, partial write, interrupted), do not try to fix it.
+Always destroy completely and recreate:
+
+```bash
+qm stop 111 --skiplock
+qm destroy 111 --destroy-unreferenced-disks 1 --purge 1
+# Then qm create 111 ... from scratch
+```
+
+**Why:** When an LV is inactive (VM stopped without explicit activation), the
+`/dev/VGname/LVname` symlink disappears. If you then run `dd` or `coreos-installer` without
+checking whether the symlink exists, the shell creates a **regular file** in `/dev` (which is
+a tmpfs sized to match RAM). The file grows until tmpfs is 100% full, causing cascading udev
+failures. `qm destroy` + `qm create` guarantees a clean LV with proper symlinks.
+
+---
+
+### L3: Boot order `scsi0;ide2` — not `ide2;scsi0`
+
+With OVMF (UEFI) and a fresh disk (no EFI bootloader), use `scsi0;ide2`:
+
+```bash
+qm set 111 --boot order="scsi0;ide2"
+```
+
+UEFI tries `scsi0` first → finds no EFI bootloader on the fresh disk → automatically falls
+through to `ide2` (the CDROM/ISO). After install, the disk has an EFI bootloader and future
+boots use `scsi0` without touching the CDROM.
+
+With `ide2;scsi0`, after install the machine may re-enter the installer on reboot. With
+`scsi0;ide2`, no manual boot order change is needed after install.
+
+---
+
+### L4: coreos-installer does NOT write ignition to p2 with `file://` URL
+
+**This is the single most time-consuming issue in the entire session.**
+
+When grub.cfg contains `coreos.inst.ignition_url=file:///run/media/iso/ignition/config.ign`,
+coreos-installer reads and uses the config during install but **does not write it to the
+installed disk's p2 partition** (`/boot/ignition/config.ign`). On first boot, ignition finds
+no config and runs with defaults — no SSH keys, no user password, no firstboot service.
+
+**Symptom:** SSH gives "Permission denied" immediately after first boot. The
+`/mnt/p2/ignition/` directory does not exist after install.
+
+**Workaround for Proxmox VMs:**
+
+```bash
+# After install completes (VM in emergency mode or post-reboot), stop the VM:
+qm stop 111; sleep 3
+
+# Mount p2 via losetup (NOT direct offset mount — use losetup for block devices)
+LOOP=$(losetup -f --show -o $((1028096 * 512)) \
+  /dev/mapper/HVP--PRX--01--VMDISK01-vm--111--disk--1)
+mkdir -p /mnt/p2 && mount $LOOP /mnt/p2
+
+# Place ignition
+mkdir -p /mnt/p2/ignition
+cp /tmp/vm111.ign /mnt/p2/ignition/config.ign
+
+umount /mnt/p2 && losetup -d $LOOP
+
+# Boot from disk only
+qm set 111 --boot order="scsi0"
+qm start 111
+```
+
+**For physical hardware:** Use HTTP-served ignition instead of `file://`:
+```
+coreos.inst.ignition_url=http://10.10.1.X:8080/node.ign
+```
+HTTP fetches ARE written to p2 correctly by coreos-installer.
+
+---
+
+### L5: `coreos-installer-growfs.service` causes emergency mode
+
+Without `skip_reboot` in the grub.cfg, coreos-installer reboots normally after install.
+On the first real boot of the installed system, `coreos-installer-growfs.service` runs to
+expand the root filesystem. In Fedora IoT 43 (LUKS-encrypted root, composefs overlay),
+this service fails and triggers emergency mode.
+
+**Fix:** Mask the service in ignition. It is already masked in `ignition/inferno-template.ign`.
+The root filesystem on a 32 GB disk is adequate without growing.
+
+---
+
+### L6: `systemd-remount-fs.service` and `greenboot` show as failed — harmless
+
+Fedora IoT uses a **composefs** read-only root overlay (OSTree). The root cannot be
+remounted read-write — that is by design. `systemd-remount-fs.service` tries to do this and
+fails. `greenboot-set-rollback-trigger.service` then can't remount `/boot` as read-only
+because it's busy.
+
+Neither failure affects operation. Both are masked in `ignition/inferno-template.ign`.
+
+---
+
+### L7: `systemctl enable` does not reliably survive an OSTree rpm-ostree reboot
+
+After `rpm-ostree install` stages a new deployment and the system reboots, systemctl enable
+symlinks created in the previous boot's `/etc` may not carry over correctly into the new
+deployment's `/etc` overlay.
+
+**Fix:** The `inferno-postdeploy.service` runs on Boot 2, after the OSTree reboot.
+It is conditioned on `/var/lib/inferno/.deployed` existing (created by firstboot) and
+`/var/lib/inferno/.postdeploy-done` NOT existing. It does:
+1. `chcon -t bin_t /var/lib/inferno/bin/*` — fixes SELinux so binaries can execute
+2. `systemctl enable --now statime-inferno.service` — re-enables statime in the new deployment
+3. `touch /var/lib/inferno/.postdeploy-done` — prevents re-running
+
+---
+
+### L8: p3 (root partition) is LUKS-encrypted by default in Fedora IoT 43
+
+The root partition cannot be mounted from the Proxmox host without the LUKS key.
+Only p2 (the `/boot` partition, ext4, unencrypted) can be accessed offline.
+Do not try to mount p3 for troubleshooting.
+
+---
+
+### L9: Use `losetup -f --show -o OFFSET` to mount p2, not direct offset mount
+
+```bash
+# CORRECT — works on LVM block devices:
+LOOP=$(losetup -f --show -o $((1028096 * 512)) /dev/mapper/VG-LV)
+mount $LOOP /mnt/p2
+
+# WRONG — fails with XFS/ext4 on block devices:
+mount -o offset=526385152 /dev/mapper/VG-LV /mnt/p2
+
+# Also WRONG — kpartx not available on Proxmox by default:
+kpartx -av /dev/mapper/VG-LV
+```
+
+The DM mapper device name uses double-dashes for single dashes in the VG/LV name:
+`/dev/mapper/HVP--PRX--01--VMDISK01-vm--111--disk--1`
+
+---
+
+### L10: ISO repack requires a temp LV — Proxmox root FS is too small
+
+Proxmox root FS (`pve-root`) is 25 GB with ~92% usage. Repacking a 1.5 GB ISO needs ~4 GB
+workspace. Create a temp LV on the data VG:
+
+```bash
+lvcreate -y -L 4G -n iso-work HVP-PRX-01-VMDISK01
+mkfs.ext4 -q /dev/HVP-PRX-01-VMDISK01/iso-work
+mkdir -p /mnt/isowork && mount /dev/HVP-PRX-01-VMDISK01/iso-work /mnt/isowork
+# ... do repack work ...
+umount /mnt/isowork && lvremove -f HVP-PRX-01-VMDISK01/iso-work
+```
+
+Use `-y` flag on `lvcreate` to avoid interactive prompts about existing signatures.
+
+---
+
+### L11: xorriso repack parameters for Fedora IoT provisioner ISO
+
+```bash
+xorriso -as mkisofs \
+  -o /mnt/isowork/new.iso \
+  -V 'Fedora-43-IoT-x86_64' \
+  -G --interval:local_fs:0s-15s::/path/to/original.iso \
+  --boot-catalog-hide \
+  -b '/isolinux/isolinux.bin' \
+  -no-emul-boot -boot-load-size 4 -boot-info-table \
+  -eltorito-alt-boot \
+  -e '/images/efiboot.img' \
+  -no-emul-boot -boot-load-size 40960 \
+  -isohybrid-gpt-basdat \
+  /mnt/isowork/iso
+```
+
+Get the correct parameters from the original ISO: `xorriso -indev original.iso -report_system_area as_mkisofs`
+
+---
+
+### L12: Serial console via socat is exclusive — only one reader at a time
+
+When the Proxmox web console is open, `socat - UNIX-CONNECT:/var/run/qemu-server/111.serial0`
+returns no output. The socket only allows one connected reader. Close the browser console tab
+first, or monitor exclusively via socat.
+
+---
+
+### L13: Ignition spec must be 3.4.0
+
+Use `"version": "3.4.0"` in the ignition config. Older versions (3.3.x) do not support
+`data:` URI sources inline. The `audio` group does not exist at ignition time — only add
+`wheel` to user groups.
 
 ---
 
