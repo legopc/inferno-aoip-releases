@@ -102,6 +102,6 @@ RUN systemctl mask systemd-timesyncd chronyd ntpd
 # ── core user ─────────────────────────────────────────────────────────────────
 # Login: core / inferno123  (console, SSH, Cockpit web UI at https://node:9090)
 RUN mkdir -p /var/home && \
-    useradd -m -d /var/home/core -G wheel,audio -s /bin/bash core && \
+    useradd -m -d /var/home/core -G wheel -s /bin/bash core && \
     echo "core:inferno123" | chpasswd && \
     echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd
