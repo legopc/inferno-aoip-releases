@@ -99,15 +99,8 @@ RUN systemctl enable \
 # ── Mask conflicting time sync services (PTP manages the clock) ───────────────
 RUN systemctl mask systemd-timesyncd chronyd ntpd
 
-# ── core user (Fedora IoT convention) ─────────────────────────────────────────
-# SSH authorized_keys: provide via build arg OR bootc-image-builder config.toml
-# (see build/README.md — config.toml is preferred for key management)
-ARG SSH_AUTHORIZED_KEY=""
+# ── core user ─────────────────────────────────────────────────────────────────
+# Login: core / inferno123  (console + Cockpit web UI at https://node:9090)
 RUN useradd -m -d /var/home/core -G wheel,audio -s /bin/bash core 2>/dev/null || true && \
-    if [ -n "${SSH_AUTHORIZED_KEY}" ]; then \
-        mkdir -p /var/home/core/.ssh && \
-        printf '%s\n' "${SSH_AUTHORIZED_KEY}" > /var/home/core/.ssh/authorized_keys && \
-        chmod 700 /var/home/core/.ssh && \
-        chmod 600 /var/home/core/.ssh/authorized_keys && \
-        chown -R core:core /var/home/core/.ssh; \
-    fi
+    echo "core:inferno123" | chpasswd && \
+    echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd
