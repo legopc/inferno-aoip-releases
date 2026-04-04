@@ -19,7 +19,8 @@ FROM registry.fedoraproject.org/fedora-bootc:43
 # ── Packages ──────────────────────────────────────────────────────────────────
 RUN dnf install -y --setopt=install_weak_deps=False \
     # Cockpit web UI (management interface — https://node:9090)
-    cockpit-system \
+    # cockpit-ws provides cockpit.socket; cockpit-system provides the System page
+    cockpit-ws cockpit-system \
     # ALSA audio stack
     alsa-lib alsa-utils alsa-plugins-speex speexdsp \
     # Avahi / mDNS (Dante discovery)
