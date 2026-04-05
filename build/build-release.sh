@@ -87,19 +87,6 @@ else
   echo "── [3b] No branding pixmaps found — skipping ISO branding ──"
 fi
 
-# SCP ISO to Proxmox ISO storage (build VM is separate from Proxmox host)
-ISO_DEST="${PROXMOX_ISO_DIR}/inferno-appliance-${VERSION}.iso"
-if [[ -n "${PROXMOX_ISO_HOST}" ]]; then
-  echo "Copying ISO to ${PROXMOX_ISO_HOST}:${ISO_DEST} ..."
-  scp -i "${PROXMOX_SSH_KEY}" -o StrictHostKeyChecking=no \
-    "${ISO_PATH}" "${PROXMOX_ISO_HOST}:${ISO_DEST}"
-  echo "ISO available in Proxmox: ${ISO_DEST}"
-else
-  # Running directly on a Proxmox host — symlink as before
-  ln -sf "${ISO_PATH}" "${ISO_DEST}"
-  echo "Symlinked: ${ISO_DEST} → ${ISO_PATH}"
-fi
-
 # ── Step 4: Export raw upgrade tarball ───────────────────────────────────────
 echo ""
 echo "── [4/5] Exporting raw upgrade tarball → ${UPGRADE_TAR} ──"
@@ -115,11 +102,37 @@ echo "── [5/5] Packaging .iotupdate bundle for Cockpit IoT Updater → ${IOT
   --description "${DESCRIPTION}" \
   --out "${IOTUPDATE_BUNDLE}"
 
+# ── All local artifacts ready ─────────────────────────────────────────────────
+echo ""
+echo "=== Local artifacts ready on build VM ==="
+echo "  ISO:        $(ls -lh ${ISO_PATH})"
+echo "  Tar:        $(ls -lh ${UPGRADE_TAR})"
+echo "  IoT bundle: $(ls -lh ${IOTUPDATE_BUNDLE})"
+
+# ── Copy ISO to Proxmox ISO storage ──────────────────────────────────────────
+LOCAL_ISO_COPY="${BUILD_DIR}/inferno-appliance-${VERSION}.iso"
+cp "${ISO_PATH}" "${LOCAL_ISO_COPY}"
+echo ""
+echo "ISO kept locally: ${LOCAL_ISO_COPY}"
+
+ISO_DEST="${PROXMOX_ISO_DIR}/inferno-appliance-${VERSION}.iso"
+if [[ -n "${PROXMOX_ISO_HOST}" ]]; then
+  echo "Copying ISO to ${PROXMOX_ISO_HOST}:${ISO_DEST} ..."
+  scp -i "${PROXMOX_SSH_KEY}" -o StrictHostKeyChecking=no \
+    "${LOCAL_ISO_COPY}" "${PROXMOX_ISO_HOST}:${ISO_DEST}"
+  echo "ISO available in Proxmox: ${ISO_DEST}"
+else
+  # Running directly on a Proxmox host — symlink as before
+  ln -sf "${ISO_PATH}" "${ISO_DEST}"
+  echo "Symlinked: ${ISO_DEST} → ${ISO_PATH}"
+fi
+
 echo ""
 echo "=== Build complete at $(date) ==="
-echo "  ISO:             ${PROXMOX_ISO_HOST}:${PROXMOX_ISO_DIR}/inferno-appliance-${VERSION}.iso"
-echo "  Upgrade tar:     ${UPGRADE_TAR}  (raw, for streaming upgrades)"
-echo "  IoT bundle:      ${IOTUPDATE_BUNDLE}  (upload via Cockpit IoT Updater UI)"
+echo "  ISO (build VM): ${LOCAL_ISO_COPY}"
+echo "  ISO (Proxmox):  ${PROXMOX_ISO_HOST}:${PROXMOX_ISO_DIR}/inferno-appliance-${VERSION}.iso"
+echo "  Upgrade tar:    ${UPGRADE_TAR}  (raw, for streaming upgrades)"
+echo "  IoT bundle:     ${IOTUPDATE_BUNDLE}  (upload via Cockpit IoT Updater UI)"
 echo ""
 echo "To upgrade a node via tarball streaming:"
 echo "  ssh root@<build-vm> 'cat ${UPGRADE_TAR}' \\"
