@@ -36,7 +36,9 @@ apt-get install -y --no-install-recommends \
     git \
     curl \
     python3 \
-    openssh-client
+    openssh-client \
+    xorriso \
+    squashfs-tools
 
 # ── Step 2: Directory layout ─────────────────────────────────────────────────
 echo ""

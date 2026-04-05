@@ -75,6 +75,11 @@ COPY templates/alsa/asoundrc.aux          /etc/inferno/asoundrc.aux.template
 COPY templates/inferno-sink-event         /etc/inferno/inferno-sink-event
 COPY templates/librespot-watchdog         /etc/inferno/librespot-watchdog
 
+# ── Inferno branding (Cockpit login screen + nav) ────────────────────────────
+# Clone legopc/inferno-branding into branding/ before building
+# (handled by build-release.sh and prepare-build.sh automatically)
+COPY branding/cockpit/ /usr/share/cockpit/branding/fedora/
+
 # ── Cockpit Inferno page ───────────────────────────────────────────────────────
 # Baked into the image at the system-wide Cockpit package path.
 # cockpit-ws auto-discovers packages in /usr/share/cockpit/.

@@ -51,6 +51,16 @@ echo "── [1/5] Pulling latest code ──"
 cd "${BUILD_DIR}/inferno-aoip-releases"
 git pull
 
+# Pull or clone the branding repo (always alongside the main repo)
+BRANDING_DIR="${BUILD_DIR}/inferno-aoip-releases/branding"
+if [[ -d "${BRANDING_DIR}/.git" ]]; then
+  echo "Pulling branding repo..."
+  git -C "${BRANDING_DIR}" pull --ff-only
+else
+  echo "Cloning branding repo..."
+  git clone https://github.com/legopc/inferno-branding "${BRANDING_DIR}"
+fi
+
 # ── Step 2: Build container image ────────────────────────────────────────────
 echo ""
 echo "── [2/5] Building container image localhost/inferno-appliance:${VERSION} ──"
@@ -72,6 +82,21 @@ ${PODMAN} run --rm --privileged \
 
 ISO_PATH="${OUTPUT_DIR}/bootiso/install.iso"
 echo "ISO built: $(ls -lh ${ISO_PATH})"
+
+# ── Step 3b: Inject installer branding ───────────────────────────────────────
+echo ""
+if [[ -d "${BRANDING_DIR}/installer/pixmaps" ]]; then
+  echo "── [3b] Injecting installer branding ──"
+  cd "${BRANDING_DIR}"
+  bash scripts/build-product-img.sh
+  BRANDED_ISO="${OUTPUT_DIR}/bootiso/inferno-appliance-${VERSION}-branded.iso"
+  bash scripts/inject-iso-branding.sh "${ISO_PATH}" "${BRANDED_ISO}"
+  ISO_PATH="${BRANDED_ISO}"
+  echo "Branded ISO: $(ls -lh ${ISO_PATH})"
+  cd "${BUILD_DIR}/inferno-aoip-releases"
+else
+  echo "── [3b] No branding pixmaps found — skipping ISO branding ──"
+fi
 
 # SCP ISO to Proxmox ISO storage (build VM is separate from Proxmox host)
 ISO_DEST="${PROXMOX_ISO_DIR}/inferno-appliance-${VERSION}.iso"
