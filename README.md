@@ -1,6 +1,14 @@
-# Inferno AoIP Appliance
+# Inferno AoIP Appliance — *Virgil*
 
 A headless Linux appliance that bridges Spotify Connect and analog audio into a Dante Audio-over-IP network. Runs as an immutable [bootc](https://containers.github.io/bootc/) image — the entire OS is a container image that boots directly. No package manager, no config drift.
+
+This appliance is named **Virgil** after the Roman poet who guides Dante through the Inferno in Dante Alighieri's *Divine Comedy* — just as this OS image guides and carries the [Inferno AoIP project](https://gitlab.com/lumifaza/inferno) onto real hardware. All credit for the Inferno protocol implementation goes to its original creators and contributors at [gitlab.com/lumifaza/inferno](https://gitlab.com/lumifaza/inferno) — this appliance simply packages their work.
+
+> **⚠️ AI-GENERATED CODE — READ BEFORE RUNNING**
+>
+> This repository is substantially AI-assisted ("AI slop"). The Containerfile, scripts, systemd units, and configuration files were written with the help of an AI coding assistant. **Do not blindly run code on your machine without understanding what it does.** Review the `Containerfile`, `build-release.sh`, and any scripts before building or installing.
+>
+> That said: this is **verified working on real hardware** across multiple HP EliteDesk nodes and test VMs. The Dante networking, PTP sync, Spotify Connect, and aux audio paths have all been exercised on physical systems. "AI slop" doesn't mean untested — it means you should still read what you're running.
 
 ---
 
