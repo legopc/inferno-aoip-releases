@@ -202,3 +202,11 @@ body {
 .audio-cap-badge { color: #1a7a3b; font-size: 0.85em; }
 .audio-play-badge { color: #1a4da0; font-size: 0.85em; }
 .audio-card-dimmed { opacity: 0.5; font-style: italic; }
+
+/* Volume Control panel */
+.vol-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.vol-row:last-child { margin-bottom: 0; }
+.vol-label { min-width: 160px; font-size: 0.88rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vol-slider { flex: 1; accent-color: #1a4da0; cursor: pointer; }
+.vol-pct { min-width: 42px; text-align: right; font-size: 0.88rem; font-weight: 600; }
+.vol-db  { min-width: 56px; text-align: right; font-size: 0.78rem; color: #6a6e73; }

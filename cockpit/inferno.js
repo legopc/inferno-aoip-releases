@@ -332,7 +332,157 @@ async function refreshAudioDevices() {
     }
 }
 
-// ── Aux ALSA + service auto-provisioning ──────────────────────────────────────
+// ── Volume Control ─────────────────────────────────────────────────────────────
+
+// Per-card volume state: { cardNum: { control, pct, db } }
+var volumeState = {};
+
+// Detect the primary playback volume control for a card.
+// Returns { control, pct, db } or null.
+async function detectCardVolume(cardNum) {
+    var controls = ["Master", "Headphone", "PCM"];
+    for (var i = 0; i < controls.length; i++) {
+        var ctrl = controls[i];
+        try {
+            var out = await sp(["amixer", "-c", String(cardNum), "sget", ctrl]);
+            // Must have playback volume and a percentage
+            var m = out.match(/Playback\s+\d+\s+\[(\d+)%\]\s+\[([^\]]+dB)\]/);
+            if (!m) continue;
+            return { control: ctrl, pct: parseInt(m[1]), db: m[2] };
+        } catch (_) {}
+    }
+    return null;
+}
+
+// Get card numbers currently in use by the audio selectors (deduped).
+// NOTE: matching is done inside loadVolumes; this stub kept for reference.
+
+async function loadVolumes() {
+    var el = $("volume-sliders");
+    el.innerHTML = "<span class='loading-text'>Reading mixer levels…</span>";
+
+    // Build card num → { alsaId, codec } from aplay -l
+    var cardMap = {};
+    try {
+        var aplayOut = await sp(["aplay", "-l"]);
+        var seen = {};
+        aplayOut.split("\n").forEach(function(line) {
+            var m = line.match(/^card\s+(\d+):\s+(\S+)\s+\[([^\]]+)\]/i);
+            if (!m || seen[m[1]]) return;
+            seen[m[1]] = true;
+            if (/Loopback/i.test(m[3])) return;
+            cardMap[m[1]] = { alsaId: m[2], codec: m[3].trim() };
+        });
+    } catch (_) {}
+
+    // Selector values are alsaId strings (e.g. "PCH", "G430") or card numbers
+    var selValues = [
+        $("cfg-audio-in").value,
+        $("cfg-audio-out").value,
+        $("cfg-audio-in2") ? $("cfg-audio-in2").value : "none",
+        $("cfg-audio-out2") ? $("cfg-audio-out2").value : "none"
+    ].filter(function(v) { return v && v !== "none"; });
+
+    // Match by alsaId or numeric card number
+    var usedNums = {};
+    Object.keys(cardMap).forEach(function(num) {
+        var info = cardMap[num];
+        selValues.forEach(function(v) {
+            if (v === info.alsaId || v === num) usedNums[num] = info.codec;
+        });
+    });
+
+    // Fall back: show all non-loopback cards
+    if (!Object.keys(usedNums).length) {
+        Object.keys(cardMap).forEach(function(num) {
+            usedNums[num] = cardMap[num].codec;
+        });
+    }
+
+    // Probe each card for its primary volume control
+    volumeState = {};
+    var probes = Object.keys(usedNums).sort().map(function(num) {
+        return detectCardVolume(num).then(function(info) {
+            if (info) volumeState[num] = Object.assign({ codec: usedNums[num] }, info);
+        });
+    });
+    await Promise.all(probes);
+
+    renderVolumeSliders();
+}
+
+function renderVolumeSliders() {
+    var el = $("volume-sliders");
+    var keys = Object.keys(volumeState).sort();
+    if (!keys.length) {
+        el.innerHTML = "<span class='loading-text'>No controllable audio cards found.</span>";
+        return;
+    }
+    var html = "";
+    keys.forEach(function(num) {
+        var s = volumeState[num];
+        html += '<div class="vol-row">';
+        html += '<span class="vol-label" title="Card ' + num + ': ' + s.codec + ' (' + s.control + ')">'
+              + s.codec + '</span>';
+        html += '<input class="vol-slider" type="range" min="0" max="100" value="' + s.pct + '" '
+              + 'data-card="' + num + '" data-control="' + s.control + '">';
+        html += '<span class="vol-pct" id="vol-pct-' + num + '">' + s.pct + '%</span>';
+        html += '<span class="vol-db"  id="vol-db-'  + num + '">' + s.db  + '</span>';
+        html += '</div>';
+    });
+    el.innerHTML = html;
+
+    // Wire up sliders
+    el.querySelectorAll(".vol-slider").forEach(function(slider) {
+        slider.addEventListener("input", function() {
+            var num = this.dataset.card;
+            var pct = this.value;
+            $("vol-pct-" + num).textContent = pct + "%";
+        });
+        slider.addEventListener("change", function() {
+            var num = this.dataset.card;
+            var ctrl = this.dataset.control;
+            var pct = this.value;
+            setCardVolume(num, ctrl, pct);
+        });
+    });
+}
+
+async function setCardVolume(cardNum, control, pct) {
+    try {
+        var out = await sp(["amixer", "-c", String(cardNum), "sset", control, pct + "%"]);
+        // Parse new dB from output
+        var m = out.match(/\[(\d+)%\]\s+\[([^\]]+dB)\]/);
+        if (m) {
+            var dbEl = $("vol-db-" + cardNum);
+            var pctEl = $("vol-pct-" + cardNum);
+            if (dbEl) dbEl.textContent = m[2];
+            if (pctEl) pctEl.textContent = m[1] + "%";
+            if (volumeState[cardNum]) {
+                volumeState[cardNum].pct = parseInt(m[1]);
+                volumeState[cardNum].db  = m[2];
+            }
+        }
+        await spUser("sudo alsactl store");
+    } catch (e) {
+        toast("Volume error: " + String(e), "error");
+    }
+}
+
+async function normalizeAllVolumes() {
+    var keys = Object.keys(volumeState).sort();
+    for (var i = 0; i < keys.length; i++) {
+        var num = keys[i];
+        var ctrl = volumeState[num].control;
+        var slider = document.querySelector('.vol-slider[data-card="' + num + '"]');
+        if (slider) slider.value = "100";
+        if ($("vol-pct-" + num)) $("vol-pct-" + num).textContent = "100%";
+        await setCardVolume(num, ctrl, "100");
+    }
+    toast("All volumes set to 100%", "success");
+}
+
+
 function deriveDeviceId(baseId, offset) {
     // Increment the last 4 hex chars of a 16-char DEVICE_ID hex string
     var suffix = parseInt((baseId || "0").slice(-4), 16) + offset;
@@ -863,6 +1013,7 @@ async function init() {
     $("cfg-tx-channels").addEventListener("change", function() { onChannelChange(); markDirty(); });
     $("cfg-rx-channels").addEventListener("change", function() { onChannelChange(); markDirty(); });
     $("btn-audio-devices").addEventListener("click", refreshAudioDevices);
+    $("btn-vol-normalize").addEventListener("click", normalizeAllVolumes);
     $("cfg-spotify-name").addEventListener("input", markDirty);
     $("cfg-dante-name").addEventListener("input", markDirty);
 
@@ -871,6 +1022,7 @@ async function init() {
     await refreshAll();
     await loadLog();
     refreshAudioDevices();
+    loadVolumes();
 }
 
 init().catch(function(e) { toast("Init error: " + String(e), "error", 0); });
