@@ -19,8 +19,13 @@ FROM registry.fedoraproject.org/fedora-bootc:43
 # ── Packages ──────────────────────────────────────────────────────────────────
 RUN dnf install -y --setopt=install_weak_deps=False \
     # Cockpit web UI (management interface — https://node:9090)
-    # cockpit-ws provides cockpit.socket; cockpit-system provides the System page
+    # cockpit-ws + cockpit-system = base; remaining modules add full feature set:
+    #   networkmanager = NIC/IP config, storaged = disk/partition management,
+    #   selinux = SELinux policy browser, ostree = bootc image upgrades via UI,
+    #   kdump = kernel crash config, sosreport = support data collection
     cockpit-ws cockpit-system \
+    cockpit-networkmanager cockpit-storaged cockpit-selinux \
+    cockpit-ostree cockpit-kdump cockpit-sosreport \
     # ALSA audio stack
     alsa-lib alsa-utils alsa-plugins-speex speexdsp \
     # Avahi / mDNS (Dante discovery)
@@ -114,4 +119,11 @@ RUN mkdir -p /var/home && \
     # write membership there. groupadd --system ensures the entry exists in /etc/group first,
     # then usermod adds core. Without this, membership is silently lost after reboot.
     groupadd --system -g 63 audio 2>/dev/null || true && \
-    usermod -aG audio core
+    usermod -aG audio core && \
+    # Pre-enable lingering so systemd starts the core user session from the very first boot.
+    # Without this, loginctl enable-linger (called in inferno-configure.sh) creates the
+    # lingering session for the first time on boot 2 — at that point the audio group is not
+    # yet effective in the new session, causing inferno-bridge to fail (ALSA permission denied).
+    # Pre-creating the linger file means the session already exists by the time configure runs,
+    # so boot 3 (the first normal boot) starts the session with correct group membership.
+    mkdir -p /var/lib/systemd/linger && touch /var/lib/systemd/linger/core

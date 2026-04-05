@@ -20,10 +20,13 @@ exec > >(tee -a /var/log/inferno-configure.log) 2>&1
 echo "=== Inferno AoIP first-boot configuration: $(date -Iseconds) ==="
 
 # ── Detect NIC ─────────────────────────────────────────────────────────────────
-INFERNO_NIC=$(ip -o link show | awk '$2 != "lo:" && $2 !~ /^(docker|br-|veth|tun|tap)/ {print $2; exit}' | tr -d ':')
+# Exclude: loopback, Docker/container bridges, WiFi (wl*), virtual bridges (virbr).
+# Dante requires wired Ethernet — WiFi cannot be the Dante interface.
+INFERNO_NIC=$(ip -o link show | awk '$2 != "lo:" && $2 !~ /^(docker|br-|veth|tun|tap|wl|virbr)/ {print $2; exit}' | tr -d ':')
 if [ -z "${INFERNO_NIC}" ]; then
-    echo "ERROR: Could not detect a non-loopback NIC. Waiting for network..."
-    sleep 10
+    echo "ERROR: Could not detect a wired NIC. Available interfaces:"
+    ip -o link show | awk '{print "  " $2, $9}' | tr -d ':'
+    echo "Falling back to first non-loopback interface..."
     INFERNO_NIC=$(ip -o link show | awk '$2 != "lo:" {print $2; exit}' | tr -d ':')
 fi
 echo "NIC: ${INFERNO_NIC}"
