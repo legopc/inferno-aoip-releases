@@ -114,12 +114,12 @@ RUN mkdir -p /var/home && \
     echo "core:inferno123" | chpasswd && \
     echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd && \
     # Add core to audio group so user services can open /dev/snd/* (crw-rw---- root:audio).
-    # On Fedora bootc, the audio group (GID 63) is defined in /usr/lib/group (system-provided,
-    # read-only). usermod -aG requires the group to exist in /etc/group (the writable file) to
-    # write membership there. groupadd --system ensures the entry exists in /etc/group first,
-    # then usermod adds core. Without this, membership is silently lost after reboot.
-    groupadd --system -g 63 audio 2>/dev/null || true && \
-    usermod -aG audio core && \
+    # On Fedora bootc, the audio group (GID 63) lives in /usr/lib/group (immutable system layer).
+    # groupadd sees it via NSS and refuses with "already exists", so usermod never writes
+    # membership to /etc/group. The deployed node then has no audio entry in /etc/group,
+    # causing inferno-bridge and librespot to fail with "No such device" on /dev/snd/*.
+    # Fix: write directly to /etc/group, bypassing groupadd entirely.
+    sed -i '/^audio:/d' /etc/group && echo 'audio:x:63:core' >> /etc/group && \
     # Pre-enable lingering so systemd starts the core user session from the very first boot.
     # Without this, loginctl enable-linger (called in inferno-configure.sh) creates the
     # lingering session for the first time on boot 2 — at that point the audio group is not

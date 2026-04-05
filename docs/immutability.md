@@ -108,18 +108,35 @@ The `audio` group (GID 63) is defined in `/usr/lib/group` (immutable). When
 `usermod -aG audio core` runs during image build, it tries to write to `/etc/group`.
 Because `/etc/group` had no `audio` entry, the membership was silently dropped.
 
-**Fix (v6+):** In the Containerfile, `groupadd --system -g 63 audio` runs before
-`usermod`. This creates the `audio` entry in `/etc/group` (the writable file),
-so `usermod` has somewhere to write the membership.
+**Fix (v8+):** Write directly to `/etc/group`, bypassing groupadd entirely.
+
+`groupadd` uses NSS to check for existing groups — it finds `audio` in
+`/usr/lib/group` and refuses with "already exists", without writing anything to
+`/etc/group`. This means `usermod -aG audio core` that follows also silently
+fails to persist (no entry in `/etc/group` to append to). The net result is the
+same as not running either command.
+
+The `groupadd --system -g 63 audio 2>/dev/null || true && usermod -aG audio
+core` approach used in v6/v7 was therefore **also broken** — confirmed by
+physical hardware deployment on 2026-04-05 where the node had no audio group in
+`/etc/group` after install.
 
 ```dockerfile
-# WRONG — silently does nothing (audio only in /usr/lib/group):
-RUN usermod -aG audio core
-
-# CORRECT — creates entry in /etc/group first, then adds membership:
+# WRONG — groupadd sees /usr/lib/group via NSS and refuses; usermod never writes:
 RUN groupadd --system -g 63 audio 2>/dev/null || true && \
     usermod -aG audio core
+
+# CORRECT — write directly to /etc/group, bypassing NSS/groupadd entirely:
+RUN sed -i '/^audio:/d' /etc/group && echo 'audio:x:63:core' >> /etc/group
 ```
+
+**Live fix on a deployed node (if installed from a pre-v8 ISO):**
+```bash
+echo 'audio:x:63:core' | sudo tee -a /etc/group
+sudo reboot   # lingering session must restart to pick up the new group
+```
+This write to `/etc/group` persists across reboots and `bootc upgrade` (3-way
+merge preserves it). No reinstall needed.
 
 The same split applies to `/usr/lib/passwd` vs `/etc/passwd` and
 `/usr/lib/shadow` vs `/etc/shadow`.
