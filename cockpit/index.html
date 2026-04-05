@@ -88,8 +88,13 @@
           </div>
 
           <div class="form-field hidden" id="field-audio">
-            <label class="form-label">Audio Card <span>(AUX mode source)</span></label>
+            <label class="form-label">Audio Card</label>
             <select class="form-select" id="cfg-audio"></select>
+            <div class="form-hint">Physical analog audio card used for AUX input/output. Select based on audio device list below.</div>
+            <button class="btn btn-secondary btn-sm" id="btn-audio-devices">▶ Show audio devices</button>
+            <div class="hidden" id="audio-devices-box">
+              <pre class="log-box" id="audio-devices-content"></pre>
+            </div>
           </div>
 
           <hr class="form-divider">

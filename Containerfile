@@ -67,6 +67,7 @@ RUN TARBALL=inferno-aoip.tar.gz && \
 COPY templates/inferno-ptpv1.toml         /etc/inferno/statime-inferno.toml.template
 COPY templates/alsa/99-inferno.conf       /etc/inferno/99-inferno.conf.template
 COPY templates/alsa/asoundrc.spotify      /etc/inferno/asoundrc.spotify.template
+COPY templates/alsa/asoundrc.aux          /etc/inferno/asoundrc.aux.template
 # Per-user scripts (installed to ~/bin at first boot)
 COPY templates/inferno-sink-event         /etc/inferno/inferno-sink-event
 COPY templates/librespot-watchdog         /etc/inferno/librespot-watchdog
@@ -86,6 +87,10 @@ COPY templates/systemd/user/inferno-bridge.service      /etc/inferno/systemd/use
 COPY templates/systemd/user/inferno-keepalive.service   /etc/inferno/systemd/user/
 COPY templates/systemd/user/librespot.service           /etc/inferno/systemd/user/
 COPY templates/systemd/user/librespot-watchdog.service  /etc/inferno/systemd/user/
+# Aux service files — substituted at first boot; NOT enabled (Cockpit starts them on mode switch)
+COPY templates/systemd/user/inferno-aux-tx.service      /etc/inferno/systemd/user/
+COPY templates/systemd/user/inferno-aux-rx.service      /etc/inferno/systemd/user/
+COPY templates/systemd/user/inferno-aux-keepalive.service /etc/inferno/systemd/user/
 
 # ── snd-aloop kernel module (pinned to card 5 — avoids card number conflicts) ─
 RUN echo "options snd-aloop index=5" > /etc/modprobe.d/snd-aloop.conf && \

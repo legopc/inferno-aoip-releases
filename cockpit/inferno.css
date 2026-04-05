@@ -189,3 +189,6 @@ body {
 .text-danger  { color: #c9190b; }
 .text-warning { color: #ec7a08; }
 .text-muted   { color: #6a6e73; }
+#btn-audio-devices { margin-top: 8px; }
+#audio-devices-box { margin-top: 8px; }
+#audio-devices-content { max-height: 220px; overflow-y: auto; font-size: 0.78rem; white-space: pre; }

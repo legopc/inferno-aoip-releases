@@ -52,6 +52,14 @@ INFERNO_DEVICE_ID="${MAC_CLEAN}0000"
 INFERNO_DEVICE_ID_TX="${MAC_CLEAN}0001"
 INFERNO_DEVICE_ID_RX="${MAC_CLEAN}0002"
 
+# ── Detect physical audio card ─────────────────────────────────────────────────
+# Pick the first card in aplay -l that is not Loopback or HDMI/DisplayPort.
+# Used as the AUX mode source/sink (card index for plughw:N,0).
+INFERNO_AUDIO_CARD=$(aplay -l 2>/dev/null \
+    | awk '/^card / && !/Loopback/ && !/HDMI/ && !/DisplayPort/ {match($0, /^card ([0-9]+)/, a); print a[1]; exit}')
+INFERNO_AUDIO_CARD="${INFERNO_AUDIO_CARD:-0}"
+echo "Audio card: ${INFERNO_AUDIO_CARD}"
+
 # Node name from last 3 MAC octets (e.g. BC:24:11:73:CF:6B → Inferno-73CF6B)
 MAC_SUFFIX=$(echo "${MAC_CLEAN}" | tail -c 7)  # last 6 hex chars
 INFERNO_NAME="Inferno-${MAC_SUFFIX^^}"
@@ -71,6 +79,7 @@ substitute() {
         -e "s|%%INFERNO_DEVICE_ID_TX%%|${INFERNO_DEVICE_ID_TX}|g" \
         -e "s|%%INFERNO_DEVICE_ID_RX%%|${INFERNO_DEVICE_ID_RX}|g" \
         -e "s|%%INFERNO_PLUGIN_PATH%%|${PLUGIN_PATH}|g" \
+        -e "s|%%INFERNO_AUDIO_CARD%%|${INFERNO_AUDIO_CARD}|g" \
         "${src}" > "${dst}"
 }
 
@@ -96,8 +105,11 @@ cp /etc/inferno/inferno-sink-event  "${CORE_HOME}/bin/"
 cp /etc/inferno/librespot-watchdog  "${CORE_HOME}/bin/"
 chmod +x "${CORE_HOME}/bin/inferno-sink-event" "${CORE_HOME}/bin/librespot-watchdog"
 
-# ~/.asoundrc (with substituted ALSA device names)
+# ~/.asoundrc — spotify base + aux extension (both appended)
 substitute /etc/inferno/asoundrc.spotify.template "${CORE_HOME}/.asoundrc"
+# Append aux PCM definitions (inferno_aux_tx, inferno_aux_rx) — used when mode=aux-*
+substitute /etc/inferno/asoundrc.aux.template /tmp/asoundrc.aux
+cat /tmp/asoundrc.aux >> "${CORE_HOME}/.asoundrc"
 
 # User systemd units
 SYSTEMD_USER="${CORE_HOME}/.config/systemd/user"
@@ -110,6 +122,11 @@ done
 
 # librespot.service has %%INFERNO_NAME%% placeholder
 substitute /etc/inferno/systemd/user/librespot.service "${SYSTEMD_USER}/librespot.service"
+
+# Aux service files have %%INFERNO_AUDIO_CARD%% placeholder (NOT enabled — Cockpit starts them)
+substitute /etc/inferno/systemd/user/inferno-aux-tx.service "${SYSTEMD_USER}/inferno-aux-tx.service"
+substitute /etc/inferno/systemd/user/inferno-aux-rx.service "${SYSTEMD_USER}/inferno-aux-rx.service"
+cp "/etc/inferno/systemd/user/inferno-aux-keepalive.service" "${SYSTEMD_USER}/"
 
 chown -R core:core "${CORE_HOME}"
 
@@ -145,6 +162,7 @@ INFERNO_INTERFACE=${INFERNO_INTERFACE}
 INFERNO_DEVICE_ID=${INFERNO_DEVICE_ID}
 INFERNO_DEVICE_ID_TX=${INFERNO_DEVICE_ID_TX}
 INFERNO_DEVICE_ID_RX=${INFERNO_DEVICE_ID_RX}
+INFERNO_AUDIO_CARD=${INFERNO_AUDIO_CARD}
 EOF
 
 echo "=== Inferno AoIP configuration complete ==="

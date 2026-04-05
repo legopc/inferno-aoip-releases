@@ -153,8 +153,8 @@ function markDirty() {
 
 function onModeChange() {
     currentMode = $("cfg-mode").value;
-    // Show audio card selector only when an analog input is involved
-    var needsCard = (currentMode === "aux-in" || currentMode === "aux-bidir");
+    // Show audio card selector whenever a physical audio card is involved
+    var needsCard = (currentMode !== "spotify");
     $("field-audio").classList.toggle("hidden", !needsCard);
 }
 
@@ -183,17 +183,167 @@ async function populateAudio(current) {
     var sel = $("cfg-audio");
     sel.innerHTML = "";
     try {
-        var out = await sp(["cat", "/proc/asound/cards"]);
+        // Parse aplay -l for descriptive labels; exclude Loopback and HDMI-only entries
+        var out = await sp(["aplay", "-l"]);
         var seen = {};
         out.split("\n").forEach(function(line) {
-            var m = line.match(/^\s*(\d+)\s+\[([^\]]+)\]/);
-            if (!m || seen[m[1]]) return;
-            seen[m[1]] = true;
-            sel.add(new Option("Card " + m[1] + " \u2014 " + m[2].trim(), m[1], false, m[1] === current));
+            var m = line.match(/^card\s+(\d+):\s+\S+\s+\[([^\]]+)\],\s+device\s+(\d+):\s+([^\[]+)/i);
+            if (!m) return;
+            var num = m[1], cardName = m[2].trim(), devName = m[4].trim();
+            if (seen[num]) return;
+            if (/Loopback/i.test(cardName)) return;       // skip software loopback
+            if (/HDMI|DisplayPort/i.test(devName) && devName === m[4].trim() && !/Analog/i.test(devName)) return; // skip HDMI-only
+            seen[num] = true;
+            sel.add(new Option(num + " \u2014 " + devName, num, false, num === current));
         });
     } catch (_) {}
-    if (!sel.options.length) sel.add(new Option("Card 0 (default)", "0"));
-    sel.value = current || "0";
+    if (!sel.options.length) sel.add(new Option("0 (default)", "0"));
+    if (current && ![].some.call(sel.options, function(o) { return o.value === current; }))
+        sel.add(new Option(current + " (from config)", current));
+    sel.value = current || sel.options[0] && sel.options[0].value || "0";
+}
+
+// ── Audio device info panel ────────────────────────────────────────────────────
+async function showAudioDevices() {
+    var box  = $("audio-devices-box");
+    var btn  = $("btn-audio-devices");
+    if (!box.classList.contains("hidden")) {
+        box.classList.add("hidden");
+        btn.textContent = "\u25b6 Show audio devices";
+        return;
+    }
+    btn.textContent = "Loading\u2026";
+    try {
+        var play = await sp(["aplay",   "-l"]).catch(function() { return "(aplay -l failed)"; });
+        var rec  = await sp(["arecord", "-l"]).catch(function() { return "(arecord -l failed)"; });
+        $("audio-devices-content").textContent =
+            "=== Playback devices (aplay -l) ===\n" + play +
+            "\n=== Capture devices (arecord -l) ===\n" + rec;
+    } catch (e) {
+        $("audio-devices-content").textContent = "Error: " + e;
+    }
+    box.classList.remove("hidden");
+    btn.textContent = "\u25bc Hide audio devices";
+}
+
+// ── Aux ALSA + service auto-provisioning ──────────────────────────────────────
+function deriveDeviceId(baseId, offset) {
+    // Increment the last 4 hex chars of a 16-char DEVICE_ID hex string
+    var suffix = parseInt((baseId || "0").slice(-4), 16) + offset;
+    return (baseId || "000000000000").slice(0, -4) + suffix.toString(16).padStart(4, "0");
+}
+
+async function ensureAuxSetup(card, danteName) {
+    var asoundText = await cockpit.file(ASOUNDRC).read() || "";
+    var needsAlsa  = !asoundText.includes("pcm.inferno_aux_tx");
+
+    var bindIpMatch    = asoundText.match(/BIND_IP\s+(\S+)/);
+    var deviceIdMatch  = asoundText.match(/DEVICE_ID\s+([0-9a-f]+)/i);
+    var pluginMatch    = asoundText.match(/lib\s+"([^"]+)"/);
+
+    var bindIp     = bindIpMatch   ? bindIpMatch[1]   : "127.0.0.1";
+    var baseId     = deviceIdMatch ? deviceIdMatch[1]  : "000000000000000";
+    var pluginPath = pluginMatch   ? pluginMatch[1]    : "/usr/lib64/alsa-lib/libasound_module_pcm_inferno.so";
+    var txId       = deriveDeviceId(baseId, 1);
+    var rxId       = deriveDeviceId(baseId, 2);
+    var txName     = (danteName || "Inferno") + "-TX";
+    var rxName     = (danteName || "Inferno") + "-RX";
+
+    if (needsAlsa) {
+        var auxBlock = [
+            "",
+            "# AUX TX: analog input \u2192 Dante transmitter",
+            "pcm.inferno_aux_tx {",
+            "    type inferno",
+            '    NAME "' + txName + '"',
+            "    BIND_IP " + bindIp,
+            "    SAMPLE_RATE 48000",
+            "    PROCESS_ID 2",
+            "    ALT_PORT 6004",
+            "    RX_CHANNELS 0",
+            "    TX_CHANNELS 2",
+            "    TX_LATENCY_NS 10000000",
+            "    RX_LATENCY_NS 10000000",
+            "    CLOCK_PATH /tmp/ptp-usrvclock",
+            "    DEVICE_ID " + txId,
+            "    hint { show off description \"Inferno AUX TX: analog in to Dante\" }",
+            "}",
+            "",
+            "# Format bridge: S32_LE wrapper for aux TX input",
+            "pcm.aux_tx_in {",
+            "    type plug",
+            "    slave { pcm \"inferno_aux_tx\" format S32_LE rate 48000 }",
+            "}",
+            "",
+            "# AUX RX: Dante receiver \u2192 analog output",
+            "pcm.inferno_aux_rx {",
+            "    type inferno",
+            '    NAME "' + rxName + '"',
+            "    BIND_IP " + bindIp,
+            "    SAMPLE_RATE 48000",
+            "    PROCESS_ID 3",
+            "    ALT_PORT 6008",
+            "    RX_CHANNELS 2",
+            "    TX_CHANNELS 0",
+            "    TX_LATENCY_NS 10000000",
+            "    RX_LATENCY_NS 10000000",
+            "    CLOCK_PATH /tmp/ptp-usrvclock",
+            "    DEVICE_ID " + rxId,
+            "    hint { show off description \"Inferno AUX RX: Dante to analog out\" }",
+            "}",
+            "",
+            "# Format bridge: S32_LE wrapper for aux RX output",
+            "pcm.aux_rx_out {",
+            "    type plug",
+            "    slave { pcm \"inferno_aux_rx\" format S32_LE rate 48000 }",
+            "}",
+        ].join("\n");
+        // pcm_type.inferno lib must be at top — only add if missing
+        var prefix = asoundText.includes("pcm_type.inferno") ? "" :
+            "pcm_type.inferno {\n    lib \"" + pluginPath + "\"\n}\n";
+        await cockpit.file(ASOUNDRC).replace(prefix + asoundText + auxBlock + "\n");
+    }
+
+    // Write service files if missing
+    var svcDir  = USER_HOME + "/.config/systemd/user";
+    var txSvc   = svcDir + "/inferno-aux-tx.service";
+    var rxSvc   = svcDir + "/inferno-aux-rx.service";
+
+    var txContent = await cockpit.file(txSvc).read().catch(function() { return null; });
+    if (!txContent) {
+        await cockpit.file(txSvc).replace([
+            "[Unit]",
+            "Description=Inferno AUX TX Bridge \u2014 analog in to Dante",
+            "After=statime-inferno.service default.target",
+            "",
+            "[Service]",
+            "ExecStart=/usr/bin/alsaloop -C plughw:" + card + ",0 -P inferno_aux_tx -r 48000 -f S32_LE -c 2 -t 10000",
+            "Restart=on-failure",
+            "RestartSec=3",
+            "",
+            "[Install]",
+            "WantedBy=default.target",
+        ].join("\n") + "\n");
+    }
+
+    var rxContent = await cockpit.file(rxSvc).read().catch(function() { return null; });
+    if (!rxContent) {
+        await cockpit.file(rxSvc).replace([
+            "[Unit]",
+            "Description=Inferno AUX RX Bridge \u2014 Dante to analog out",
+            "After=statime-inferno.service default.target",
+            "",
+            "[Service]",
+            "ExecStart=/usr/bin/alsaloop -C inferno_aux_rx -P plughw:" + card + ",0 -r 48000 -f S32_LE -c 2 -t 10000",
+            "Restart=on-failure",
+            "RestartSec=3",
+            "",
+            "[Install]",
+            "WantedBy=default.target",
+        ].join("\n") + "\n");
+    }
+
+    return needsAlsa; // true if ALSA blocks were freshly written
 }
 
 // ── Save config ────────────────────────────────────────────────────────────────
@@ -235,6 +385,17 @@ async function saveConfig() {
         }
 
         await spUser("systemctl --user daemon-reload");
+
+        // For aux modes: ensure ALSA PCM defs and service files exist before starting
+        if (newMode !== "spotify") {
+            var card      = $("cfg-audio").value || "0";
+            var freshAlsa = await ensureAuxSetup(card, newDanteName);
+            if (freshAlsa) {
+                // New ALSA definitions written — must reload daemon again
+                await spUser("systemctl --user daemon-reload");
+                msgs.push("AUX ALSA devices configured");
+            }
+        }
 
         var targetSvcs = modeToSvcs(newMode);
         var stopSvcs   = SPOTIFY_SVCS.concat(ALL_AUX_SVCS)
@@ -538,6 +699,7 @@ async function init() {
     $("cfg-mode").addEventListener("change", function() { onModeChange(); markDirty(); });
     $("cfg-audio").addEventListener("change", markDirty);
     $("cfg-nic").addEventListener("change", markDirty);
+    $("btn-audio-devices").addEventListener("click", showAudioDevices);
     $("cfg-spotify-name").addEventListener("input", markDirty);
     $("cfg-dante-name").addEventListener("input", markDirty);
 
