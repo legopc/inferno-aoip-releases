@@ -27,10 +27,13 @@ PROXMOX_SSH_KEY="${PROXMOX_SSH_KEY:-/root/.ssh/inferno_proxmox}"
 
 STORAGE_ROOT="/var/lib/containers/storage"
 OUTPUT_DIR="${BUILD_DIR}/output-${VERSION}"
-UPGRADE_TAR="${BUILD_DIR}/inferno-appliance-${VERSION}.tar"
-IOTUPDATE_BUNDLE="${BUILD_DIR}/inferno-appliance-${VERSION}.iotupdate"
+RELEASES_DIR="${BUILD_DIR}/releases"
+UPGRADE_TAR="${RELEASES_DIR}/inferno-appliance-${VERSION}.tar"
+IOTUPDATE_BUNDLE="${RELEASES_DIR}/inferno-appliance-${VERSION}.iotupdate"
 CONFIG_TOML="${BUILD_DIR}/config.toml"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+mkdir -p "${RELEASES_DIR}"
 
 # Use default podman storage — native overlayfs works for root on Ubuntu 24.04.
 # /var/lib/containers/storage is the default; BIB mounts the same path so its
@@ -110,7 +113,7 @@ echo "  Tar:        $(ls -lh ${UPGRADE_TAR})"
 echo "  IoT bundle: $(ls -lh ${IOTUPDATE_BUNDLE})"
 
 # ── Copy ISO to Proxmox ISO storage ──────────────────────────────────────────
-LOCAL_ISO_COPY="${BUILD_DIR}/inferno-appliance-${VERSION}.iso"
+LOCAL_ISO_COPY="${RELEASES_DIR}/inferno-appliance-${VERSION}.iso"
 cp "${ISO_PATH}" "${LOCAL_ISO_COPY}"
 echo ""
 echo "ISO kept locally: ${LOCAL_ISO_COPY}"
