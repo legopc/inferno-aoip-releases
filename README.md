@@ -94,6 +94,25 @@ The installer ISO is built without a kickstart file. Anaconda may pause for disk
 
 ---
 
+## What Does It Do?
+
+Virgil is a headless Fedora-based audio appliance distributed as a [bootc](https://containers.github.io/bootc/) container image — the entire OS is a single OCI image that boots directly, with no package manager and no config drift.
+
+Once installed on a node:
+- **Spotify Connect** is advertised on the local network. Any Spotify client can stream to it.
+- Audio is received by [librespot](https://github.com/librespot-org/librespot) and piped through an ALSA loopback device into the [Inferno](https://gitlab.com/lumifaza/inferno) ALSA plugin.
+- Inferno transmits the audio over **Dante AoIP** (UDP) to Dante-capable hardware — in production, a Shure MXWANI8 8-channel networked audio input.
+- [Statime](https://github.com/teodly/statime) runs as a software PTP grandmaster/slave to synchronise the node's clock with the Dante network's PTP domain.
+- The node is managed entirely via the **Cockpit web UI** — no desktop, no SSH required for day-to-day operation.
+
+```
+[Spotify App]  →  librespot  →  ALSA loopback  →  Inferno ALSA plugin  →  Dante (UDP)  →  [MXWANI8]
+                                                        ↑
+                                               Statime PTP clock sync
+```
+
+---
+
 ## Operating Modes
 
 | Mode | Audio path | Dante devices created |
@@ -107,29 +126,32 @@ Aux modes support 2–8 channels and optionally combine two physical soundcards 
 
 ---
 
-## Quick Start — Install on a Node
+## Quick Start — Install
 
-1. Download the latest installer ISO from PRX-01:  
-   `/var/lib/vz/template/iso/inferno-appliance-v10.iso`  
-   or flash it to USB: `dd if=install.iso of=/dev/sdX bs=4M status=progress conv=fsync`
+1. Get the latest installer ISO from PRX-02 (`10.10.1.202`) at:  
+   `/var/lib/vz/template/iso/` — or download directly from the [releases page](../../releases).  
+   Flash to USB: `dd if=inferno-appliance-vN.iso of=/dev/sdX bs=4M status=progress conv=fsync`
 
-2. Boot the target machine from the ISO. Anaconda installs automatically.
+2. Boot the target machine from the USB. Anaconda will install the OS. (See [Known Issues](#️-known-issues) — the install is not fully unattended; watch for prompts.)
 
-3. After install the node reboots. On first boot, `inferno-configure.service` runs:
+3. After install the node reboots. First-boot configuration runs automatically (~2 minutes):
    - Auto-detects NIC, derives Dante DEVICE_ID from MAC address
    - Auto-detects physical audio card
    - Writes `/etc/inferno.conf` and `~/.asoundrc`
-   - Reboots again (boot 2 = first normal operation)
+   - Reboots again (second boot = first normal operation)
 
-4. Open Cockpit at `https://node-ip:9090` → **Inferno** (sidebar) to configure mode, device name, audio cards and channel counts.
+4. Open Cockpit at `https://<node-ip>:9090` → **Inferno** (sidebar) to configure mode, device name, audio cards, and channel counts.
 
 ---
 
 ## Management
 
-| Interface | URL | Purpose |
-|-----------|-----|---------|
-| Cockpit | `https://node-ip:9090` | Configure mode, audio cards, channel counts, device names. Service status and restart. Journal viewer. |
+| Interface | How to reach | Purpose |
+|-----------|-------------|---------|
+| **Cockpit** | `https://<node-ip>:9090` | Configure mode, audio cards, channel counts, device names. Service status, restart, journal viewer. |
+| **SSH** | `ssh core@<node-ip>` | Advanced operations, log inspection, manual config edits. |
+
+The `inferno-build` Copilot skill handles build triggering and status monitoring remotely.
 
 ### Configuration file (`/etc/inferno.conf`)
 
@@ -165,58 +187,37 @@ Flash new ISO to USB, boot target, re-install.
 **From upgrade tarball** — online upgrade without USB (preferred for minor updates):
 
 ```bash
-VERSION=v10
+VERSION=v11
 NODE=192.168.1.46
 
-# Stream upgrade tar from PRX-01 directly into node
-ssh -i ~/.ssh/inferno_proxmox -o StrictHostKeyChecking=no root@10.10.1.201 \
-  "cat /mnt/inferno-build/inferno-appliance-${VERSION}.tar" \
-  | ssh -i ~/.ssh/inferno_proxmox core@${NODE} 'sudo podman load'
+# Stream upgrade tar from COPILOT-BUILD-01 directly into node
+ssh root@10.10.1.98 \
+  "cat /opt/inferno-build/inferno-appliance-${VERSION}.tar" \
+  | ssh core@${NODE} 'sudo podman load'
 
 # Stage new image and reboot
-ssh -i ~/.ssh/inferno_proxmox core@${NODE} \
+ssh core@${NODE} \
   "sudo bootc switch localhost/inferno-appliance:${VERSION} && sudo reboot"
 ```
 
 If something is wrong after reboot:
 ```bash
-ssh -i ~/.ssh/inferno_proxmox core@${NODE} "sudo bootc rollback && sudo reboot"
+ssh core@${NODE} "sudo bootc rollback && sudo reboot"
 ```
 
-See [`docs/upgrade.md`](docs/upgrade.md) for full procedure including multi-node upgrades.
+See [`docs/upgrade.md`](docs/upgrade.md) for the full procedure including multi-node upgrades.
 
 ---
 
-## Building a New Release
+## Building a Release
 
-Use the build script — it produces all three release artifacts automatically:
+Use the **`inferno-build` Copilot skill** to trigger and monitor a build, or from the jumphost:
 
 ```bash
-VERSION=v11   # bump for each release
-
-ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "
-  mkdir -p /run/containers/storage
-  systemd-run --unit=inferno-build-${VERSION} \
-    /mnt/inferno-build/inferno-aoip-releases/build/build-release.sh ${VERSION} \
-    > /mnt/inferno-build/build-${VERSION}.log 2>&1
-"
-
-# Monitor
-ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "tail -f /mnt/inferno-build/build-${VERSION}.log"
+~/bin/inferno-build v12 "Your release notes here"
 ```
 
-The script runs as a systemd transient service (survives SSH disconnects). It produces:
-
-| Artifact | Location on PRX-01 |
-|----------|--------------------|
-| Container image | `localhost/inferno-appliance:vN` (custom storage) |
-| Installer ISO | `/mnt/inferno-build/output-vN/bootiso/install.iso` |
-| Proxmox ISO symlink | `/var/lib/vz/template/iso/inferno-appliance-vN.iso` |
-| Upgrade tarball | `/mnt/inferno-build/inferno-appliance-vN.tar` |
-
-Expected time: ~10 min container build + ~15 min ISO + ~3 min upgrade tar = ~30 min total.
-
-See [`build/README.md`](build/README.md) for full build environment details and troubleshooting.
+See [`docs/build-and-release.md`](docs/build-and-release.md) for the complete build and release process, artifact locations, and troubleshooting.
 
 ---
 
@@ -224,21 +225,19 @@ See [`build/README.md`](build/README.md) for full build environment details and 
 
 ```
 inferno-aoip-releases/
-├── Containerfile               OS image definition (33 build steps)
+├── Containerfile               OS image definition (35 build steps)
+├── config.toml                 bootc-image-builder config (no secrets)
 ├── build/
 │   ├── build-release.sh        Full release build script (container → ISO → upgrade tar)
 │   ├── inferno-configure.sh    First-boot configuration script (baked into image)
-│   ├── config.toml             bootc-image-builder config (no secrets — baked into image)
-│   └── README.md               Build environment and PRX-01 setup guide
-├── cockpit/
-│   ├── index.html              Cockpit UI shell
-│   ├── inferno.js              UI logic: mode switching, audio provisioning, ALSA config
-│   └── manifest.json           Cockpit package descriptor
+│   └── README.md               Build environment setup guide
+├── cockpit-inferno/            Cockpit management UI — git submodule (github.com/legopc/cockpit-inferno)
+├── branding/                   Cockpit branding assets — git submodule (github.com/legopc/inferno-branding)
+├── iot-updater/                Cockpit OCI update delivery UI — git submodule (github.com/legopc/cockpit-iot-updater)
 ├── templates/
 │   ├── alsa/                   ALSA config templates (%%PLACEHOLDER%% substituted at first boot)
 │   ├── systemd/system/         System service units (statime-inferno, inferno-configure)
 │   └── systemd/user/           User service templates (inferno-bridge, librespot, aux-tx, aux-rx…)
-├── iot-updater/                Cockpit OCI update delivery UI (web + server + apply script)
 ├── docs/
 │   ├── architecture.md         Full system architecture, ALSA device hierarchy, PTP, service map
 │   ├── build-and-release.md    Step-by-step build and release process
@@ -247,8 +246,11 @@ inferno-aoip-releases/
 │   ├── install-guide.md        Physical/VM installation guide
 │   ├── operations.md           Lab hosts, IPs, credentials, operational runbook
 │   └── troubleshooting.md      Common failures and fixes
-└── scripts/
-    └── probe-node.sh           Diagnose a running node
+├── scripts/
+│   ├── probe-node.sh           Diagnose a running node
+│   └── inferno-deploy.sh       Deploy/upgrade helper script
+├── IMPROVEMENT_ROADMAP.md      Tracked defects and planned improvements
+└── archived/                   Pre-bootc content (osbuild, ignition, ansible) — preserved for reference
 ```
 
 ---
@@ -267,21 +269,23 @@ The `Containerfile` downloads this tarball at image build time:
 https://github.com/legopc/inferno-aoip-releases/releases/latest/download/inferno-aoip.tar.gz
 ```
 
-### Image layers (Containerfile — 33 steps)
+### Image layers (Containerfile — 35 steps)
 
 ```
 FROM fedora-bootc:43
   └─ dnf install: cockpit, alsa-utils, avahi, openssh, skopeo, curl
   └─ Download inferno-aoip.tar.gz → install statime, librespot, ALSA plugin
   └─ COPY templates/ → /etc/inferno/  (config templates with %%PLACEHOLDERs%%)
-  └─ COPY cockpit/   → /usr/share/cockpit/inferno/  (management UI)
+  └─ COPY cockpit-inferno/src/ → /usr/share/cockpit/inferno/  (management UI — git submodule)
   └─ COPY systemd units → /etc/systemd/system/ + /etc/inferno/systemd/user/
   └─ snd-aloop pinned to card index 5 (avoids conflicts with physical cards)
   └─ systemctl enable: sshd, cockpit.socket, avahi-daemon, statime-inferno, inferno-configure, iot-updater
   └─ systemctl mask: systemd-timesyncd, chronyd, ntpd  (PTP manages the clock)
   └─ useradd core:inferno123 + audio group + wheel NOPASSWD + linger pre-created
-  └─ COPY iot-updater/ → cockpit page + server + apply script
+  └─ COPY iot-updater/ → cockpit page + server + apply script  (git submodule)
 ```
+
+Images are built on **COPILOT-BUILD-01** (`10.10.1.98`) at `/opt/inferno-build/`.
 
 ### First boot
 
@@ -306,6 +310,7 @@ A udev rule detects USB audio card add/remove events and triggers an ALSA rescan
 
 | Version | Status | Notes |
 |---------|--------|-------|
+| v11 | Built | Cockpit IoT Updater bundle support, iot-updater submodule, branding submodule |
 | v10 | ✅ Production | USB hot-plug audio (udev), TX/RX channel selectors, conditional Spotify Connect name field, multi-card ALSA type multi, dynamic audio device panel |
 | v9 | Superseded | Cockpit UI with full aux mode: split card selectors, channel counts, multi-card support, stable ALSA card IDs, audio devices panel, auto-refresh |
 | v8 | Superseded | First physical install on HP EliteDesk 800G3. Spotify Connect + Dante TX functional. Cockpit UI replaces Python webserver. |
