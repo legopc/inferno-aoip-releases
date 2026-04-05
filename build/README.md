@@ -30,46 +30,42 @@ PRX-01 has a **persistent 25GB build LV** at `/mnt/inferno-build` with everythin
 
 > ⚠️ PRX-01 root FS (`/`) is perpetually ~99% full. **All build work must stay on `/mnt/inferno-build`.**
 
-### Quick build (bump version number as needed)
+### Quick build — use the build script (recommended)
+
+The canonical build script is at `build/build-release.sh`. It handles all four steps automatically:
+1. `git pull` latest code
+2. Build container image
+3. Build installer ISO + symlink into Proxmox ISO storage
+4. Export upgrade tarball for node upgrades (no registry required)
 
 ```bash
-VERSION=v6   # change for each release
+VERSION=v10   # change for each release
 
-# 1. Pull latest code
+# Copy script to build server on first use (already present from v10 onwards)
+# scp -i ~/.ssh/inferno_proxmox build/build-release.sh root@10.10.1.201:/mnt/inferno-build/inferno-aoip-releases/build/
+
+# Run as a systemd transient service so it survives SSH disconnects (~25-30 min total)
 ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "
-  cd /mnt/inferno-build/inferno-aoip-releases && git pull
+  mkdir -p /run/containers/storage
+  systemd-run --unit=inferno-build-${VERSION} \
+    /mnt/inferno-build/inferno-aoip-releases/build/build-release.sh ${VERSION} \
+    > /mnt/inferno-build/build-${VERSION}.log 2>&1
 "
 
-# 2. Build container image
-ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "
-  cd /mnt/inferno-build/inferno-aoip-releases && \
-  podman build -t inferno-appliance:${VERSION} .
-"
-
-# 3. Clear previous ISO output and build new one (~15-20 min)
-ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "
-  rm -rf /mnt/inferno-build/output/bootiso && \
-  mkdir -p /mnt/inferno-build/output && \
-  podman run --rm --privileged \
-    -v /var/lib/containers/storage:/var/lib/containers/storage \
-    -v /mnt/inferno-build/output:/output \
-    -v /mnt/inferno-build/config.toml:/config.toml:ro \
-    ghcr.io/osbuild/bootc-image-builder:latest \
-    --type anaconda-iso \
-    --rootfs xfs \
-    --config /config.toml \
-    localhost/inferno-appliance:${VERSION}
-"
-
-# 4. Symlink into Proxmox ISO storage (no copy needed — same host)
-ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "
-  ln -sf /mnt/inferno-build/output/bootiso/install.iso \
-    /var/lib/vz/template/iso/inferno-appliance-${VERSION}.iso && \
-  ls -lh /var/lib/vz/template/iso/inferno-appliance-${VERSION}.iso
-"
+# Monitor progress
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "tail -f /mnt/inferno-build/build-${VERSION}.log"
 ```
 
-**Expected times**: container build ~10 min, ISO build ~15-20 min.
+**Expected times**: container build ~10 min, ISO build ~15-20 min, upgrade tar export ~2-3 min.
+
+**Outputs produced**:
+
+| Artifact | Path on PRX-01 |
+|----------|---------------|
+| Container image | `localhost/inferno-appliance:vN` (in custom storage) |
+| Installer ISO | `/mnt/inferno-build/output-vN/bootiso/install.iso` |
+| Proxmox ISO symlink | `/var/lib/vz/template/iso/inferno-appliance-vN.iso` |
+| Upgrade tarball | `/mnt/inferno-build/inferno-appliance-vN.tar` |
 
 ### Key details about the PRX-01 build environment
 

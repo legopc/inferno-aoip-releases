@@ -26,27 +26,23 @@ Build new image on PRX-01
 
 ## Step 1 — Build New Image on PRX-01
 
+The build script (`build/build-release.sh`) automatically produces both the installer ISO and the upgrade tarball. Run it via `systemd-run` so it survives SSH disconnects:
+
 ```bash
-ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201
+VERSION=v10   # change for each release
 
-cd /mnt/inferno-build/inferno-aoip-releases
-git pull
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "
+  mkdir -p /run/containers/storage
+  systemd-run --unit=inferno-build-${VERSION} \
+    /mnt/inferno-build/inferno-aoip-releases/build/build-release.sh ${VERSION} \
+    > /mnt/inferno-build/build-${VERSION}.log 2>&1
+"
 
-# Build container image (tag with version)
-podman --storage-driver overlay \
-  --storage-opt overlay.mount_program=/usr/bin/fuse-overlayfs \
-  --root /mnt/inferno-build/storage \
-  build -t localhost/inferno-appliance:v8 .
-
-# Export as tar for transfer to nodes
-podman --storage-driver overlay \
-  --storage-opt overlay.mount_program=/usr/bin/fuse-overlayfs \
-  --root /mnt/inferno-build/storage \
-  save localhost/inferno-appliance:v8 \
-  -o /mnt/inferno-build/inferno-appliance-v8.tar
-
-ls -lh /mnt/inferno-build/inferno-appliance-v8.tar
+# Monitor
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "tail -f /mnt/inferno-build/build-${VERSION}.log"
 ```
+
+When complete, the upgrade tarball is at `/mnt/inferno-build/inferno-appliance-${VERSION}.tar`.
 
 ---
 
@@ -178,6 +174,7 @@ Changes that **require a full image rebuild and upgrade**:
 
 | Version | Key changes |
 |---------|-------------|
+| v10 | Hot-plug USB audio (udev), TX/RX channel selectors, multi-card support, conditional Spotify Connect name field |
 | v8 | Audio group fix: direct `/etc/group` write (bypasses NSS/groupadd) |
 | v7 | Cockpit full feature set; linger pre-creation; WiFi NIC exclusion |
 | v6 | SELinux binary paths; auto-reboot after configure; ordering cycle fix |
