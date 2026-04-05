@@ -83,7 +83,7 @@ COPY branding/cockpit/ /usr/share/cockpit/branding/fedora/
 # ── Cockpit Inferno page ───────────────────────────────────────────────────────
 # Baked into the image at the system-wide Cockpit package path.
 # cockpit-ws auto-discovers packages in /usr/share/cockpit/.
-COPY cockpit/ /usr/share/cockpit/inferno/
+COPY cockpit-inferno/src/ /usr/share/cockpit/inferno/
 
 # ── Systemd SYSTEM units ───────────────────────────────────────────────────────
 COPY templates/systemd/system/statime-inferno.service /etc/systemd/system/

@@ -50,6 +50,7 @@ echo ""
 echo "── [1/5] Pulling latest code ──"
 cd "${BUILD_DIR}/inferno-aoip-releases"
 git pull
+git submodule update --init --recursive
 
 # Pull or clone the branding repo (always alongside the main repo)
 BRANDING_DIR="${BUILD_DIR}/inferno-aoip-releases/branding"

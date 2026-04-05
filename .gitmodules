@@ -1,0 +1,3 @@
+[submodule "cockpit-inferno"]
+	path = cockpit-inferno
+	url = https://github.com/legopc/cockpit-inferno.git
