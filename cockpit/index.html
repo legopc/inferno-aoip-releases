@@ -93,17 +93,32 @@
             <div class="form-hint">Physical analog card for audio capture (→ Dante TX).</div>
           </div>
 
+          <div class="form-field hidden" id="field-tx-channels">
+            <label class="form-label">TX Channels</label>
+            <select class="form-select" id="cfg-tx-channels">
+              <option value="2">2 channels (stereo)</option>
+              <option value="4">4 channels</option>
+              <option value="6">6 channels</option>
+              <option value="8">8 channels</option>
+            </select>
+            <div class="form-hint">Number of audio channels sent to Dante TX.</div>
+          </div>
+
           <div class="form-field hidden" id="field-audio-out">
             <label class="form-label">Output Card (Playback)</label>
             <select class="form-select" id="cfg-audio-out"></select>
             <div class="form-hint">Physical analog card for audio playback (← Dante RX).</div>
           </div>
 
-          <div class="hidden" id="field-audio-panel">
-            <button class="btn btn-secondary btn-sm" id="btn-audio-devices">▶ Show audio devices</button>
-            <div class="hidden" id="audio-devices-box">
-              <div id="audio-devices-content"></div>
-            </div>
+          <div class="form-field hidden" id="field-rx-channels">
+            <label class="form-label">RX Channels</label>
+            <select class="form-select" id="cfg-rx-channels">
+              <option value="2">2 channels (stereo)</option>
+              <option value="4">4 channels</option>
+              <option value="6">6 channels</option>
+              <option value="8">8 channels</option>
+            </select>
+            <div class="form-hint">Number of audio channels received from Dante RX.</div>
           </div>
 
           <hr class="form-divider">
@@ -158,6 +173,17 @@
       </div>
 
     </div><!-- /two-col -->
+
+    <!-- Audio Devices -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Audio Devices</span>
+        <button class="btn btn-secondary btn-sm" id="btn-audio-devices">↻ Refresh</button>
+      </div>
+      <div class="card-body">
+        <div id="audio-devices-content"><span class="loading-text">Click Refresh to scan audio hardware…</span></div>
+      </div>
+    </div>
 
     <!-- Logs -->
     <div class="card">
