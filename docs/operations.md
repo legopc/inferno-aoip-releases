@@ -37,7 +37,7 @@ ssh -i ~/.ssh/inferno_proxmox root@10.10.1.202   # PRX-02
 |------|----|------|-------|
 | dante-doos | 192.168.1.25 | legopc | **Production** — Dante RX → Analog Out, Arch Linux, RTL8111 |
 | 800G2-1 (EliteDesk-01) | 192.168.1.43 | legopc | **Production TX** — Arch Linux, Intel I219-LM, HW PTP ~100ns |
-| 800G3-1 | 192.168.1.46 | legopc | Arch Linux, Intel I219-LM, `/dev/ptp0` ✅, NIC `eno1` — not yet configured |
+| 800G3-1 | 192.168.1.46 | core | **Inferno v8 installed** — MAC `18:60:24:24:aa:a8`, NIC `eno1` e1000e, HDA Intel PCH (physical card at index 0, snd-aloop at index 5), Dante TX: `Inferno-24AAA8`, SSH: `core@192.168.1.46` (pw: inferno123) |
 | EliteDesk-02 | 192.168.1.47 | legopc | Arch Linux (pre-install), MAC `18:60:24:24:aa:a8`, NIC `eno1` e1000e, 224GB SSD, i5-6500T — **BIOS must be set to UEFI before ISO install** |
 | T470s | 192.168.1.45 | legopc | Bluetooth bridge node, pw: `312858` |
 
@@ -45,7 +45,7 @@ ssh -i ~/.ssh/inferno_proxmox root@10.10.1.202   # PRX-02
 ```bash
 ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.25   # dante-doos
 ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.43   # EliteDesk-01 (800G2-1)
-ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.46   # 800G3-1
+ssh -i ~/.ssh/inferno_proxmox core@192.168.1.46   # 800G3-1 (Inferno-24AAA8, pw: inferno123)
 ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.47   # EliteDesk-02 (pre-install)
 ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # T470s (pw: 312858)
 ```
