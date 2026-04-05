@@ -11,7 +11,9 @@ const LIBRESPOT_SVC = "/var/home/core/.config/systemd/user/librespot.service";
 
 const SYSTEM_SVCS  = ["statime-inferno"];
 const SPOTIFY_SVCS = ["librespot", "librespot-watchdog", "inferno-bridge", "inferno-keepalive"];
-const AUX_SVCS     = ["inferno-aux-tx", "inferno-aux-rx", "inferno-aux-keepalive"];
+// Note: inferno-aux-keepalive intentionally excluded — running keepalive alongside
+// inferno-aux-rx creates two competing Dante subscription owners and breaks streaming.
+const AUX_SVCS     = ["inferno-aux-tx", "inferno-aux-rx"];
 
 const SVC_LABELS = {
     "librespot":             { label: "librespot",           desc: "Spotify Connect receiver" },
@@ -202,11 +204,14 @@ async function saveConfig() {
 
     var newSpotifyName = $("cfg-spotify-name").value.trim();
     var newDanteName   = $("cfg-dante-name").value.trim();
+    var oldMode        = currentMode;
+    var newMode        = $("cfg-mode").value;
+    var modeChanged    = newMode !== oldMode;
 
     try {
         // Write /etc/inferno.conf via sudo tee
         var newConf = Object.assign({}, currentConf, {
-            INFERNO_MODE:         $("cfg-mode").value,
+            INFERNO_MODE:         newMode,
             INFERNO_SPOTIFY_NAME: newSpotifyName,
             INFERNO_DANTE_NAME:   newDanteName,
             INFERNO_NIC:          $("cfg-nic").value,
@@ -214,10 +219,11 @@ async function saveConfig() {
         });
         await writeFileAsSudo(CONF, buildConfText(newConf));
         currentConf = newConf;
-        currentMode = newConf.INFERNO_MODE;
+        currentMode = newMode;
 
         var msgs = [];
 
+        // Patch name files if changed
         if (newSpotifyName) {
             await spUser("sed -i 's/--name \"[^\"]*\"/--name \"" + newSpotifyName + "\"/' " + LIBRESPOT_SVC);
             msgs.push("Spotify → <b>" + newSpotifyName + "</b>");
@@ -228,9 +234,20 @@ async function saveConfig() {
         }
 
         await spUser("systemctl --user daemon-reload");
-        await spUser("systemctl --user restart librespot inferno-bridge inferno-keepalive");
 
-        toast((msgs.length ? msgs.join(", ") + ". " : "") + "Services restarting\u2026", "success", 8000);
+        if (newMode === "spotify") {
+            // Stop all aux services (including keepalive variant), then start spotify set
+            await spUser("systemctl --user stop inferno-aux-tx inferno-aux-rx inferno-aux-keepalive 2>/dev/null; true");
+            await spUser("systemctl --user start librespot librespot-watchdog inferno-bridge inferno-keepalive");
+            if (modeChanged) msgs.push("Switched to <b>Spotify</b> mode");
+        } else {
+            // Stop all spotify services, then start aux set (no keepalive in aux mode)
+            await spUser("systemctl --user stop librespot librespot-watchdog inferno-bridge inferno-keepalive inferno-aux-keepalive 2>/dev/null; true");
+            await spUser("systemctl --user start inferno-aux-tx inferno-aux-rx");
+            if (modeChanged) msgs.push("Switched to <b>AUX</b> mode");
+        }
+
+        toast((msgs.length ? msgs.join(", ") + ". " : "Configuration saved. ") + "Services updated.", "success", 8000);
 
         isDirty = false;
         $("cfg-dirty-badge").classList.add("hidden");
