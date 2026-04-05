@@ -155,9 +155,11 @@ function markDirty() {
 
 function onModeChange() {
     currentMode = $("cfg-mode").value;
+    var isSpotify  = currentMode === "spotify";
     var isAuxIn    = currentMode === "aux-in"    || currentMode === "aux-bidir";
     var isAuxOut   = currentMode === "aux-out"   || currentMode === "aux-bidir";
-    var needsPanel = currentMode !== "spotify";
+    var needsPanel = !isSpotify;
+    $("field-spotify-name").classList.toggle("hidden", !isSpotify);
     $("field-audio-in").classList.toggle("hidden", !isAuxIn);
     $("field-audio-out").classList.toggle("hidden", !isAuxOut);
     $("field-audio-panel").classList.toggle("hidden", !needsPanel);
