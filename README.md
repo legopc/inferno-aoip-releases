@@ -86,14 +86,6 @@ The installer ISO is built without a kickstart file. Anaconda may pause for disk
 
 ---
 
-### 🟡 Build documentation references outdated PRX-01 build environment
-
-**Status:** Active. Build instructions in this README and `build/README.md` reference PRX-01 (`10.10.1.201`) and paths under `/mnt/inferno-build/`. Builds have moved to **COPILOT-BUILD-01** (`10.10.1.98`, Ubuntu 24.04) with artifacts at `/opt/inferno-build/releases/`.
-
-**Use the `inferno-build` Copilot skill** to trigger and monitor builds, or SSH directly to `root@10.10.1.98`.
-
----
-
 ## What Does It Do?
 
 Virgil is a headless Fedora-based audio appliance distributed as a [bootc](https://containers.github.io/bootc/) container image — the entire OS is a single OCI image that boots directly, with no package manager and no config drift.
