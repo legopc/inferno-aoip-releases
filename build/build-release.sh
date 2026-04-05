@@ -25,25 +25,21 @@ PROXMOX_ISO_HOST="${PROXMOX_ISO_HOST:-root@10.10.1.202}"
 PROXMOX_ISO_DIR="${PROXMOX_ISO_DIR:-/var/lib/vz/template/iso}"
 PROXMOX_SSH_KEY="${PROXMOX_SSH_KEY:-/root/.ssh/inferno_proxmox}"
 
-STORAGE_ROOT="${BUILD_DIR}/storage"
-RUNROOT=/run/containers/storage
+STORAGE_ROOT="/var/lib/containers/storage"
 OUTPUT_DIR="${BUILD_DIR}/output-${VERSION}"
 UPGRADE_TAR="${BUILD_DIR}/inferno-appliance-${VERSION}.tar"
 IOTUPDATE_BUNDLE="${BUILD_DIR}/inferno-appliance-${VERSION}.iotupdate"
 CONFIG_TOML="${BUILD_DIR}/config.toml"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-PODMAN="podman --storage-driver overlay
-  --storage-opt overlay.mount_program=/usr/bin/fuse-overlayfs
-  --root ${STORAGE_ROOT}
-  --runroot ${RUNROOT}"
+# Use default podman storage — native overlayfs works for root on Ubuntu 24.04.
+# /var/lib/containers/storage is the default; BIB mounts the same path so its
+# internal podman finds the image without a database path mismatch.
+PODMAN="podman"
 
 echo "=== Inferno AoIP release build: ${VERSION} ==="
 echo "=== Started at $(date) ==="
 echo "=== Build dir: ${BUILD_DIR} ==="
-
-# Ensure runroot dir exists (tmpfs, wiped on reboot)
-mkdir -p "${RUNROOT}"
 
 # ── Step 1: Pull latest code ──────────────────────────────────────────────────
 echo ""
