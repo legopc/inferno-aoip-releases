@@ -38,7 +38,7 @@ ssh -i ~/.ssh/inferno_proxmox root@10.10.1.202   # PRX-02
 | dante-doos | 192.168.1.25 | legopc | **Production** — Dante RX → Analog Out, Arch Linux, RTL8111 |
 | 800G2-1 (EliteDesk-01) | 192.168.1.43 | legopc | **Production TX** — Arch Linux, Intel I219-LM, HW PTP ~100ns |
 | 800G3-1 | 192.168.1.46 | legopc | Arch Linux, Intel I219-LM, `/dev/ptp0` ✅, NIC `eno1` — not yet configured |
-| EliteDesk-02 | TBD | core | Fedora IoT — not yet deployed |
+| EliteDesk-02 | 192.168.1.47 | legopc | Arch Linux (pre-install), MAC `18:60:24:24:aa:a8`, NIC `eno1` e1000e, 224GB SSD, i5-6500T — **BIOS must be set to UEFI before ISO install** |
 | T470s | 192.168.1.45 | legopc | Bluetooth bridge node, pw: `312858` |
 
 **SSH (all physical nodes):**
@@ -46,6 +46,7 @@ ssh -i ~/.ssh/inferno_proxmox root@10.10.1.202   # PRX-02
 ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.25   # dante-doos
 ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.43   # EliteDesk-01 (800G2-1)
 ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.46   # 800G3-1
+ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.47   # EliteDesk-02 (pre-install)
 ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # T470s (pw: 312858)
 ```
 
