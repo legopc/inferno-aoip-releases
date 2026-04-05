@@ -70,6 +70,36 @@ if [ -z "$DANTE_NIC" ]; then
     DANTE_MAC="??"
 fi
 
+# ── PTP hardware timestamping ──────────────────────────────────────────────────
+echo ""
+echo -e "${BOLD}--- PTP clock (statime hardware-clock=auto) ---${NC}"
+PTP_HW=false
+if [ "$DANTE_NIC" != "(none detected)" ]; then
+    # Check for associated PTP hardware clock device
+    PTP_DEV=$(ls "/sys/class/net/${DANTE_NIC}/device/ptp/" 2>/dev/null | head -1)
+    if [ -n "$PTP_DEV" ] && [ -c "/dev/${PTP_DEV}" ]; then
+        PTP_HW=true
+        echo -e "  ${GREEN}Hardware PTP: /dev/${PTP_DEV}${NC} ✓  (statime will use hardware timestamping ~100ns offset)"
+    fi
+    # Double-check via ethtool if available
+    if command -v ethtool &>/dev/null; then
+        HW_TS=$(ethtool -T "${DANTE_NIC}" 2>/dev/null | grep -c "hardware-transmit" || true)
+        if [ "$HW_TS" -gt 0 ] && [ "$PTP_HW" = false ]; then
+            PTP_HW=true
+            echo -e "  ${GREEN}Hardware timestamping: supported${NC} ✓  (ethtool confirms, PTP device may appear after driver init)"
+        elif [ "$HW_TS" -eq 0 ] && [ "$PTP_HW" = false ]; then
+            echo -e "  ${YELLOW}Software PTP only${NC}  (NIC ${DANTE_NIC} does not support hardware timestamping)"
+            echo "  Dante will work fine — expect ~500µs PTP offset instead of ~100ns"
+        fi
+    elif [ "$PTP_HW" = false ]; then
+        # No ethtool — just report what we found in sysfs
+        echo -e "  ${YELLOW}Software PTP${NC}  (no /dev/ptp* found for ${DANTE_NIC}; ethtool not available to confirm)"
+        echo "  Dante will work fine — expect ~500µs PTP offset instead of ~100ns"
+    fi
+else
+    echo "  Skipped — no Dante NIC detected"
+fi
+
 # ── Audio ──────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}--- Audio ---${NC}"
