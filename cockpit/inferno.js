@@ -1,12 +1,13 @@
 /* inferno.js — Cockpit Inferno AoIP page
- * Vanilla JS using cockpit.spawn() / cockpit.file() — no build step needed.
+ * Vanilla JS, cockpit.spawn() / cockpit.file() — no build step.
+ * Privileged ops use "sudo -n" (wheel NOPASSWD) to avoid pkexec/polkit.
  */
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const CONF         = "/etc/inferno.conf";
-const SENTINEL     = "/var/lib/inferno/.deployed";
-const ASOUNDRC     = "/var/home/core/.asoundrc";
-const LIBRESPOT_SVC= "/var/home/core/.config/systemd/user/librespot.service";
+const CONF          = "/etc/inferno.conf";
+const SENTINEL      = "/var/lib/inferno/.deployed";
+const ASOUNDRC      = "/var/home/core/.asoundrc";
+const LIBRESPOT_SVC = "/var/home/core/.config/systemd/user/librespot.service";
 
 const SYSTEM_SVCS  = ["statime-inferno"];
 const SPOTIFY_SVCS = ["librespot", "librespot-watchdog", "inferno-bridge", "inferno-keepalive"];
@@ -26,28 +27,44 @@ const SVC_LABELS = {
 let currentConf = {};
 let currentMode = "spotify";
 let isDirty     = false;
-let USER_UID    = 1000;  // updated from cockpit.user() on init
+let USER_UID    = 1000;
+let USER_HOME   = "/var/home/core";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 
+// Environment for user-session commands: replaces process env in cockpit.spawn
 function userEnv() {
     return [
+        "HOME=" + USER_HOME,
+        "USER=core",
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         "XDG_RUNTIME_DIR=/run/user/" + USER_UID,
         "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/" + USER_UID + "/bus",
     ];
 }
 
-function sp(args, opts) {
-    return cockpit.spawn(args, Object.assign({ err: "message" }, opts || {}));
+// Plain non-privileged spawn (inherits cockpit-bridge env)
+function sp(args) {
+    return cockpit.spawn(args, { err: "message" });
 }
 
+// Shell command in user session environment (for systemctl --user, journalctl --user, sed, etc.)
 function spUser(cmd) {
     return cockpit.spawn(["bash", "-c", cmd], { err: "message", environ: userEnv() });
 }
 
-function spRoot(args) {
-    return cockpit.spawn(args, { err: "message", superuser: "require" });
+// Privileged shell command via sudo -n (NOPASSWD wheel) — avoids pkexec/polkit/TTY issues
+function spSudo(cmd) {
+    return cockpit.spawn(["bash", "-c", "sudo -n " + cmd], { err: "message", environ: userEnv() });
+}
+
+// Write a file as root using sudo tee (stdin pipe)
+function writeFileAsSudo(path, content) {
+    const proc = cockpit.spawn(["sudo", "-n", "tee", path],
+        { err: "message", environ: userEnv() });
+    proc.input(content, true);
+    return proc;
 }
 
 // ── Toast notifications ────────────────────────────────────────────────────────
@@ -57,18 +74,18 @@ function toast(msg, type, duration) {
     const icons = { success: "\u2705", error: "\u274c", info: "\u2139\ufe0f" };
     const div = document.createElement("div");
     div.className = "toast toast-" + type;
-    const iconSpan = document.createElement("span");
-    iconSpan.className = "toast-icon";
-    iconSpan.textContent = icons[type] || "";
-    const msgSpan = document.createElement("span");
-    msgSpan.innerHTML = msg;
-    const closeSpan = document.createElement("span");
-    closeSpan.className = "toast-close";
-    closeSpan.textContent = "\u2715";
-    closeSpan.onclick = function() { div.remove(); };
-    div.appendChild(iconSpan);
-    div.appendChild(msgSpan);
-    div.appendChild(closeSpan);
+    const iconEl = document.createElement("span");
+    iconEl.className = "toast-icon";
+    iconEl.textContent = icons[type] || "";
+    const msgEl = document.createElement("span");
+    msgEl.innerHTML = msg;
+    const closeEl = document.createElement("span");
+    closeEl.className = "toast-close";
+    closeEl.textContent = "\u2715";
+    closeEl.onclick = function() { div.remove(); };
+    div.appendChild(iconEl);
+    div.appendChild(msgEl);
+    div.appendChild(closeEl);
     $("toast-area").appendChild(div);
     if (duration > 0) setTimeout(function() { if (div.parentNode) div.remove(); }, duration);
     return div;
@@ -76,31 +93,33 @@ function toast(msg, type, duration) {
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 function parseConf(text) {
-    const c = {};
-    for (const line of (text || "").split("\n")) {
-        const t = line.trim();
-        if (!t || t.startsWith("#") || !t.includes("=")) continue;
-        const i = t.indexOf("=");
+    var c = {};
+    (text || "").split("\n").forEach(function(line) {
+        var t = line.trim();
+        if (!t || t[0] === "#" || t.indexOf("=") === -1) return;
+        var i = t.indexOf("=");
         c[t.slice(0, i).trim()] = t.slice(i + 1).trim();
-    }
+    });
     return c;
 }
 
 function buildConfText(conf) {
-    const lines = ["# Inferno AoIP node configuration\n# Managed via Cockpit\n"];
-    for (const [k, v] of Object.entries(conf)) lines.push(k + "=" + v + "\n");
+    var lines = ["# Inferno AoIP node configuration\n# Managed via Cockpit\n"];
+    Object.keys(conf).forEach(function(k) { lines.push(k + "=" + conf[k] + "\n"); });
     return lines.join("");
 }
 
 async function loadConfig() {
-    let liveName = "";
+    var liveName = "";
     try {
-        const svcText = await cockpit.file(LIBRESPOT_SVC).read();
-        const m = (svcText || "").match(/--name\s+"([^"]+)"/);
+        var svcText = await cockpit.file(LIBRESPOT_SVC).read();
+        var m = (svcText || "").match(/--name\s+"([^"]+)"/);
         if (m) liveName = m[1];
     } catch (_) {}
 
-    const confText = await cockpit.file(CONF, { superuser: "try" }).read().catch(function() { return ""; });
+    var confText = "";
+    try { confText = await cockpit.file(CONF).read() || ""; } catch (_) {}
+
     currentConf = parseConf(confText);
     if (liveName) currentConf.INFERNO_NAME = liveName;
 
@@ -132,37 +151,37 @@ function onModeChange() {
 
 // ── NIC discovery ──────────────────────────────────────────────────────────────
 async function populateNics(current) {
-    const sel = $("cfg-nic");
+    var sel = $("cfg-nic");
     sel.innerHTML = "";
     function add(v, label) { sel.add(new Option(label, v, false, v === current)); }
     try {
-        const out = await sp(["ip", "-o", "link", "show"]);
-        for (const line of out.split("\n")) {
-            const m = line.match(/^\d+:\s+(\S+):/);
-            if (!m) continue;
-            const nic = m[1];
-            if (nic === "lo" || /^(docker|br-|veth|tun|tap|wl|virbr)/.test(nic)) continue;
+        var out = await sp(["ip", "-o", "link", "show"]);
+        out.split("\n").forEach(function(line) {
+            var m = line.match(/^\d+:\s+(\S+):/);
+            if (!m) return;
+            var nic = m[1];
+            if (nic === "lo" || /^(docker|br-|veth|tun|tap|wl|virbr)/.test(nic)) return;
             add(nic, nic);
-        }
+        });
     } catch (_) {}
-    if (current && current !== "auto" && ![...sel.options].some(function(o) { return o.value === current; }))
+    if (current && current !== "auto" && ![].some.call(sel.options, function(o) { return o.value === current; }))
         add(current, current + " (from config)");
     sel.value = current || "auto";
 }
 
 // ── Audio card discovery ───────────────────────────────────────────────────────
 async function populateAudio(current) {
-    const sel = $("cfg-audio");
+    var sel = $("cfg-audio");
     sel.innerHTML = "";
     try {
-        const out = await sp(["cat", "/proc/asound/cards"]);
-        const seen = new Set();
-        for (const line of out.split("\n")) {
-            const m = line.match(/^\s*(\d+)\s+\[([^\]]+)\]/);
-            if (!m || seen.has(m[1])) continue;
-            seen.add(m[1]);
-            sel.add(new Option("Card " + m[1] + " -- " + m[2].trim(), m[1], false, m[1] === current));
-        }
+        var out = await sp(["cat", "/proc/asound/cards"]);
+        var seen = {};
+        out.split("\n").forEach(function(line) {
+            var m = line.match(/^\s*(\d+)\s+\[([^\]]+)\]/);
+            if (!m || seen[m[1]]) return;
+            seen[m[1]] = true;
+            sel.add(new Option("Card " + m[1] + " \u2014 " + m[2].trim(), m[1], false, m[1] === current));
+        });
     } catch (_) {}
     if (!sel.options.length) sel.add(new Option("Card 0 (default)", "0"));
     sel.value = current || "0";
@@ -170,27 +189,29 @@ async function populateAudio(current) {
 
 // ── Save config ────────────────────────────────────────────────────────────────
 async function saveConfig() {
-    const btn   = $("btn-save");
-    const label = $("save-label");
+    var btn   = $("btn-save");
+    var label = $("save-label");
     btn.disabled = true;
     label.innerHTML = '<span class="spinner"></span> Applying\u2026';
 
-    const newName     = $("cfg-name").value.trim();
-    const oldName     = currentConf.INFERNO_NAME || "";
-    const nameChanged = newName && newName !== oldName;
+    var newName     = $("cfg-name").value.trim();
+    var oldName     = currentConf.INFERNO_NAME || "";
+    var nameChanged = newName && newName !== oldName;
 
     try {
-        const newConf = Object.assign({}, currentConf, {
+        // Write /etc/inferno.conf via sudo tee
+        var newConf = Object.assign({}, currentConf, {
             INFERNO_MODE:       $("cfg-mode").value,
             INFERNO_NAME:       newName,
             INFERNO_NIC:        $("cfg-nic").value,
             INFERNO_AUDIO_CARD: $("cfg-audio").value,
         });
-        await cockpit.file(CONF, { superuser: "require" }).replace(buildConfText(newConf));
+        await writeFileAsSudo(CONF, buildConfText(newConf));
         currentConf = newConf;
         currentMode = newConf.INFERNO_MODE;
 
         if (nameChanged) {
+            // Patch librespot.service --name and .asoundrc NAME
             await spUser("sed -i 's/--name \"[^\"]*\"/--name \"" + newName + "\"/' " + LIBRESPOT_SVC);
             await spUser("sed -i 's/NAME \"[^\"]*\"/NAME \"" + newName + "\"/' " + ASOUNDRC);
             await spUser("systemctl --user daemon-reload");
@@ -205,7 +226,7 @@ async function saveConfig() {
         setTimeout(refreshAll, 1500);
 
     } catch (e) {
-        toast("Save failed: " + (e.message || String(e)), "error", 0);
+        toast("Save failed: " + ((e && e.message) || String(e)), "error", 0);
     } finally {
         btn.disabled = false;
         label.textContent = "\ud83d\udcbe  Save & Apply";
@@ -218,66 +239,64 @@ function activeSvcs() {
 }
 
 async function getSvcStatus(svc) {
-    const isSystem = SYSTEM_SVCS.includes(svc);
+    var isSystem = SYSTEM_SVCS.includes(svc);
     try {
-        const r = isSystem
+        var r = isSystem
             ? await sp(["systemctl", "is-active", svc])
             : await spUser("systemctl --user is-active " + svc);
         return r.trim();
     } catch (e) {
-        const msg = ((e && e.message) || "").trim().split("\n")[0];
+        var msg = ((e && e.message) || "").trim().split("\n")[0];
         return msg || "unknown";
     }
 }
 
 async function refreshServices() {
-    const svcs     = activeSvcs();
-    const statuses = await Promise.all(svcs.map(getSvcStatus));
-    const grid     = $("svc-grid");
+    var svcs     = activeSvcs();
+    var statuses = await Promise.all(svcs.map(getSvcStatus));
+    var grid     = $("svc-grid");
     grid.innerHTML = "";
 
     svcs.forEach(function(svc, i) {
-        const state    = statuses[i] || "unknown";
-        const cls      = ["active","inactive","failed"].includes(state) ? state : "unknown";
-        const info     = SVC_LABELS[svc] || { label: svc, desc: "" };
-        const isSystem = SYSTEM_SVCS.includes(svc);
+        var state    = statuses[i] || "unknown";
+        var cls      = ["active","inactive","failed"].includes(state) ? state : "unknown";
+        var info     = SVC_LABELS[svc] || { label: svc, desc: "" };
+        var isSystem = SYSTEM_SVCS.includes(svc);
 
-        const card = document.createElement("div");
+        var card = document.createElement("div");
         card.className = "svc-card " + cls;
 
-        const top = document.createElement("div");
-
-        const nameEl = document.createElement("div");
+        var top = document.createElement("div");
+        var nameEl = document.createElement("div");
         nameEl.className = "svc-name";
         nameEl.textContent = info.label;
         if (isSystem) {
-            const tag = document.createElement("span");
+            var tag = document.createElement("span");
             tag.className = "svc-system-tag";
             tag.textContent = " (system)";
             nameEl.appendChild(tag);
         }
-        top.appendChild(nameEl);
-
-        const descEl = document.createElement("div");
+        var descEl = document.createElement("div");
         descEl.className = "svc-type";
         descEl.textContent = info.desc;
+        top.appendChild(nameEl);
         top.appendChild(descEl);
         card.appendChild(top);
 
-        const statusEl = document.createElement("div");
+        var statusEl = document.createElement("div");
         statusEl.className = "svc-status";
-        const dot = document.createElement("span");
+        var dot = document.createElement("span");
         dot.className = "status-dot " + cls;
-        const stateText = document.createElement("span");
-        stateText.textContent = state;
+        var stateEl = document.createElement("span");
+        stateEl.textContent = state;
         statusEl.appendChild(dot);
-        statusEl.appendChild(stateText);
+        statusEl.appendChild(stateEl);
         card.appendChild(statusEl);
 
-        const actEl = document.createElement("div");
+        var actEl = document.createElement("div");
         actEl.className = "svc-actions";
         ["restart","start","stop"].forEach(function(cmd) {
-            const b = document.createElement("button");
+            var b = document.createElement("button");
             b.className = "btn btn-secondary btn-sm";
             b.textContent = cmd.charAt(0).toUpperCase() + cmd.slice(1);
             b.onclick = function() { svcAction(svc, cmd, isSystem); };
@@ -290,10 +309,10 @@ async function refreshServices() {
 }
 
 async function svcAction(svc, cmd, isSystem) {
-    const t = toast(cmd + " " + svc + "\u2026", "info", 0);
+    var t = toast(cmd + " " + svc + "\u2026", "info", 0);
     try {
         if (isSystem) {
-            await spRoot(["systemctl", cmd, svc]);
+            await spSudo("systemctl " + cmd + " " + svc);
         } else {
             await spUser("systemctl --user " + cmd + " " + svc);
         }
@@ -307,11 +326,12 @@ async function svcAction(svc, cmd, isSystem) {
 }
 
 async function restartAll() {
-    const t = toast("Restarting all Inferno services\u2026", "info", 0);
+    var t = toast("Restarting all Inferno services\u2026", "info", 0);
     try {
-        for (const svc of SYSTEM_SVCS)
-            await spRoot(["systemctl", "restart", svc]).catch(function() {});
-        const userSvcs = currentMode === "spotify" ? SPOTIFY_SVCS : AUX_SVCS;
+        for (var i = 0; i < SYSTEM_SVCS.length; i++) {
+            await spSudo("systemctl restart " + SYSTEM_SVCS[i]).catch(function() {});
+        }
+        var userSvcs = currentMode === "spotify" ? SPOTIFY_SVCS : AUX_SVCS;
         await spUser("systemctl --user restart " + userSvcs.join(" "));
         t.remove();
         toast("All services restarted.", "success");
@@ -323,81 +343,77 @@ async function restartAll() {
 }
 
 // ── System info ────────────────────────────────────────────────────────────────
-function addInfoRow(table, key, valueHtml, cls) {
-    const tr  = document.createElement("tr");
-    const td1 = document.createElement("td");
-    td1.className = "info-key";
-    td1.textContent = key;
-    const td2 = document.createElement("td");
-    if (cls) td2.className = cls;
-    td2.innerHTML = valueHtml;
-    tr.appendChild(td1);
-    tr.appendChild(td2);
+function addRow(table, key, html, cls) {
+    var tr = document.createElement("tr");
+    var k  = document.createElement("td"); k.className = "info-key"; k.textContent = key;
+    var v  = document.createElement("td"); if (cls) v.className = cls; v.innerHTML = html;
+    tr.appendChild(k); tr.appendChild(v);
     table.appendChild(tr);
 }
-
-function codeVal(v) { return "<code>" + v + "</code>"; }
+function code(t) { return "<code>" + t + "</code>"; }
 
 async function refreshSystemInfo() {
-    const table = $("info-table");
+    var table = $("info-table");
     table.innerHTML = "";
 
     try {
-        const hn = (await sp(["hostname"])).trim();
-        addInfoRow(table, "Hostname", codeVal(hn));
+        var hn = (await sp(["hostname"])).trim();
+        addRow(table, "Hostname", code(hn));
         $("hdr-hostname").textContent = hn;
     } catch (_) {}
 
-    const nic = currentConf.INFERNO_NIC || "eno1";
+    var nic = currentConf.INFERNO_NIC || "eno1";
     try {
-        const ip = (await sp(["bash", "-c", "ip -4 addr show " + nic + " 2>/dev/null | awk '/inet /{print $2}'"])).trim();
-        addInfoRow(table, "IP Address", codeVal(ip));
+        var ip = (await sp(["bash", "-c", "ip -4 addr show " + nic + " 2>/dev/null | awk '/inet /{print $2}'"])).trim();
+        addRow(table, "IP Address", code(ip));
         $("hdr-ip").textContent = ip;
     } catch (_) {}
 
     try {
-        const mac = (await sp(["cat", "/sys/class/net/" + nic + "/address"])).trim();
-        addInfoRow(table, "MAC / NIC", codeVal(mac) + " on " + codeVal(nic));
+        var mac = (await sp(["cat", "/sys/class/net/" + nic + "/address"])).trim();
+        addRow(table, "MAC / NIC", code(mac) + " on " + code(nic));
     } catch (_) {}
 
     try {
-        const ptpLine = (await spRoot(["bash", "-c",
+        var ptpLine = (await spSudo(
             "journalctl -u statime-inferno -n 30 --no-pager -o cat | grep -oE 'Estimated offset [0-9.+-]+ns' | tail -1"
-        ])).trim();
+        )).trim();
         if (ptpLine) {
-            addInfoRow(table, "PTP Offset", codeVal(ptpLine), "text-success");
+            addRow(table, "PTP Offset", code(ptpLine), "text-success");
             $("hdr-ptp").textContent = "PTP " + ptpLine;
         } else {
-            addInfoRow(table, "PTP Offset", "no recent data", "text-muted");
+            addRow(table, "PTP Offset", "no recent data", "text-muted");
             $("hdr-ptp").textContent = "PTP syncing\u2026";
         }
     } catch (_) {
-        addInfoRow(table, "PTP Offset", "no recent data", "text-muted");
+        addRow(table, "PTP Offset", "no recent data", "text-muted");
+        $("hdr-ptp").textContent = "PTP syncing\u2026";
     }
 
     try {
-        const loop = (await sp(["bash", "-c", "cat /proc/asound/cards | grep -i loopback | head -1"])).trim();
-        if (loop) {
-            addInfoRow(table, "snd-aloop", codeVal(loop));
-        } else {
-            addInfoRow(table, "snd-aloop", "not loaded \u26a0", "text-danger");
-        }
+        var loop = (await sp(["bash", "-c", "cat /proc/asound/cards | grep -i loopback | head -1"])).trim();
+        addRow(table, "snd-aloop", loop ? code(loop) : "not loaded \u26a0", loop ? "" : "text-danger");
     } catch (_) {}
 
-    const sentinel = await cockpit.file(SENTINEL).read().catch(function() { return null; });
-    if (sentinel !== null) {
-        addInfoRow(table, "Deploy sentinel", "\u2705 present", "text-success");
-    } else {
-        addInfoRow(table, "Deploy sentinel", "\u26a0 missing \u2014 will re-deploy on next reboot", "text-warning");
+    try {
+        // Try reading sentinel — may require sudo on bootc systems
+        var sentinel = await spSudo("test -f " + SENTINEL + " && echo present || echo absent");
+        if ((sentinel || "").trim() === "present") {
+            addRow(table, "Deploy sentinel", "\u2705 present", "text-success");
+        } else {
+            addRow(table, "Deploy sentinel", "\u26a0 missing \u2014 re-deploys on next reboot", "text-warning");
+        }
+    } catch (_) {
+        addRow(table, "Deploy sentinel", "unknown", "text-muted");
     }
 }
 
 // ── Header mode badge ──────────────────────────────────────────────────────────
 function refreshHeader() {
-    const badge = $("hdr-mode-badge");
-    const mode  = currentMode || "spotify";
+    var badge = $("hdr-mode-badge");
+    var mode  = currentMode || "spotify";
     badge.innerHTML = "";
-    const span = document.createElement("span");
+    var span = document.createElement("span");
     span.className = "mode-badge " + mode;
     span.textContent = mode;
     badge.appendChild(span);
@@ -406,26 +422,31 @@ function refreshHeader() {
 // ── Journal ────────────────────────────────────────────────────────────────────
 function colorizeLog(text) {
     return text.split("\n").map(function(line) {
-        const ts   = line.match(/^(\S+T\S+)\s+(.*)/);
-        const raw  = ts ? ts[2] : line;
-        const date = ts ? '<span class="log-ts">' + ts[1] + " </span>" : "";
-        const lo   = raw.toLowerCase();
-        if (/\berr(or)?\b|failed|fatal/.test(lo)) return date + '<span class="log-err">' + raw + "</span>";
-        if (/\bwarn/.test(lo))                    return date + '<span class="log-warn">' + raw + "</span>";
-        if (/\bok\b|success|ready|running|active|started/.test(lo)) return date + '<span class="log-ok">' + raw + "</span>";
-        return date + raw;
+        var esc = line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+        var lo  = esc.toLowerCase();
+        if (/\berr(or)?\b|failed|fatal/.test(lo)) return '<span class="log-err">' + esc + "</span>";
+        if (/\bwarn/.test(lo))                    return '<span class="log-warn">' + esc + "</span>";
+        if (/\bok\b|success|ready|running|active|started/.test(lo)) return '<span class="log-ok">' + esc + "</span>";
+        return esc;
     }).join("\n");
 }
 
 async function loadLog() {
-    const svc = $("log-svc-select").value;
-    const box = $("log-box");
+    var svc = $("log-svc-select").value;
+    var box = $("log-box");
     box.textContent = "Loading\u2026";
-    const isSystem = SYSTEM_SVCS.includes(svc);
+    var isSystem = SYSTEM_SVCS.includes(svc);
     try {
-        const out = isSystem
-            ? await spRoot(["journalctl", "-u", svc, "-n", "100", "--no-pager", "--output=short"])
-            : await spUser("journalctl --user -u " + svc + " -n 100 --no-pager --output=short");
+        var out;
+        if (isSystem) {
+            // System service: use sudo -n journalctl
+            out = await spSudo("journalctl -u " + svc + " -n 100 --no-pager --output=short");
+        } else {
+            // User service: query via _SYSTEMD_USER_UNIT in system journal (no --user needed)
+            out = await sp(["journalctl",
+                "_SYSTEMD_USER_UNIT=" + svc + ".service",
+                "-n", "100", "--no-pager", "--output=short"]);
+        }
         box.innerHTML = colorizeLog(out || "(no output)");
         box.scrollTop = box.scrollHeight;
     } catch (e) {
@@ -437,9 +458,9 @@ async function loadLog() {
 async function triggerRedeploy() {
     if (!confirm("Remove deploy sentinel and reboot?\n\nThe node will re-download Inferno binaries from GitHub on next boot.")) return;
     try {
-        await spRoot(["rm", "-f", SENTINEL]);
+        await spSudo("rm -f " + SENTINEL);
         toast("Sentinel removed. Rebooting\u2026", "info", 0);
-        await spRoot(["systemctl", "reboot"]);
+        await spSudo("systemctl reboot");
     } catch (e) { toast("Error: " + ((e && e.message) || String(e)), "error", 0); }
 }
 
@@ -447,7 +468,7 @@ async function triggerReboot() {
     if (!confirm("Reboot the node?")) return;
     try {
         toast("Rebooting\u2026", "info", 0);
-        await spRoot(["systemctl", "reboot"]);
+        await spSudo("systemctl reboot");
     } catch (e) { toast("Reboot error: " + ((e && e.message) || String(e)), "error", 0); }
 }
 
@@ -459,8 +480,9 @@ async function refreshAll() {
 
 async function init() {
     try {
-        const u = await cockpit.user();
-        USER_UID = u.id;
+        var u = await cockpit.user();
+        USER_UID  = u.id;
+        USER_HOME = u.home || "/var/home/core";
     } catch (_) {}
 
     await loadConfig();
