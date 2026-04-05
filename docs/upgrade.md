@@ -49,48 +49,37 @@ When complete, the upgrade tarball is at `/mnt/inferno-build/inferno-appliance-$
 ## Step 2 — Apply Upgrade to a Node
 
 ```bash
-# From the Copilot VM (has SSH access to both PRX-01 and nodes):
-NODE=192.168.1.46   # or .47, .46, etc.
-VERSION=v8
+# From legopc (has SSH access to both PRX-01 and nodes):
+NODE=192.168.1.46
+VERSION=v10
 
-ssh -i ~/.ssh/inferno_proxmox core@$NODE "
-  # Stream image from PRX-01 directly into podman on the node
-  ssh -i ~/.ssh/inferno_proxmox -o StrictHostKeyChecking=no root@10.10.1.201 \
-    'cat /mnt/inferno-build/inferno-appliance-${VERSION}.tar' \
-    | sudo podman load
-
-  # Switch bootc to the new image (stages — does not affect running system)
-  sudo bootc switch localhost/inferno-appliance:${VERSION}
-
-  # Reboot to apply
-  sudo reboot
-"
-```
-
-Or in two steps if you prefer to verify before rebooting:
-
-```bash
-# Step A: load image on node
+# Step A: stream tar from PRX-01 directly into node's podman
 ssh -i ~/.ssh/inferno_proxmox -o StrictHostKeyChecking=no root@10.10.1.201 \
-  'cat /mnt/inferno-build/inferno-appliance-v8.tar' \
-  | ssh -i ~/.ssh/inferno_proxmox core@192.168.1.46 'sudo podman load'
+  "cat /mnt/inferno-build/inferno-appliance-${VERSION}.tar" \
+  | ssh -i ~/.ssh/id_ed25519 core@${NODE} 'sudo podman load'
 
-# Step B: stage and reboot when ready
-ssh -i ~/.ssh/inferno_proxmox core@192.168.1.46 \
-  'sudo bootc switch localhost/inferno-appliance:v8 && sudo reboot'
+# Step B: stage the new image (must use --transport containers-storage for podman-load images)
+ssh -i ~/.ssh/id_ed25519 core@${NODE} \
+  "sudo bootc switch --transport containers-storage localhost/inferno-appliance:${VERSION}"
+
+# Step C: reboot to apply
+ssh -i ~/.ssh/id_ed25519 core@${NODE} 'sudo reboot'
 ```
+
+> ⚠️ **`--transport containers-storage` is required** when the image was loaded via `podman load`.
+> Without it, bootc tries to pull from a container registry at `localhost:443` and fails with
+> "connection refused". The flag tells bootc to look in the local podman image store instead.
 
 ---
 
 ## Step 3 — Verify After Reboot
 
 ```bash
-ssh -i ~/.ssh/inferno_proxmox core@$NODE "
-  bootc status                               # shows current deployment
-  id                                         # must show 63(audio)
+ssh -i ~/.ssh/id_ed25519 core@${NODE} "
+  sudo bootc status                          # shows current deployment image
   systemctl --failed --no-pager
   systemctl --user --failed --no-pager
-  systemctl --user is-active inferno-bridge librespot
+  sudo systemctl is-active statime-inferno cockpit.socket iot-updater
 "
 ```
 
@@ -101,7 +90,7 @@ ssh -i ~/.ssh/inferno_proxmox core@$NODE "
 If the new image has a problem:
 
 ```bash
-ssh -i ~/.ssh/inferno_proxmox core@$NODE "
+ssh -i ~/.ssh/id_ed25519 core@${NODE} "
   sudo bootc rollback   # stage previous deployment
   sudo reboot           # apply rollback
 "
@@ -115,19 +104,19 @@ bootc always keeps the previous deployment. Rollback is instant.
 
 ```bash
 NODES="192.168.1.46 192.168.1.47"
-VERSION=v8
+VERSION=v10
 
 for NODE in $NODES; do
   echo "=== Upgrading $NODE ==="
   # Load image
   ssh -i ~/.ssh/inferno_proxmox -o StrictHostKeyChecking=no root@10.10.1.201 \
     "cat /mnt/inferno-build/inferno-appliance-${VERSION}.tar" \
-    | ssh -o StrictHostKeyChecking=no -i ~/.ssh/inferno_proxmox core@$NODE \
+    | ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 core@${NODE} \
       'sudo podman load'
 
-  # Stage and reboot
-  ssh -o StrictHostKeyChecking=no -i ~/.ssh/inferno_proxmox core@$NODE \
-    "sudo bootc switch localhost/inferno-appliance:${VERSION} && sudo reboot"
+  # Stage and reboot (--transport containers-storage required for podman-loaded images)
+  ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 core@${NODE} \
+    "sudo bootc switch --transport containers-storage localhost/inferno-appliance:${VERSION} && sudo reboot"
 
   echo "=== $NODE rebooting ==="
 done

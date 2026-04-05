@@ -297,17 +297,19 @@ NODE=192.168.1.46   # or .47 for second node
 # Stream tar from PRX-01 directly into node's podman
 ssh -i ~/.ssh/inferno_proxmox -o StrictHostKeyChecking=no root@10.10.1.201 \
   "cat /mnt/inferno-build/inferno-appliance-${VERSION}.tar" \
-  | ssh -i ~/.ssh/inferno_proxmox core@${NODE} 'sudo podman load'
+  | ssh -i ~/.ssh/id_ed25519 core@${NODE} 'sudo podman load'
 
 # Stage new image and reboot to apply
-ssh -i ~/.ssh/inferno_proxmox core@${NODE} \
-  "sudo bootc switch localhost/inferno-appliance:${VERSION} && sudo reboot"
+# --transport containers-storage is required when image was loaded via podman load
+# (without it, bootc tries to pull from a registry and fails with "connection refused")
+ssh -i ~/.ssh/id_ed25519 core@${NODE} \
+  "sudo bootc switch --transport containers-storage localhost/inferno-appliance:${VERSION} && sudo reboot"
 ```
 
 ### Rollback (if new image has issues)
 
 ```bash
-ssh -i ~/.ssh/inferno_proxmox core@${NODE} "sudo bootc rollback && sudo reboot"
+ssh -i ~/.ssh/id_ed25519 core@${NODE} "sudo bootc rollback && sudo reboot"
 ```
 
 bootc always keeps the previous deployment on disk — rollback is instant.
@@ -322,11 +324,11 @@ for NODE in $NODES; do
   echo "=== Upgrading $NODE ==="
   ssh -i ~/.ssh/inferno_proxmox -o StrictHostKeyChecking=no root@10.10.1.201 \
     "cat /mnt/inferno-build/inferno-appliance-${VERSION}.tar" \
-    | ssh -o StrictHostKeyChecking=no -i ~/.ssh/inferno_proxmox core@${NODE} \
+    | ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 core@${NODE} \
       'sudo podman load'
 
-  ssh -o StrictHostKeyChecking=no -i ~/.ssh/inferno_proxmox core@${NODE} \
-    "sudo bootc switch localhost/inferno-appliance:${VERSION} && sudo reboot"
+  ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 core@${NODE} \
+    "sudo bootc switch --transport containers-storage localhost/inferno-appliance:${VERSION} && sudo reboot"
 
   echo "=== $NODE rebooting ==="
 done
