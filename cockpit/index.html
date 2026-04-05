@@ -87,13 +87,22 @@
             </select>
           </div>
 
-          <div class="form-field hidden" id="field-audio">
-            <label class="form-label">Audio Card</label>
-            <select class="form-select" id="cfg-audio"></select>
-            <div class="form-hint">Physical analog audio card used for AUX input/output. Select based on audio device list below.</div>
+          <div class="form-field hidden" id="field-audio-in">
+            <label class="form-label">Input Card (Capture)</label>
+            <select class="form-select" id="cfg-audio-in"></select>
+            <div class="form-hint">Physical analog card for audio capture (→ Dante TX).</div>
+          </div>
+
+          <div class="form-field hidden" id="field-audio-out">
+            <label class="form-label">Output Card (Playback)</label>
+            <select class="form-select" id="cfg-audio-out"></select>
+            <div class="form-hint">Physical analog card for audio playback (← Dante RX).</div>
+          </div>
+
+          <div class="hidden" id="field-audio-panel">
             <button class="btn btn-secondary btn-sm" id="btn-audio-devices">▶ Show audio devices</button>
             <div class="hidden" id="audio-devices-box">
-              <pre class="log-box" id="audio-devices-content"></pre>
+              <div id="audio-devices-content"></div>
             </div>
           </div>
 

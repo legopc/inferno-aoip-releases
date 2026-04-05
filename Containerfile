@@ -36,6 +36,8 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     curl \
     # SSH server
     openssh-server \
+    # Required by IoT Updater apply-update.sh (OCI image import)
+    skopeo \
     && dnf clean all
 
 # ── Directory structure ────────────────────────────────────────────────────────
@@ -44,6 +46,7 @@ RUN dnf install -y --setopt=install_weak_deps=False \
 # var_lib_t context which systemd cannot exec (status=203/EXEC Permission denied).
 RUN mkdir -p \
     /var/lib/inferno \
+    /var/lib/iot-updater \
     /usr/local/lib/inferno \
     /etc/inferno/systemd/user \
     /etc/alsa/conf.d
@@ -134,3 +137,15 @@ RUN mkdir -p /var/home && \
     # Pre-creating the linger file means the session already exists by the time configure runs,
     # so boot 3 (the first normal boot) starts the session with correct group membership.
     mkdir -p /var/lib/systemd/linger && touch /var/lib/systemd/linger/core
+
+# ── Cockpit IoT Updater — baked in (v9+) ──────────────────────────────────────
+# Provides the web UI for delivering OCI update bundles (~2 GB) via Cockpit.
+# Sidecar (iot-updater.service) runs persistently on 127.0.0.1:8088.
+# Apply service (iot-update.service) is started on-demand by the sidecar — NOT enabled at boot.
+COPY iot-updater/cockpit/      /usr/share/cockpit/iot-updater/
+COPY iot-updater/server.py     /var/lib/iot-updater/server.py
+COPY iot-updater/apply-update.sh /var/lib/iot-updater/apply-update.sh
+COPY iot-updater/iot-updater.service /etc/systemd/system/iot-updater.service
+COPY iot-updater/iot-update.service  /etc/systemd/system/iot-update.service
+RUN chmod +x /var/lib/iot-updater/apply-update.sh && \
+    systemctl enable iot-updater

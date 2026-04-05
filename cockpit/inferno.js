@@ -140,7 +140,9 @@ async function loadConfig() {
     onModeChange();
 
     await populateNics(currentConf.INFERNO_NIC || "auto");
-    await populateAudio(currentConf.INFERNO_AUDIO_CARD || "0");
+    var cardIn  = currentConf.INFERNO_AUDIO_CARD_IN  || currentConf.INFERNO_AUDIO_CARD || "0";
+    var cardOut = currentConf.INFERNO_AUDIO_CARD_OUT || currentConf.INFERNO_AUDIO_CARD || "0";
+    await populateAudio(cardIn, cardOut);
 
     isDirty = false;
     $("cfg-dirty-badge").classList.add("hidden");
@@ -153,9 +155,12 @@ function markDirty() {
 
 function onModeChange() {
     currentMode = $("cfg-mode").value;
-    // Show audio card selector whenever a physical audio card is involved
-    var needsCard = (currentMode !== "spotify");
-    $("field-audio").classList.toggle("hidden", !needsCard);
+    var isAuxIn    = currentMode === "aux-in"    || currentMode === "aux-bidir";
+    var isAuxOut   = currentMode === "aux-out"   || currentMode === "aux-bidir";
+    var needsPanel = currentMode !== "spotify";
+    $("field-audio-in").classList.toggle("hidden", !isAuxIn);
+    $("field-audio-out").classList.toggle("hidden", !isAuxOut);
+    $("field-audio-panel").classList.toggle("hidden", !needsPanel);
 }
 
 // ── NIC discovery ──────────────────────────────────────────────────────────────
@@ -179,28 +184,59 @@ async function populateNics(current) {
 }
 
 // ── Audio card discovery ───────────────────────────────────────────────────────
-async function populateAudio(current) {
-    var sel = $("cfg-audio");
-    sel.innerHTML = "";
+function parseCards(output, filterFn) {
+    var seen = {};
+    var cards = [];
+    (output || "").split("\n").forEach(function(line) {
+        var m = line.match(/^card\s+(\d+):\s+\S+\s+\[([^\]]+)\],\s+device\s+(\d+):\s+([^\[]+)/i);
+        if (!m) return;
+        var num = m[1], cardName = m[2].trim(), devName = m[4].trim();
+        if (seen[num]) return;
+        if (/Loopback/i.test(cardName)) return;
+        if (filterFn && filterFn(cardName, devName)) return;
+        seen[num] = true;
+        cards.push({ num: num, label: num + " \u2014 " + devName });
+    });
+    return cards;
+}
+
+async function populateAudio(currentIn, currentOut) {
+    var selIn  = $("cfg-audio-in");
+    var selOut = $("cfg-audio-out");
+    selIn.innerHTML  = "";
+    selOut.innerHTML = "";
+    var playOut = "";
+    var recOut  = "";
     try {
-        // Parse aplay -l for descriptive labels; exclude Loopback and HDMI-only entries
-        var out = await sp(["aplay", "-l"]);
-        var seen = {};
-        out.split("\n").forEach(function(line) {
-            var m = line.match(/^card\s+(\d+):\s+\S+\s+\[([^\]]+)\],\s+device\s+(\d+):\s+([^\[]+)/i);
-            if (!m) return;
-            var num = m[1], cardName = m[2].trim(), devName = m[4].trim();
-            if (seen[num]) return;
-            if (/Loopback/i.test(cardName)) return;       // skip software loopback
-            if (/HDMI|DisplayPort/i.test(devName) && devName === m[4].trim() && !/Analog/i.test(devName)) return; // skip HDMI-only
-            seen[num] = true;
-            sel.add(new Option(num + " \u2014 " + devName, num, false, num === current));
-        });
+        playOut = await sp(["aplay",   "-l"]);
     } catch (_) {}
-    if (!sel.options.length) sel.add(new Option("0 (default)", "0"));
-    if (current && ![].some.call(sel.options, function(o) { return o.value === current; }))
-        sel.add(new Option(current + " (from config)", current));
-    sel.value = current || sel.options[0] && sel.options[0].value || "0";
+    try {
+        recOut  = await sp(["arecord", "-l"]);
+    } catch (_) {}
+
+    var hdmiFilter = function(cardName, devName) {
+        return /HDMI|DisplayPort/i.test(devName) && !/Analog/i.test(devName);
+    };
+    var captureCards  = parseCards(recOut,  hdmiFilter);
+    var playbackCards = parseCards(playOut, hdmiFilter);
+
+    captureCards.forEach(function(c) {
+        selIn.add(new Option(c.label, c.num, false, c.num === currentIn));
+    });
+    playbackCards.forEach(function(c) {
+        selOut.add(new Option(c.label, c.num, false, c.num === currentOut));
+    });
+
+    if (!selIn.options.length)  selIn.add(new Option("0 (default)", "0"));
+    if (!selOut.options.length) selOut.add(new Option("0 (default)", "0"));
+
+    if (currentIn  && ![].some.call(selIn.options,  function(o) { return o.value === currentIn;  }))
+        selIn.add(new Option(currentIn  + " (from config)", currentIn));
+    if (currentOut && ![].some.call(selOut.options, function(o) { return o.value === currentOut; }))
+        selOut.add(new Option(currentOut + " (from config)", currentOut));
+
+    selIn.value  = currentIn  || (selIn.options[0]  && selIn.options[0].value)  || "0";
+    selOut.value = currentOut || (selOut.options[0] && selOut.options[0].value) || "0";
 }
 
 // ── Audio device info panel ────────────────────────────────────────────────────
@@ -214,11 +250,58 @@ async function showAudioDevices() {
     }
     btn.textContent = "Loading\u2026";
     try {
-        var play = await sp(["aplay",   "-l"]).catch(function() { return "(aplay -l failed)"; });
-        var rec  = await sp(["arecord", "-l"]).catch(function() { return "(arecord -l failed)"; });
-        $("audio-devices-content").textContent =
-            "=== Playback devices (aplay -l) ===\n" + play +
-            "\n=== Capture devices (arecord -l) ===\n" + rec;
+        var play = await sp(["aplay",   "-l"]).catch(function() { return ""; });
+        var rec  = await sp(["arecord", "-l"]).catch(function() { return ""; });
+
+        // Build card map from both outputs
+        var cardMap = {};
+        function parseLine(line, type) {
+            var m = line.match(/^card\s+(\d+):\s+\S+\s+\[([^\]]+)\],\s+device\s+(\d+):\s+([^\[]+)/i);
+            if (!m) return;
+            var num = m[1], codecName = m[2].trim(), devName = m[4].trim();
+            if (!cardMap[num]) cardMap[num] = { num: num, codecName: codecName, playbackDevices: [], captureDevices: [] };
+            if (type === "playback") cardMap[num].playbackDevices.push(devName);
+            else                     cardMap[num].captureDevices.push(devName);
+        }
+        play.split("\n").forEach(function(l) { parseLine(l, "playback"); });
+        rec.split("\n").forEach(function(l)  { parseLine(l, "capture");  });
+
+        var keys = Object.keys(cardMap);
+        if (!keys.length) {
+            $("audio-devices-content").innerHTML = "<em>No audio devices found.</em>";
+        } else {
+            var html = "";
+            keys.sort().forEach(function(num) {
+                var c = cardMap[num];
+                var isLoopback = /Loopback/i.test(c.codecName);
+                var dimClass   = isLoopback ? " audio-card-dimmed" : "";
+                html += '<div class="audio-card-entry' + dimClass + '">';
+                html += '<div class="audio-card-header">';
+                html += '<span class="audio-card-num">Card ' + num + '</span>';
+                html += '<span class="audio-card-codec">' + c.codecName + '</span>';
+                html += '</div>';
+                if (isLoopback) {
+                    html += '<div class="audio-card-devices">(software loopback \u2014 not selectable)</div>';
+                } else {
+                    html += '<div class="audio-card-devices">';
+                    c.captureDevices.forEach(function(d) {
+                        var hdmi = /HDMI|DisplayPort/i.test(d) && !/Analog/i.test(d);
+                        html += '<span class="audio-cap-badge">\uD83C\uDF99\uFE0F Capture</span> ' + d;
+                        if (hdmi) html += ' <em>(HDMI \u2014 not selectable)</em>';
+                        html += ' &nbsp;';
+                    });
+                    c.playbackDevices.forEach(function(d) {
+                        var hdmi = /HDMI|DisplayPort/i.test(d) && !/Analog/i.test(d);
+                        html += '<span class="audio-play-badge">\uD83D\uDD0A Playback</span> ' + d;
+                        if (hdmi) html += ' <em>(HDMI \u2014 not selectable)</em>';
+                        html += ' &nbsp;';
+                    });
+                    html += '</div>';
+                }
+                html += '</div>';
+            });
+            $("audio-devices-content").innerHTML = html;
+        }
     } catch (e) {
         $("audio-devices-content").textContent = "Error: " + e;
     }
@@ -233,7 +316,7 @@ function deriveDeviceId(baseId, offset) {
     return (baseId || "000000000000").slice(0, -4) + suffix.toString(16).padStart(4, "0");
 }
 
-async function ensureAuxSetup(card, danteName) {
+async function ensureAuxSetup(cardIn, cardOut, danteName) {
     var asoundText = await cockpit.file(ASOUNDRC).read() || "";
     var needsAlsa  = !asoundText.includes("pcm.inferno_aux_tx");
 
@@ -317,7 +400,7 @@ async function ensureAuxSetup(card, danteName) {
             "After=statime-inferno.service default.target",
             "",
             "[Service]",
-            "ExecStart=/usr/bin/alsaloop -C plughw:" + card + ",0 -P inferno_aux_tx -r 48000 -f S32_LE -c 2 -t 10000",
+            "ExecStart=/usr/bin/alsaloop -C plughw:" + cardIn + ",0 -P inferno_aux_tx -r 48000 -f S32_LE -c 2 -t 10000",
             "Restart=on-failure",
             "RestartSec=3",
             "",
@@ -334,7 +417,7 @@ async function ensureAuxSetup(card, danteName) {
             "After=statime-inferno.service default.target",
             "",
             "[Service]",
-            "ExecStart=/usr/bin/alsaloop -C inferno_aux_rx -P plughw:" + card + ",0 -r 48000 -f S32_LE -c 2 -t 10000",
+            "ExecStart=/usr/bin/alsaloop -C inferno_aux_rx -P plughw:" + cardOut + ",0 -r 48000 -f S32_LE -c 2 -t 10000",
             "Restart=on-failure",
             "RestartSec=3",
             "",
@@ -365,8 +448,9 @@ async function saveConfig() {
             INFERNO_MODE:         newMode,
             INFERNO_SPOTIFY_NAME: newSpotifyName,
             INFERNO_DANTE_NAME:   newDanteName,
-            INFERNO_NIC:          $("cfg-nic").value,
-            INFERNO_AUDIO_CARD:   $("cfg-audio").value,
+            INFERNO_NIC:           $("cfg-nic").value,
+            INFERNO_AUDIO_CARD_IN:  $("cfg-audio-in").value,
+            INFERNO_AUDIO_CARD_OUT: $("cfg-audio-out").value,
         });
         await writeFileAsSudo(CONF, buildConfText(newConf));
         currentConf = newConf;
@@ -388,8 +472,9 @@ async function saveConfig() {
 
         // For aux modes: ensure ALSA PCM defs and service files exist before starting
         if (newMode !== "spotify") {
-            var card      = $("cfg-audio").value || "0";
-            var freshAlsa = await ensureAuxSetup(card, newDanteName);
+            var cardIn    = $("cfg-audio-in").value  || "0";
+            var cardOut   = $("cfg-audio-out").value || "0";
+            var freshAlsa = await ensureAuxSetup(cardIn, cardOut, newDanteName);
             if (freshAlsa) {
                 // New ALSA definitions written — must reload daemon again
                 await spUser("systemctl --user daemon-reload");
@@ -697,7 +782,8 @@ async function init() {
     $("btn-reboot").addEventListener("click", triggerReboot);
     $("log-svc-select").addEventListener("change", loadLog);
     $("cfg-mode").addEventListener("change", function() { onModeChange(); markDirty(); });
-    $("cfg-audio").addEventListener("change", markDirty);
+    $("cfg-audio-in").addEventListener("change", markDirty);
+    $("cfg-audio-out").addEventListener("change", markDirty);
     $("cfg-nic").addEventListener("change", markDirty);
     $("btn-audio-devices").addEventListener("click", showAudioDevices);
     $("cfg-spotify-name").addEventListener("input", markDirty);

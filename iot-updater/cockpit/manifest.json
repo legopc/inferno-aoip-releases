@@ -1,0 +1,16 @@
+{
+  "name": "iot-updater",
+  "requires": {
+    "cockpit": "233"
+  },
+  "content-security-policy": "default-src 'self'; connect-src 'self' http://127.0.0.1:8088; img-src 'self'; style-src 'self' 'unsafe-inline'",
+  "menu": {
+    "index": {
+      "label": "IoT Updater",
+      "order": 90,
+      "keywords": [
+        {"matches": ["update", "upgrade", "iot", "ostree", "fedora"]}
+      ]
+    }
+  }
+}

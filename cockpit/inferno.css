@@ -192,3 +192,13 @@ body {
 #btn-audio-devices { margin-top: 8px; }
 #audio-devices-box { margin-top: 8px; }
 #audio-devices-content { max-height: 220px; overflow-y: auto; font-size: 0.78rem; white-space: pre; }
+
+/* Audio device panel */
+.audio-card-entry { border: 1px solid var(--color-border, #ddd); border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; }
+.audio-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.audio-card-num { font-weight: 600; font-size: 0.95em; }
+.audio-card-codec { color: var(--color-subtle, #666); font-size: 0.9em; }
+.audio-card-devices { font-size: 0.88em; display: flex; flex-wrap: wrap; gap: 8px; }
+.audio-cap-badge { color: #1a7a3b; font-size: 0.85em; }
+.audio-play-badge { color: #1a4da0; font-size: 0.85em; }
+.audio-card-dimmed { opacity: 0.5; font-style: italic; }
