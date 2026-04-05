@@ -104,6 +104,25 @@ COPY templates/systemd/user/inferno-aux-keepalive.service /etc/inferno/systemd/u
 RUN echo "options snd-aloop index=5" > /etc/modprobe.d/snd-aloop.conf && \
     echo "snd-aloop" > /etc/modules-load.d/snd-aloop.conf
 
+# ── RT scheduling tuning ──────────────────────────────────────────────────────
+# The Fedora 43 kernel uses CONFIG_PREEMPT_DYNAMIC. Its default runtime mode is
+# 'lazy'; preempt=full switches to full kernel preemption (all code paths
+# preemptible, equivalent to compiling with CONFIG_PREEMPT=y). threadirqs moves
+# threaded IRQ handlers out of hard-IRQ context. Both reduce worst-case
+# scheduling jitter — directly improving PTP clock stability in statime.
+# No packages added; no COPR; reversed trivially by bootc rollback.
+# The @realtime group limits (rtprio 99, memlock unlimited) raise the ceiling
+# for processes that explicitly request RT scheduling. Written manually rather
+# than via the realtime-setup rpm to avoid a systemd-sysusers conflict caused
+# by that rpm's %post writing /etc/gshadow without a matching /etc/group entry.
+RUN mkdir -p /usr/lib/bootc/kargs.d /usr/lib/sysusers.d /etc/security/limits.d && \
+    echo 'kargs = ["preempt=full", "threadirqs"]' \
+      > /usr/lib/bootc/kargs.d/99-rt.toml && \
+    echo 'g realtime 71' \
+      > /usr/lib/sysusers.d/realtime-setup.conf && \
+    printf '@realtime - rtprio 99\n@realtime - memlock unlimited\n' \
+      > /etc/security/limits.d/realtime.conf
+
 # ── First-boot configuration service ──────────────────────────────────────────
 # Detects NIC/MAC, derives DEVICE_ID, substitutes placeholders,
 # sets up core user environment. Runs once (gated on /etc/inferno.conf absent).
