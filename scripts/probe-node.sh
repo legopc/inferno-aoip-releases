@@ -94,7 +94,7 @@ fi
 # ── Storage ───────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}--- Storage ---${NC}"
-lsblk -d -o NAME,SIZE,ROTA,TYPE 2>/dev/null | grep disk | while read -r line; do
+lsblk -d -o NAME,SIZE,ROTA,TYPE 2>/dev/null | grep disk | grep -v zram | while read -r line; do
     NAME=$(echo "$line" | awk '{print $1}')
     SIZE=$(echo "$line" | awk '{print $2}')
     ROTA=$(echo "$line" | awk '{print $3}')
