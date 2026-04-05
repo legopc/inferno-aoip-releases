@@ -560,8 +560,8 @@ async function saveConfig() {
                            .join(" ");
         var startSvcs  = targetSvcs.join(" ");
 
-        if (stopSvcs)  await spUser("systemctl --user stop "  + stopSvcs  + " 2>/dev/null; true");
-        if (startSvcs) await spUser("systemctl --user start " + startSvcs + " 2>/dev/null; true");
+        if (stopSvcs)  await spUser("systemctl --user stop "    + stopSvcs  + " 2>/dev/null; true");
+        if (startSvcs) await spUser("systemctl --user restart " + startSvcs + " 2>/dev/null; true");
 
         var modeLabels = {
             "spotify":   "Spotify Connect → Dante TX",
