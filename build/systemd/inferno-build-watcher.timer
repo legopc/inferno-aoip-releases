@@ -1,0 +1,11 @@
+[Unit]
+Description=Inferno AoIP — Auto-build watcher (runs every 30 minutes)
+Requires=network-online.target
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+Unit=inferno-build-watcher.service
+
+[Install]
+WantedBy=timers.target

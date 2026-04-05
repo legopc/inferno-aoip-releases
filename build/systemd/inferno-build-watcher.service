@@ -1,0 +1,11 @@
+[Unit]
+Description=Inferno AoIP — Check for new versions and auto-trigger builds
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/inferno-build.env
+ExecStart=/opt/inferno-build/inferno-build-watcher.sh
+StandardOutput=journal
+StandardError=journal

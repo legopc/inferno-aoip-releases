@@ -1,25 +1,36 @@
 #!/bin/bash
-# build-release.sh — Full release build for Inferno AoIP on PRX-01
+# build-release.sh — Full release build for Inferno AoIP
 # Produces: container image, installer ISO, raw upgrade tarball, and .iotupdate bundle
 #
 # Usage: ./build-release.sh <version> [description]
-# Example: ./build-release.sh v11 "Fix 4-channel card visibility on page load"
+# Example: ./build-release.sh v12 "Fix 4-channel card visibility on page load"
 #
-# Must be run on PRX-01 (root@10.10.1.201) from /mnt/inferno-build/inferno-aoip-releases
-# or called remotely via SSH.
+# Runs on COPILOT-BUILD-01 (root@<build-vm-ip>) — the dedicated build VM on PRX-02.
+# Trigger remotely via: inferno-build <version> [description]  (on jumphost)
+#
+# Paths are configured via environment variables so the script works on any host:
+#   BUILD_DIR      — root of build workspace (default: /opt/inferno-build)
+#   PROXMOX_ISO_HOST — SCP target for ISO (default: root@10.10.1.202)
+#   PROXMOX_ISO_DIR  — remote path for ISO (default: /var/lib/vz/template/iso)
+#   PROXMOX_SSH_KEY  — SSH key for Proxmox SCP (default: /root/.ssh/inferno_proxmox)
 
 set -euo pipefail
 
-VERSION="${1:?Usage: $0 <version> [description] (e.g. v11)}"
+VERSION="${1:?Usage: $0 <version> [description] (e.g. v12)}"
 DESCRIPTION="${2:-"Inferno AoIP ${VERSION} release"}"
 
-STORAGE_ROOT=/mnt/inferno-build/storage
+# ── Path configuration (override via environment) ─────────────────────────────
+BUILD_DIR="${BUILD_DIR:-/opt/inferno-build}"
+PROXMOX_ISO_HOST="${PROXMOX_ISO_HOST:-root@10.10.1.202}"
+PROXMOX_ISO_DIR="${PROXMOX_ISO_DIR:-/var/lib/vz/template/iso}"
+PROXMOX_SSH_KEY="${PROXMOX_SSH_KEY:-/root/.ssh/inferno_proxmox}"
+
+STORAGE_ROOT="${BUILD_DIR}/storage"
 RUNROOT=/run/containers/storage
-OUTPUT_DIR=/mnt/inferno-build/output-${VERSION}
-UPGRADE_TAR=/mnt/inferno-build/inferno-appliance-${VERSION}.tar
-IOTUPDATE_BUNDLE=/mnt/inferno-build/inferno-appliance-${VERSION}.iotupdate
-CONFIG_TOML=/mnt/inferno-build/config.toml
-PROXMOX_ISO_DIR=/var/lib/vz/template/iso
+OUTPUT_DIR="${BUILD_DIR}/output-${VERSION}"
+UPGRADE_TAR="${BUILD_DIR}/inferno-appliance-${VERSION}.tar"
+IOTUPDATE_BUNDLE="${BUILD_DIR}/inferno-appliance-${VERSION}.iotupdate"
+CONFIG_TOML="${BUILD_DIR}/config.toml"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 PODMAN="podman --storage-driver overlay
@@ -29,6 +40,7 @@ PODMAN="podman --storage-driver overlay
 
 echo "=== Inferno AoIP release build: ${VERSION} ==="
 echo "=== Started at $(date) ==="
+echo "=== Build dir: ${BUILD_DIR} ==="
 
 # Ensure runroot dir exists (tmpfs, wiped on reboot)
 mkdir -p "${RUNROOT}"
@@ -36,7 +48,7 @@ mkdir -p "${RUNROOT}"
 # ── Step 1: Pull latest code ──────────────────────────────────────────────────
 echo ""
 echo "── [1/5] Pulling latest code ──"
-cd /mnt/inferno-build/inferno-aoip-releases
+cd "${BUILD_DIR}/inferno-aoip-releases"
 git pull
 
 # ── Step 2: Build container image ────────────────────────────────────────────
@@ -61,9 +73,18 @@ ${PODMAN} run --rm --privileged \
 ISO_PATH="${OUTPUT_DIR}/bootiso/install.iso"
 echo "ISO built: $(ls -lh ${ISO_PATH})"
 
-# Symlink into Proxmox ISO storage
-ln -sf "${ISO_PATH}" "${PROXMOX_ISO_DIR}/inferno-appliance-${VERSION}.iso"
-echo "Symlinked: ${PROXMOX_ISO_DIR}/inferno-appliance-${VERSION}.iso → ${ISO_PATH}"
+# SCP ISO to Proxmox ISO storage (build VM is separate from Proxmox host)
+ISO_DEST="${PROXMOX_ISO_DIR}/inferno-appliance-${VERSION}.iso"
+if [[ -n "${PROXMOX_ISO_HOST}" ]]; then
+  echo "Copying ISO to ${PROXMOX_ISO_HOST}:${ISO_DEST} ..."
+  scp -i "${PROXMOX_SSH_KEY}" -o StrictHostKeyChecking=no \
+    "${ISO_PATH}" "${PROXMOX_ISO_HOST}:${ISO_DEST}"
+  echo "ISO available in Proxmox: ${ISO_DEST}"
+else
+  # Running directly on a Proxmox host — symlink as before
+  ln -sf "${ISO_PATH}" "${ISO_DEST}"
+  echo "Symlinked: ${ISO_DEST} → ${ISO_PATH}"
+fi
 
 # ── Step 4: Export raw upgrade tarball ───────────────────────────────────────
 echo ""
@@ -82,16 +103,18 @@ echo "── [5/5] Packaging .iotupdate bundle for Cockpit IoT Updater → ${IOT
 
 echo ""
 echo "=== Build complete at $(date) ==="
-echo "  ISO:             ${PROXMOX_ISO_DIR}/inferno-appliance-${VERSION}.iso"
+echo "  ISO:             ${PROXMOX_ISO_HOST}:${PROXMOX_ISO_DIR}/inferno-appliance-${VERSION}.iso"
 echo "  Upgrade tar:     ${UPGRADE_TAR}  (raw, for streaming upgrades)"
 echo "  IoT bundle:      ${IOTUPDATE_BUNDLE}  (upload via Cockpit IoT Updater UI)"
 echo ""
 echo "To upgrade a node via tarball streaming:"
-echo "  ssh root@10.10.1.201 'cat ${UPGRADE_TAR}' \\"
-echo "    | ssh -i ~/.ssh/id_ed25519 core@<NODE-IP> 'sudo podman load'"
-echo "  ssh -i ~/.ssh/id_ed25519 core@<NODE-IP> \\"
+echo "  ssh root@<build-vm> 'cat ${UPGRADE_TAR}' \\"
+echo "    | ssh -i ~/.ssh/inferno_proxmox core@<NODE-IP> 'sudo podman load'"
+echo "  ssh -i ~/.ssh/inferno_proxmox core@<NODE-IP> \\"
 echo "    'sudo bootc switch --transport containers-storage localhost/inferno-appliance:${VERSION} && sudo reboot'"
 echo ""
 echo "To upgrade via Cockpit IoT Updater:"
 echo "  1. Open https://<device-ip>:9090 → IoT Updater"
 echo "  2. Upload ${IOTUPDATE_BUNDLE}"
+echo ""
+echo "BUILD_EXIT:0"
