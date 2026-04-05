@@ -464,7 +464,10 @@ async function saveConfig() {
             msgs.push("Spotify → <b>" + newSpotifyName + "</b>");
         }
         if (newDanteName) {
-            await spUser("sed -i 's/NAME \"[^\"]*\"/NAME \"" + newDanteName + "\"/' " + ASOUNDRC);
+            // Patch NAME only inside each named block to avoid clobbering aux -TX/-RX suffixes
+            await spUser("sed -i '/pcm\\.inferno_spotify/,/^}/s/NAME \"[^\"]*\"/NAME \"" + newDanteName + "\"/' " + ASOUNDRC);
+            await spUser("sed -i '/pcm\\.inferno_aux_tx/,/^}/s/NAME \"[^\"]*\"/NAME \"" + newDanteName + "-TX\"/' " + ASOUNDRC);
+            await spUser("sed -i '/pcm\\.inferno_aux_rx/,/^}/s/NAME \"[^\"]*\"/NAME \"" + newDanteName + "-RX\"/' " + ASOUNDRC);
             msgs.push("Dante TX → <b>" + newDanteName + "</b>");
         }
 
