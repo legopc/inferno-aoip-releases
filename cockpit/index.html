@@ -10,24 +10,22 @@
 
   <!-- Header -->
   <div class="page-header">
-    <div>
-      <div class="page-header-left">
-        <span class="flame-icon">🔥</span>
-        <div>
-          <div class="page-title">Inferno AoIP</div>
-          <div class="page-subtitle">Spotify Connect → Dante transmitter</div>
+    <div class="page-header-left">
+      <span class="flame-icon">🔥</span>
+      <div>
+        <div class="page-title-row">
+          <span class="page-title">Inferno AoIP</span>
+          <div class="node-pills">
+            <div class="pill"><span class="pill-dot blue"></span><span id="hdr-hostname">…</span></div>
+            <div class="pill"><span class="pill-dot blue"></span><span id="hdr-ip">…</span></div>
+            <div class="pill ptp-pill"><span id="hdr-ptp">PTP …</span></div>
+            <div class="pill"><span id="hdr-mode-badge">…</span></div>
+          </div>
         </div>
-      </div>
-      <div class="node-pills">
-        <div class="pill"><span class="pill-dot blue"></span><span id="hdr-hostname">…</span></div>
-        <div class="pill"><span class="pill-dot blue"></span><span id="hdr-ip">…</span></div>
-        <div class="pill ptp-pill"><span id="hdr-ptp">PTP …</span></div>
-        <div class="pill"><span id="hdr-mode-badge">…</span></div>
+        <div class="page-subtitle">Spotify Connect → Dante AoIP transmitter</div>
       </div>
     </div>
-    <div class="header-right">
-      <button class="btn btn-secondary" id="btn-refresh">↻ Refresh</button>
-    </div>
+    <button class="btn btn-secondary btn-sm" id="btn-refresh">↻ Refresh</button>
   </div>
 
   <!-- Toast area -->
@@ -39,9 +37,7 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Services</span>
-        <div class="btn-group">
-          <button class="btn btn-secondary btn-sm" id="btn-restart-all">⟳ Restart All</button>
-        </div>
+        <button class="btn btn-secondary btn-sm" id="btn-restart-all">⟳ Restart All</button>
       </div>
       <div class="card-body">
         <div class="svc-grid" id="svc-grid">
@@ -50,111 +46,104 @@
       </div>
     </div>
 
-    <!-- Config + Info side by side -->
+    <!-- Config + System Info / Actions -->
     <div class="two-col">
 
       <!-- Config -->
       <div class="card">
         <div class="card-header">
           <span class="card-title">Configuration</span>
-          <span id="cfg-dirty-badge" class="dirty-badge hidden">● unsaved changes</span>
+          <span id="cfg-dirty-badge" class="dirty-badge hidden">● unsaved</span>
         </div>
         <div class="card-body">
 
-          <!-- Device names — prominent -->
-          <div class="section-label">Device identity</div>
+          <div class="section-sep">Device identity</div>
+
           <div class="form-field name-field-highlight" id="field-spotify-name">
-            <label class="form-label">🎵 Spotify Connect Name</label>
-            <input class="form-input" id="cfg-spotify-name" type="text" placeholder="Inferno-XXXXXX">
-            <div class="form-hint">Name shown in Spotify as the playback target. Restarts librespot on save.</div>
-          </div>
-          <div class="form-field name-field-highlight">
-            <label class="form-label">🔊 Dante TX Name</label>
-            <input class="form-input" id="cfg-dante-name" type="text" placeholder="Inferno-XXXXXX">
-            <div class="form-hint">Name shown in Dante Controller for the transmitter. Restarts inferno-bridge on save.</div>
+            <div class="form-row">
+              <label class="row-label">🎵 Spotify Name</label>
+              <input class="form-input" id="cfg-spotify-name" type="text" placeholder="Inferno-XXXXXX">
+            </div>
+            <div class="row-hint">Shown in Spotify as playback target · restarts librespot on save</div>
           </div>
 
-          <hr class="form-divider">
-          <div class="section-label">Audio routing</div>
+          <div class="name-field-highlight">
+            <div class="form-row">
+              <label class="row-label">🔊 Dante TX Name</label>
+              <input class="form-input" id="cfg-dante-name" type="text" placeholder="Inferno-XXXXXX">
+            </div>
+            <div class="row-hint">Shown in Dante Controller · restarts inferno-bridge on save</div>
+          </div>
 
-          <div class="form-field">
-            <label class="form-label">Mode</label>
+          <div class="section-sep">Audio routing</div>
+
+          <div class="form-row">
+            <label class="row-label">Mode</label>
             <select class="form-select" id="cfg-mode">
-              <option value="spotify">🎵 Spotify Connect → Dante TX</option>
+              <option value="spotify">🎵 Spotify → Dante TX</option>
               <option value="aux-in">🎙 Analog In → Dante TX</option>
               <option value="aux-out">🔈 Dante RX → Analog Out</option>
-              <option value="aux-bidir">⇄ Analog In + Out (bidirectional)</option>
+              <option value="aux-bidir">⇄ In + Out (bidirectional)</option>
             </select>
           </div>
 
-          <div class="form-field hidden" id="field-audio-in">
-            <label class="form-label">Input Card (Capture)</label>
+          <div class="form-row hidden" id="field-audio-in">
+            <label class="row-label">Input Card</label>
             <select class="form-select" id="cfg-audio-in"></select>
-            <div class="form-hint">Physical analog card for audio capture (→ Dante TX).</div>
           </div>
 
-          <div class="form-field hidden" id="field-tx-channels">
-            <label class="form-label">TX Channels</label>
+          <div class="form-row hidden" id="field-tx-channels">
+            <label class="row-label">TX Channels</label>
             <select class="form-select" id="cfg-tx-channels">
-              <option value="2">2 channels (stereo)</option>
+              <option value="2">2 ch (stereo)</option>
               <option value="4">4 channels</option>
               <option value="6">6 channels</option>
               <option value="8">8 channels</option>
             </select>
-            <div class="form-hint">Number of audio channels sent to Dante TX.</div>
           </div>
 
-          <div class="form-field hidden" id="field-audio-in2">
-            <label class="form-label">Input Card 2 (Capture)</label>
+          <div class="form-row hidden" id="field-audio-in2">
+            <label class="row-label">Input Card 2</label>
             <select class="form-select" id="cfg-audio-in2"></select>
-            <div class="form-hint">Optional second card for channels 3–4 of the TX stream.</div>
           </div>
 
-          <div class="form-field hidden" id="field-audio-out">
-            <label class="form-label">Output Card (Playback)</label>
+          <div class="form-row hidden" id="field-audio-out">
+            <label class="row-label">Output Card</label>
             <select class="form-select" id="cfg-audio-out"></select>
-            <div class="form-hint">Physical analog card for audio playback (← Dante RX).</div>
           </div>
 
-          <div class="form-field hidden" id="field-rx-channels">
-            <label class="form-label">RX Channels</label>
+          <div class="form-row hidden" id="field-rx-channels">
+            <label class="row-label">RX Channels</label>
             <select class="form-select" id="cfg-rx-channels">
-              <option value="2">2 channels (stereo)</option>
+              <option value="2">2 ch (stereo)</option>
               <option value="4">4 channels</option>
               <option value="6">6 channels</option>
               <option value="8">8 channels</option>
             </select>
-            <div class="form-hint">Number of audio channels received from Dante RX.</div>
           </div>
 
-          <div class="form-field hidden" id="field-audio-out2">
-            <label class="form-label">Output Card 2 (Playback)</label>
+          <div class="form-row hidden" id="field-audio-out2">
+            <label class="row-label">Output Card 2</label>
             <select class="form-select" id="cfg-audio-out2"></select>
-            <div class="form-hint">Optional second card for channels 3–4 of the RX stream.</div>
           </div>
 
-          <hr class="form-divider">
-          <div class="section-label">Network</div>
+          <div class="section-sep">Network</div>
 
-          <div class="form-field">
-            <label class="form-label">Network Interface</label>
+          <div class="form-row">
+            <label class="row-label">Interface</label>
             <select class="form-select" id="cfg-nic"></select>
-            <div class="form-hint">Wired Ethernet interface used for Dante and PTP.</div>
           </div>
 
           <div class="save-section">
             <button class="btn btn-primary btn-save" id="btn-save">
               <span id="save-label">💾  Save &amp; Apply</span>
             </button>
-            <div class="form-hint save-hint">
-              Saves config and restarts affected services. No reboot needed.
-            </div>
           </div>
 
         </div>
       </div>
 
-      <!-- System Info -->
+      <!-- System Info + Actions -->
       <div>
         <div class="card">
           <div class="card-header"><span class="card-title">System Info</span></div>
@@ -165,7 +154,6 @@
           </div>
         </div>
 
-        <!-- Danger zone -->
         <div class="card">
           <div class="card-header"><span class="card-title">Actions</span></div>
           <div class="card-body">
@@ -176,39 +164,41 @@
                 <button class="btn btn-danger"  id="btn-reboot">⏻ Reboot</button>
               </div>
               <div class="form-hint danger-hint">
-                <b>Re-deploy</b>: removes the deploy sentinel and reboots — node re-downloads Inferno binaries from GitHub on next boot.<br>
-                Use after a new release to force binary refresh.
+                <b>Re-deploy</b>: removes the deploy sentinel and reboots — node re-downloads Inferno binaries from GitHub on next boot.
               </div>
             </div>
           </div>
         </div>
       </div>
 
-    </div><!-- /two-col -->
+    </div><!-- /two-col config+info -->
 
-    <!-- Audio Devices -->
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">Audio Devices</span>
-        <button class="btn btn-secondary btn-sm" id="btn-audio-devices">↻ Refresh</button>
-      </div>
-      <div class="card-body">
-        <div id="audio-devices-content"><span class="loading-text">Click Refresh to scan audio hardware…</span></div>
-      </div>
-    </div>
+    <!-- Audio Devices + Volume Control side by side -->
+    <div class="two-col">
 
-    <!-- Volume Control -->
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">Volume Control</span>
-        <button class="btn btn-secondary btn-sm" id="btn-vol-normalize">Set All to 100%</button>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Audio Devices</span>
+          <button class="btn btn-secondary btn-sm" id="btn-audio-devices">↻ Refresh</button>
+        </div>
+        <div class="card-body">
+          <div id="audio-devices-content"><span class="loading-text">Click Refresh to scan audio hardware…</span></div>
+        </div>
       </div>
-      <div class="card-body">
-        <div id="volume-sliders"><span class="loading-text">Loading volumes…</span></div>
-      </div>
-    </div>
 
-    <!-- Logs -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Volume Control</span>
+          <button class="btn btn-secondary btn-sm" id="btn-vol-normalize">Set All to 100%</button>
+        </div>
+        <div class="card-body">
+          <div id="volume-sliders"><span class="loading-text">Loading volumes…</span></div>
+        </div>
+      </div>
+
+    </div><!-- /two-col audio+volume -->
+
+    <!-- Journal -->
     <div class="card">
       <div class="card-header">
         <span class="card-title">Journal</span>
