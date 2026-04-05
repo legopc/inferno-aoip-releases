@@ -485,6 +485,18 @@ async function init() {
         USER_HOME = u.home || "/var/home/core";
     } catch (_) {}
 
+    // Wire all event listeners here (CSP blocks inline onclick/onchange in HTML)
+    $("btn-refresh").addEventListener("click", refreshAll);
+    $("btn-restart-all").addEventListener("click", restartAll);
+    $("btn-save").addEventListener("click", saveConfig);
+    $("btn-log-refresh").addEventListener("click", loadLog);
+    $("btn-redeploy").addEventListener("click", triggerRedeploy);
+    $("btn-reboot").addEventListener("click", triggerReboot);
+    $("log-svc-select").addEventListener("change", loadLog);
+    $("cfg-mode").addEventListener("change", function() { onModeChange(); markDirty(); });
+    $("cfg-audio").addEventListener("change", markDirty);
+    $("cfg-nic").addEventListener("change", markDirty);
+
     await loadConfig();
     refreshHeader();
     await refreshAll();

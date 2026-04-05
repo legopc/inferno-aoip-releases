@@ -26,7 +26,7 @@
       </div>
     </div>
     <div class="header-right">
-      <button class="btn btn-secondary" id="btn-refresh" onclick="refreshAll()">↻ Refresh</button>
+      <button class="btn btn-secondary" id="btn-refresh">↻ Refresh</button>
     </div>
   </div>
 
@@ -40,7 +40,7 @@
       <div class="card-header">
         <span class="card-title">Services</span>
         <div class="btn-group">
-          <button class="btn btn-secondary btn-sm" id="btn-restart-all" onclick="restartAll()">⟳ Restart All</button>
+          <button class="btn btn-secondary btn-sm" id="btn-restart-all">⟳ Restart All</button>
         </div>
       </div>
       <div class="card-body">
@@ -74,7 +74,7 @@
 
           <div class="form-field">
             <label class="form-label">Mode</label>
-            <select class="form-select" id="cfg-mode" onchange="onModeChange(); markDirty()">
+            <select class="form-select" id="cfg-mode">
               <option value="spotify">Spotify Connect → Dante TX</option>
               <option value="aux">Analog In (AUX) → Dante TX</option>
             </select>
@@ -82,7 +82,7 @@
 
           <div class="form-field hidden" id="field-audio">
             <label class="form-label">Audio Card <span>(AUX mode source)</span></label>
-            <select class="form-select" id="cfg-audio" onchange="markDirty()"></select>
+            <select class="form-select" id="cfg-audio"></select>
           </div>
 
           <hr class="form-divider">
@@ -90,12 +90,12 @@
 
           <div class="form-field">
             <label class="form-label">Network Interface</label>
-            <select class="form-select" id="cfg-nic" onchange="markDirty()"></select>
+            <select class="form-select" id="cfg-nic"></select>
             <div class="form-hint">Wired Ethernet interface used for Dante and PTP.</div>
           </div>
 
           <div class="save-section">
-            <button class="btn btn-primary btn-save" id="btn-save" onclick="saveConfig()">
+            <button class="btn btn-primary btn-save" id="btn-save">
               <span id="save-label">💾  Save &amp; Apply</span>
             </button>
             <div class="form-hint save-hint">
@@ -124,8 +124,8 @@
             <div class="danger-zone">
               <div class="danger-zone-title">⚠ Destructive actions</div>
               <div class="btn-group">
-                <button class="btn btn-warning" onclick="triggerRedeploy()">🔄 Re-deploy binaries</button>
-                <button class="btn btn-danger"  onclick="triggerReboot()">⏻ Reboot</button>
+                <button class="btn btn-warning" id="btn-redeploy">🔄 Re-deploy binaries</button>
+                <button class="btn btn-danger"  id="btn-reboot">⏻ Reboot</button>
               </div>
               <div class="form-hint danger-hint">
                 <b>Re-deploy</b>: removes the deploy sentinel and reboots — node re-downloads Inferno binaries from GitHub on next boot.<br>
@@ -143,14 +143,14 @@
       <div class="card-header">
         <span class="card-title">Journal</span>
         <div class="btn-group">
-          <select class="form-select select-auto" id="log-svc-select" onchange="loadLog()">
+          <select class="form-select select-auto" id="log-svc-select">
             <option value="librespot">librespot</option>
             <option value="inferno-bridge">inferno-bridge</option>
             <option value="inferno-keepalive">inferno-keepalive</option>
             <option value="librespot-watchdog">librespot-watchdog</option>
             <option value="statime-inferno">statime-inferno</option>
           </select>
-          <button class="btn btn-secondary btn-sm" onclick="loadLog()">↻</button>
+          <button class="btn btn-secondary btn-sm" id="btn-log-refresh">↻</button>
         </div>
       </div>
       <div class="card-body card-body-flush">
