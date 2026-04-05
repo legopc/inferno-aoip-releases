@@ -110,20 +110,26 @@ function buildConfText(conf) {
 }
 
 async function loadConfig() {
-    var liveName = "";
+    var spotifyName = "";
+    var danteName   = "";
     try {
         var svcText = await cockpit.file(LIBRESPOT_SVC).read();
         var m = (svcText || "").match(/--name\s+"([^"]+)"/);
-        if (m) liveName = m[1];
+        if (m) spotifyName = m[1];
+    } catch (_) {}
+    try {
+        var asoundText = await cockpit.file(ASOUNDRC).read();
+        var m2 = (asoundText || "").match(/NAME\s+"([^"]+)"/);
+        if (m2) danteName = m2[1];
     } catch (_) {}
 
     var confText = "";
     try { confText = await cockpit.file(CONF).read() || ""; } catch (_) {}
 
     currentConf = parseConf(confText);
-    if (liveName) currentConf.INFERNO_NAME = liveName;
 
-    $("cfg-name").value = currentConf.INFERNO_NAME || "";
+    $("cfg-spotify-name").value = spotifyName || currentConf.INFERNO_NAME || "";
+    $("cfg-dante-name").value   = danteName   || currentConf.INFERNO_NAME || "";
     currentMode = currentConf.INFERNO_MODE || "spotify";
     $("cfg-mode").value = currentMode;
     onModeChange();
@@ -194,32 +200,37 @@ async function saveConfig() {
     btn.disabled = true;
     label.innerHTML = '<span class="spinner"></span> Applying\u2026';
 
-    var newName     = $("cfg-name").value.trim();
-    var oldName     = currentConf.INFERNO_NAME || "";
-    var nameChanged = newName && newName !== oldName;
+    var newSpotifyName = $("cfg-spotify-name").value.trim();
+    var newDanteName   = $("cfg-dante-name").value.trim();
 
     try {
         // Write /etc/inferno.conf via sudo tee
         var newConf = Object.assign({}, currentConf, {
-            INFERNO_MODE:       $("cfg-mode").value,
-            INFERNO_NAME:       newName,
-            INFERNO_NIC:        $("cfg-nic").value,
-            INFERNO_AUDIO_CARD: $("cfg-audio").value,
+            INFERNO_MODE:         $("cfg-mode").value,
+            INFERNO_SPOTIFY_NAME: newSpotifyName,
+            INFERNO_DANTE_NAME:   newDanteName,
+            INFERNO_NIC:          $("cfg-nic").value,
+            INFERNO_AUDIO_CARD:   $("cfg-audio").value,
         });
         await writeFileAsSudo(CONF, buildConfText(newConf));
         currentConf = newConf;
         currentMode = newConf.INFERNO_MODE;
 
-        if (nameChanged) {
-            // Patch librespot.service --name and .asoundrc NAME
-            await spUser("sed -i 's/--name \"[^\"]*\"/--name \"" + newName + "\"/' " + LIBRESPOT_SVC);
-            await spUser("sed -i 's/NAME \"[^\"]*\"/NAME \"" + newName + "\"/' " + ASOUNDRC);
-            await spUser("systemctl --user daemon-reload");
-            await spUser("systemctl --user restart librespot inferno-bridge inferno-keepalive");
-            toast("Device name updated to <b>" + newName + "</b>. Restarting services\u2026", "success", 8000);
-        } else {
-            toast("Configuration saved.", "success");
+        var msgs = [];
+
+        if (newSpotifyName) {
+            await spUser("sed -i 's/--name \"[^\"]*\"/--name \"" + newSpotifyName + "\"/' " + LIBRESPOT_SVC);
+            msgs.push("Spotify → <b>" + newSpotifyName + "</b>");
         }
+        if (newDanteName) {
+            await spUser("sed -i 's/NAME \"[^\"]*\"/NAME \"" + newDanteName + "\"/' " + ASOUNDRC);
+            msgs.push("Dante TX → <b>" + newDanteName + "</b>");
+        }
+
+        await spUser("systemctl --user daemon-reload");
+        await spUser("systemctl --user restart librespot inferno-bridge inferno-keepalive");
+
+        toast((msgs.length ? msgs.join(", ") + ". " : "") + "Services restarting\u2026", "success", 8000);
 
         isDirty = false;
         $("cfg-dirty-badge").classList.add("hidden");
@@ -496,6 +507,8 @@ async function init() {
     $("cfg-mode").addEventListener("change", function() { onModeChange(); markDirty(); });
     $("cfg-audio").addEventListener("change", markDirty);
     $("cfg-nic").addEventListener("change", markDirty);
+    $("cfg-spotify-name").addEventListener("input", markDirty);
+    $("cfg-dante-name").addEventListener("input", markDirty);
 
     await loadConfig();
     refreshHeader();

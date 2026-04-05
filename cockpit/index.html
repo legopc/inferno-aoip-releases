@@ -61,12 +61,17 @@
         </div>
         <div class="card-body">
 
-          <!-- Device name — prominent -->
+          <!-- Device names — prominent -->
           <div class="section-label">Device identity</div>
           <div class="form-field name-field-highlight">
-            <label class="form-label">Device Name <span>(Dante Controller &amp; Spotify)</span></label>
-            <input class="form-input" id="cfg-name" type="text" placeholder="Inferno-XXXXXX" oninput="markDirty()">
-            <div class="form-hint">Changing this updates both Spotify Connect and the Dante TX device name. Services restart automatically on save.</div>
+            <label class="form-label">🎵 Spotify Connect Name</label>
+            <input class="form-input" id="cfg-spotify-name" type="text" placeholder="Inferno-XXXXXX">
+            <div class="form-hint">Name shown in Spotify as the playback target. Restarts librespot on save.</div>
+          </div>
+          <div class="form-field name-field-highlight">
+            <label class="form-label">🔊 Dante TX Name</label>
+            <input class="form-input" id="cfg-dante-name" type="text" placeholder="Inferno-XXXXXX">
+            <div class="form-hint">Name shown in Dante Controller for the transmitter. Restarts inferno-bridge on save.</div>
           </div>
 
           <hr class="form-divider">
