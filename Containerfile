@@ -27,7 +27,7 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     cockpit-ws cockpit-system \
     cockpit-networkmanager cockpit-storaged cockpit-selinux \
     cockpit-ostree cockpit-kdump cockpit-sosreport \
-    cockpit-pcp cockpit-files \
+    cockpit-files \
     # ALSA audio stack
     alsa-lib alsa-utils alsa-plugins-speex speexdsp \
     # Avahi / mDNS (Dante discovery)
