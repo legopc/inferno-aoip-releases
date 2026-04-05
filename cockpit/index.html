@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Inferno AoIP</title>
+  <script src="../base1/cockpit.js"></script>
+  <link rel="stylesheet" href="inferno.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="page-header">
+    <div>
+      <div class="page-header-left">
+        <span class="flame-icon">🔥</span>
+        <div>
+          <div class="page-title">Inferno AoIP</div>
+          <div class="page-subtitle">Spotify Connect → Dante transmitter</div>
+        </div>
+      </div>
+      <div class="node-pills">
+        <div class="pill"><span class="pill-dot blue"></span><span id="hdr-hostname">…</span></div>
+        <div class="pill"><span class="pill-dot blue"></span><span id="hdr-ip">…</span></div>
+        <div class="pill ptp-pill"><span id="hdr-ptp">PTP …</span></div>
+        <div class="pill"><span id="hdr-mode-badge">…</span></div>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-secondary" id="btn-refresh" onclick="refreshAll()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- Toast area -->
+  <div id="toast-area"></div>
+
+  <div class="page-body">
+
+    <!-- Services -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Services</span>
+        <div class="btn-group">
+          <button class="btn btn-secondary btn-sm" id="btn-restart-all" onclick="restartAll()">⟳ Restart All</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="svc-grid" id="svc-grid">
+          <div class="loading-text">Loading services…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Config + Info side by side -->
+    <div class="two-col">
+
+      <!-- Config -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Configuration</span>
+          <span id="cfg-dirty-badge" class="dirty-badge hidden">● unsaved changes</span>
+        </div>
+        <div class="card-body">
+
+          <!-- Device name — prominent -->
+          <div class="section-label">Device identity</div>
+          <div class="form-field name-field-highlight">
+            <label class="form-label">Device Name <span>(Dante Controller &amp; Spotify)</span></label>
+            <input class="form-input" id="cfg-name" type="text" placeholder="Inferno-XXXXXX" oninput="markDirty()">
+            <div class="form-hint">Changing this updates both Spotify Connect and the Dante TX device name. Services restart automatically on save.</div>
+          </div>
+
+          <hr class="form-divider">
+          <div class="section-label">Audio routing</div>
+
+          <div class="form-field">
+            <label class="form-label">Mode</label>
+            <select class="form-select" id="cfg-mode" onchange="onModeChange(); markDirty()">
+              <option value="spotify">Spotify Connect → Dante TX</option>
+              <option value="aux">Analog In (AUX) → Dante TX</option>
+            </select>
+          </div>
+
+          <div class="form-field hidden" id="field-audio">
+            <label class="form-label">Audio Card <span>(AUX mode source)</span></label>
+            <select class="form-select" id="cfg-audio" onchange="markDirty()"></select>
+          </div>
+
+          <hr class="form-divider">
+          <div class="section-label">Network</div>
+
+          <div class="form-field">
+            <label class="form-label">Network Interface</label>
+            <select class="form-select" id="cfg-nic" onchange="markDirty()"></select>
+            <div class="form-hint">Wired Ethernet interface used for Dante and PTP.</div>
+          </div>
+
+          <div class="save-section">
+            <button class="btn btn-primary btn-save" id="btn-save" onclick="saveConfig()">
+              <span id="save-label">💾  Save &amp; Apply</span>
+            </button>
+            <div class="form-hint save-hint">
+              Saves config and restarts affected services. No reboot needed.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- System Info -->
+      <div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">System Info</span></div>
+          <div class="card-body">
+            <table class="info-table" id="info-table">
+              <tr><td class="info-key">Loading</td><td>…</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- Danger zone -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Actions</span></div>
+          <div class="card-body">
+            <div class="danger-zone">
+              <div class="danger-zone-title">⚠ Destructive actions</div>
+              <div class="btn-group">
+                <button class="btn btn-warning" onclick="triggerRedeploy()">🔄 Re-deploy binaries</button>
+                <button class="btn btn-danger"  onclick="triggerReboot()">⏻ Reboot</button>
+              </div>
+              <div class="form-hint danger-hint">
+                <b>Re-deploy</b>: removes the deploy sentinel and reboots — node re-downloads Inferno binaries from GitHub on next boot.<br>
+                Use after a new release to force binary refresh.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /two-col -->
+
+    <!-- Logs -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Journal</span>
+        <div class="btn-group">
+          <select class="form-select select-auto" id="log-svc-select" onchange="loadLog()">
+            <option value="librespot">librespot</option>
+            <option value="inferno-bridge">inferno-bridge</option>
+            <option value="inferno-keepalive">inferno-keepalive</option>
+            <option value="librespot-watchdog">librespot-watchdog</option>
+            <option value="statime-inferno">statime-inferno</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" onclick="loadLog()">↻</button>
+        </div>
+      </div>
+      <div class="card-body card-body-flush">
+        <div class="log-box" id="log-box">Select a service above…</div>
+      </div>
+    </div>
+
+  </div><!-- /page-body -->
+
+  <script src="inferno.js"></script>
+</body>
+</html>

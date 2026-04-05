@@ -23,15 +23,15 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     #   networkmanager = NIC/IP config, storaged = disk/partition management,
     #   selinux = SELinux policy browser, ostree = bootc image upgrades via UI,
     #   kdump = kernel crash config, sosreport = support data collection
+    #   pcp = performance metrics graphs, files = web-based file browser
     cockpit-ws cockpit-system \
     cockpit-networkmanager cockpit-storaged cockpit-selinux \
     cockpit-ostree cockpit-kdump cockpit-sosreport \
+    cockpit-pcp cockpit-files \
     # ALSA audio stack
     alsa-lib alsa-utils alsa-plugins-speex speexdsp \
     # Avahi / mDNS (Dante discovery)
     avahi avahi-tools nss-mdns \
-    # Web UI backend
-    python3 \
     # Required for inferno-configure.sh
     curl \
     # SSH server
@@ -70,8 +70,11 @@ COPY templates/alsa/asoundrc.spotify      /etc/inferno/asoundrc.spotify.template
 # Per-user scripts (installed to ~/bin at first boot)
 COPY templates/inferno-sink-event         /etc/inferno/inferno-sink-event
 COPY templates/librespot-watchdog         /etc/inferno/librespot-watchdog
-# Web management UI
-COPY scripts/inferno-web.py               /usr/local/lib/inferno/inferno-web.py
+
+# ── Cockpit Inferno page ───────────────────────────────────────────────────────
+# Baked into the image at the system-wide Cockpit package path.
+# cockpit-ws auto-discovers packages in /usr/share/cockpit/.
+COPY cockpit/ /usr/share/cockpit/inferno/
 
 # ── Systemd SYSTEM units ───────────────────────────────────────────────────────
 COPY templates/systemd/system/statime-inferno.service /etc/systemd/system/
@@ -83,7 +86,6 @@ COPY templates/systemd/user/inferno-bridge.service      /etc/inferno/systemd/use
 COPY templates/systemd/user/inferno-keepalive.service   /etc/inferno/systemd/user/
 COPY templates/systemd/user/librespot.service           /etc/inferno/systemd/user/
 COPY templates/systemd/user/librespot-watchdog.service  /etc/inferno/systemd/user/
-COPY templates/systemd/user/inferno-web.service         /etc/inferno/systemd/user/
 
 # ── snd-aloop kernel module (pinned to card 5 — avoids card number conflicts) ─
 RUN echo "options snd-aloop index=5" > /etc/modprobe.d/snd-aloop.conf && \

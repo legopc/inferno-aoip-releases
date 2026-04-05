@@ -104,7 +104,7 @@ SYSTEMD_USER="${CORE_HOME}/.config/systemd/user"
 mkdir -p "${SYSTEMD_USER}"
 
 # Static units (no placeholders)
-for unit in inferno-bridge inferno-keepalive inferno-web librespot-watchdog; do
+for unit in inferno-bridge inferno-keepalive librespot-watchdog; do
     cp "/etc/inferno/systemd/user/${unit}.service" "${SYSTEMD_USER}/"
 done
 
@@ -125,7 +125,7 @@ done
 
 # ── Enable user services ───────────────────────────────────────────────────────
 echo "Enabling user services for core..."
-for svc in inferno-bridge inferno-keepalive librespot librespot-watchdog inferno-web; do
+for svc in inferno-bridge inferno-keepalive librespot librespot-watchdog; do
     sudo -u core XDG_RUNTIME_DIR="/run/user/${CORE_UID}" \
         systemctl --user enable "${svc}.service" 2>/dev/null \
         && echo "  enabled: ${svc}" \

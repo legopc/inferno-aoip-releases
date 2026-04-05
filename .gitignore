@@ -14,7 +14,7 @@ output/
 
 # Stray ignition files with credentials
 *.ign
-*.json
+build/*.json
 
 # macOS
 .DS_Store
