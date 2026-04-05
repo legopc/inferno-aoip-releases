@@ -206,19 +206,18 @@
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ inferno_uid }}"
 
-- name: Check if inferno-aux-keepalive user service is enabled
-  ansible.builtin.command: systemctl --user is-enabled inferno-aux-keepalive.service
-  register: aux_keepalive_enabled_check
-  changed_when: false
+# inferno-aux-keepalive is INTENTIONALLY NOT ENABLED on aux nodes.
+# Root cause of removal: aux-rx (alsaloop) runs continuously and already holds the
+# inferno_aux_rx Dante subscription open. If keepalive ALSO opens the same device
+# (to discard audio via arecord), there are two competing subscription owners.
+# Dante Controller stream-change commands reach one opener but not the other, so
+# routing changes appear to be accepted but audio doesn't switch.
+# Fix: aux-rx is the sole owner of inferno_aux_rx. Restart=always ensures it
+# recovers within seconds if it crashes — no keepalive needed.
+- name: Stop and disable inferno-aux-keepalive (must not run alongside aux-rx)
+  ansible.builtin.command: systemctl --user disable --now inferno-aux-keepalive.service
   failed_when: false
+  changed_when: false
   when: inferno_mode | default('spotify') == 'aux'
-  environment:
-    XDG_RUNTIME_DIR: "/run/user/{{ inferno_uid }}"
-
-- name: Enable and start inferno-aux-keepalive user service
-  ansible.builtin.command: systemctl --user enable --now inferno-aux-keepalive.service
-  when:
-    - inferno_mode | default('spotify') == 'aux'
-    - aux_keepalive_enabled_check.stdout | trim != 'enabled'
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ inferno_uid }}"

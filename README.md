@@ -86,8 +86,14 @@ After the second reboot the node is fully running.
 
 | Interface | URL | Purpose |
 |-----------|-----|---------|
-| Cockpit | `https://node-ip:9090` | OS management, service control, rpm-ostree upgrades, terminal, file editor |
-| Inferno UI | `http://node-ip:8080` | Mode/name config, service status, trigger binary update |
+| Cockpit | `https://node-ip:9090` | Full management: Inferno config, service status/restart, hostname, NIC, audio card, OS upgrades, terminal |
+
+The **Inferno** page appears in the Cockpit sidebar and provides:
+- Live service status with per-service restart/start/stop
+- Config editor (mode, device name, NIC, audio card) — applied without reboot
+- Hostname change
+- Journal viewer per service
+- Quick actions: restart all, trigger re-deploy, reboot
 
 ## Upgrading
 
@@ -99,15 +105,17 @@ rpm-ostree upgrade && systemctl reboot
 
 **Inferno binary update:**
 ```bash
-# Via web UI: click "Update Inferno binaries" button at http://node-ip:8080
+# Via Cockpit: Inferno page → Actions → "Trigger re-deploy + reboot"
 # Via SSH/Cockpit terminal:
 sudo rm /var/lib/inferno/.deployed && sudo systemctl reboot
 # On next boot, deploy.sh re-runs and downloads the latest tarball
 ```
 
-**Config-only change:**
+**Inferno config change:**
 ```bash
-sudo nano /etc/inferno.conf   # or edit via Cockpit Files / Inferno web UI
+# Via Cockpit: https://node-ip:9090 → Inferno page → Config section
+# Via SSH:
+sudo nano /etc/inferno.conf
 systemctl --user restart librespot.service   # (spotify mode example)
 ```
 
@@ -119,6 +127,14 @@ systemctl --user restart librespot.service   # (spotify mode example)
 | Password | see internal documentation |
 | sudo | passwordless (configured by Ignition) |
 | SSH | password auth enabled; public key auth also works |
+
+## Version History
+
+| Version | Status | Notes |
+|---------|--------|-------|
+| v8 | ✅ Production — validated | First physical install on HP EliteDesk 800G3 confirmed working. Audio group bug fixed (`/etc/group` direct write bypassing NSS). Spotify Connect + Dante TX functional. Cockpit UI replaces port-8080 Python webserver. |
+| v7 | Superseded | Added Cockpit modules, linger fix, WiFi NIC exclusion |
+| v6 | Superseded | — |
 
 ## osbuild Blueprint
 
