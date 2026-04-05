@@ -141,8 +141,8 @@ Three distinct DEVICE_IDs are required so Dante Controller identifies them as th
 | `inferno-keepalive.service` | Spotify | Opens `inferno_spotify` with silence when nothing is playing — keeps the Dante subscription alive so DC always shows the device |
 | `librespot.service` | Spotify | Spotify Connect receiver — writes decoded audio to `pcm.spotifyd` |
 | `librespot-watchdog.service` | Spotify | Restarts librespot if it stops writing audio |
-| `inferno-aux-tx.service` | Aux In / Bidir | `alsaloop`: reads `plughw:<card_in>,0` → writes `inferno_aux_tx`. Bridges physical analog in to Dante TX. |
-| `inferno-aux-rx.service` | Aux Out / Bidir | `alsaloop`: reads `inferno_aux_rx` → writes `plughw:<card_out>,0`. Bridges Dante RX to physical analog out. |
+| `inferno-aux-tx.service` | Aux In / Bidir | `alsaloop`: reads `plughw:CARD=<cardIn>,DEV=0` (or `inferno_aux_multi_in` for multi-card) → writes `inferno_aux_tx`. Bridges physical analog in to Dante TX. Channel count set by `-c N`. |
+| `inferno-aux-rx.service` | Aux Out / Bidir | `alsaloop`: reads `inferno_aux_rx` → writes `plughw:CARD=<cardOut>,DEV=0` (or `inferno_aux_multi_out` for multi-card). Bridges Dante RX to physical analog out. Channel count set by `-c N`. |
 | `inferno-aux-keepalive.service` | (unused with rx) | Opens `inferno_aux_rx` with silence — **must NOT run alongside `inferno-aux-rx.service`** (competing Dante subscription owners cause streams to stop) |
 
 ### Service set per mode
@@ -186,16 +186,22 @@ INFERNO_INTERFACE=192.168.1.46 # IP of NIC above (BIND_IP in ALSA config)
 INFERNO_DEVICE_ID=186024244aa80000   # base Dante DEVICE_ID
 INFERNO_DEVICE_ID_TX=186024244aa80001
 INFERNO_DEVICE_ID_RX=186024244aa80002
-INFERNO_AUDIO_CARD_IN=0        # ALSA card number for capture (aux modes)
-INFERNO_AUDIO_CARD_OUT=0       # ALSA card number for playback (aux modes)
+INFERNO_AUDIO_CARD_IN=PCH      # stable ALSA ID for capture card (aux modes)
+INFERNO_AUDIO_CARD_OUT=PCH     # stable ALSA ID for playback card (aux modes)
+INFERNO_AUDIO_CARD_IN2=none    # optional second capture card (multi-card TX)
+INFERNO_AUDIO_CARD_OUT2=none   # optional second playback card (multi-card RX)
+INFERNO_TX_CHANNELS=2          # Dante TX channel count (2/4/6/8)
+INFERNO_RX_CHANNELS=2          # Dante RX channel count (2/4/6/8)
 INFERNO_AUDIO_CARD=0           # legacy single-card field (kept for compatibility)
 ```
 
 Written at first boot by `inferno-configure.sh`. Cockpit reads and updates this file (via `sudo -n tee`) when configuration is saved.
 
+**Stable ALSA card IDs**: Card numbers (`0`, `1`, …) can shift on reboot when USB soundcards are present. The Cockpit UI uses the ALSA short ID (`PCH`, `USB`, `Device`) as the value for audio card selectors — these are stable across reboots. Service files use `plughw:CARD=PCH,DEV=0` syntax rather than `plughw:0,0`.
+
 ### `~/.asoundrc` (user, managed by Cockpit and configure script)
 
-Defines all Inferno ALSA PCM devices. Written at first boot from templates. The Cockpit UI appends aux blocks (`inferno_aux_tx`, `inferno_aux_rx`) the first time an aux mode is saved.
+Defines all Inferno ALSA PCM devices. Written at first boot from templates. The Cockpit UI appends aux blocks (`inferno_aux_tx`, `inferno_aux_rx`) the first time an aux mode is saved, and optionally `inferno_aux_multi_in` / `inferno_aux_multi_out` when two cards are configured.
 
 **Critical**: When patching the `NAME` field (e.g. on device rename), sed must be scoped to each block individually to preserve `-TX`/`-RX` suffixes:
 ```bash
@@ -204,9 +210,31 @@ sed -i '/pcm\.inferno_aux_tx/,/^}/s/NAME "[^"]*"/NAME "NewName-TX"/' ~/.asoundrc
 sed -i '/pcm\.inferno_aux_rx/,/^}/s/NAME "[^"]*"/NAME "NewName-RX"/' ~/.asoundrc
 ```
 
+**Multi-card PCM blocks** (written when two input or output cards are configured):
+```
+# Multi-card capture for TX
+pcm.inferno_aux_multi_in {
+    type multi
+    slaves {
+        a { pcm "plughw:CARD=PCH,DEV=0" channels 2 }
+        b { pcm "plughw:CARD=USB,DEV=0" channels 2 }
+    }
+    bindings {
+        0 { slave a channel 0 }   # ch 1 from card 1
+        1 { slave a channel 1 }   # ch 2 from card 1
+        2 { slave b channel 0 }   # ch 3 from card 2
+        3 { slave b channel 1 }   # ch 4 from card 2
+    }
+}
+```
+These blocks are removed and rewritten fresh on every Save & Apply (via `sed -i '/^# Multi-card/,/^}/d'` followed by append).
+
 ### `~/.config/systemd/user/*.service`
 
-User service units. Static units are copied from `/etc/inferno/systemd/user/` at first boot. Aux service files (`inferno-aux-tx.service`, `inferno-aux-rx.service`) are written with the card number substituted (`plughw:N,0`).
+User service units. Static units are copied from `/etc/inferno/systemd/user/` at first boot. Aux service files (`inferno-aux-tx.service`, `inferno-aux-rx.service`) are **always rewritten** by the Cockpit UI on Save & Apply with:
+- Stable ALSA card IDs (`plughw:CARD=PCH,DEV=0`)
+- Correct channel count (`-c N`)
+- Multi PCM as capture/playback when two cards are configured
 
 ---
 

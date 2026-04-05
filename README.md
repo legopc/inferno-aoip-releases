@@ -1,6 +1,169 @@
 # inferno-aoip-releases
 
-Pre-built binaries and deployment tooling for the [Inferno AoIP](https://gitlab.com/lumifaza/inferno) project — a headless Spotify Connect receiver / AUX bridge that transmits audio over Dante.
+Pre-built binaries and deployment tooling for the [Inferno AoIP](https://gitlab.com/lumifaza/inferno) project — a headless appliance that bridges Spotify Connect and analog audio into a Dante AoIP network.
+
+## What Is Inferno AoIP?
+
+Inferno AoIP is an immutable Linux appliance that bridges audio into a Dante Audio-over-IP network. It runs as a [bootc](https://containers.github.io/bootc/) image — the entire OS is a container image that boots directly (no package manager, no drift).
+
+### Operating modes
+
+| Mode | Audio path | Dante devices created |
+|------|-----------|----------------------|
+| **Spotify** | Spotify Connect → Dante TX | 1 TX device (`Name`) |
+| **Aux In** | Analog capture → Dante TX | 1 TX device (`Name-TX`) |
+| **Aux Out** | Dante RX → Analog playback | 1 RX device (`Name-RX`) |
+| **Aux Bidir** | Analog in → Dante TX **and** Dante RX → Analog out | 1 TX + 1 RX (`Name-TX`, `Name-RX`) |
+
+Aux modes support up to 8 channels and optionally combine two physical soundcards (e.g. two 2-channel USB cards into a single 4-channel Dante device).
+
+---
+
+## What This Repo Contains
+
+This repo holds:
+- **`Containerfile`** — the bootc image definition
+- **`build/`** — `inferno-configure.sh` (first-boot configuration script)
+- **`cockpit/`** — Cockpit management UI (native Cockpit page, no separate web server)
+- **`templates/`** — ALSA, systemd, and PTP config templates baked into the image
+- **`docs/`** — System architecture and UI documentation
+
+A nightly GitHub Actions CI pipeline also builds Inferno binaries from source and publishes them as a release tarball:
+
+```
+https://github.com/legopc/inferno-aoip-releases/releases/latest/download/inferno-aoip.tar.gz
+```
+
+The tarball contains:
+```
+inferno-aoip/
+├── bin/
+│   ├── statime             PTP daemon (Inferno fork)
+│   └── librespot           Spotify Connect receiver
+├── lib/
+│   └── libasound_module_pcm_inferno.so   ALSA Dante plugin
+├── templates/
+│   ├── systemd/system/statime-inferno.service
+│   ├── systemd/user/inferno-bridge.service
+│   ├── systemd/user/inferno-keepalive.service
+│   ├── systemd/user/librespot.service
+│   ├── systemd/user/librespot-watchdog.service
+│   ├── systemd/user/inferno-aux-tx.service
+│   ├── systemd/user/inferno-aux-rx.service
+│   ├── systemd/user/inferno-aux-keepalive.service
+│   ├── alsa/asoundrc.spotify
+│   ├── alsa/asoundrc.aux
+│   ├── alsa/99-inferno.conf
+│   ├── inferno-ptpv1.toml
+│   ├── inferno-sink-event
+│   └── librespot-watchdog
+├── scripts/
+│   └── inferno-deploy.sh
+└── VERSION
+```
+
+---
+
+## First-Boot Deployment (bootc image)
+
+The bootc image is installed via an ISO built with `osbuild`. After installation:
+
+1. The node boots into the immutable Fedora image
+2. `inferno-configure.service` fires on first boot (gated by absence of `/etc/inferno.conf`):
+   - Auto-detects wired NIC and IP
+   - Derives Dante DEVICE_ID from MAC address
+   - Auto-detects physical audio card (first non-Loopback non-HDMI card)
+   - Derives default device name from MAC: `Inferno-24AAA8`
+   - Downloads the latest binary tarball from this repo
+   - Writes `~/.asoundrc`, user service files, PTP config
+   - Writes `/etc/inferno.conf` (prevents re-run)
+   - Reboots
+3. After the second reboot the node is fully running
+
+---
+
+## Cockpit Management UI
+
+Access at `https://node-ip:9090` → Inferno (sidebar).
+
+The Inferno Cockpit page provides:
+- **Live service status** — per-service start/stop/restart for statime, librespot, inferno-bridge, inferno-aux-tx, inferno-aux-rx
+- **Configuration** — mode, device names, NIC, audio cards, channel counts — applied immediately without reboot
+- **Audio devices panel** — shows all detected soundcards with capture/playback capabilities; auto-refreshes on load
+- **Journal viewer** — per-service log output
+- **Actions** — restart all, trigger binary re-deploy, reboot
+
+### Configuration keys (`/etc/inferno.conf`)
+
+| Key | Values | Notes |
+|-----|--------|-------|
+| `INFERNO_MODE` | `spotify` / `aux-in` / `aux-out` / `aux-bidir` | Active operating mode |
+| `INFERNO_SPOTIFY_NAME` | string | Name shown in Spotify app |
+| `INFERNO_DANTE_NAME` | string | Base name for Dante devices (`-TX`/`-RX` appended for aux) |
+| `INFERNO_NIC` | NIC name or `auto` | Dante network interface |
+| `INFERNO_AUDIO_CARD_IN` | ALSA short ID e.g. `PCH` | Capture card (stable across reboots) |
+| `INFERNO_AUDIO_CARD_OUT` | ALSA short ID e.g. `PCH` | Playback card |
+| `INFERNO_AUDIO_CARD_IN2` | ALSA short ID or `none` | Optional second capture card for multi-card TX |
+| `INFERNO_AUDIO_CARD_OUT2` | ALSA short ID or `none` | Optional second playback card for multi-card RX |
+| `INFERNO_TX_CHANNELS` | `2` / `4` / `6` / `8` | Dante TX channel count |
+| `INFERNO_RX_CHANNELS` | `2` / `4` / `6` / `8` | Dante RX channel count |
+
+See [`docs/cockpit-ui.md`](docs/cockpit-ui.md) for full UI internals and [`docs/architecture.md`](docs/architecture.md) for the system architecture.
+
+---
+
+## Upgrading
+
+**Inferno binary update:**
+```bash
+# Via Cockpit: Inferno page → Actions → "Trigger re-deploy + reboot"
+# Via SSH:
+sudo rm /var/lib/inferno/.deployed && sudo systemctl reboot
+```
+
+**Config change:**
+```bash
+# Via Cockpit (recommended): https://node-ip:9090 → Inferno page
+# Via SSH (manual):
+sudo nano /etc/inferno.conf
+systemctl --user restart inferno-aux-tx   # example for aux-in mode
+```
+
+---
+
+## Credentials (lab use only)
+
+| Item | Value |
+|------|-------|
+| OS user | `core` |
+| Password | see internal documentation |
+| sudo | passwordless (wheel NOPASSWD in sudoers) |
+| SSH | password auth enabled; public key auth also works |
+
+---
+
+## Version History
+
+| Version | Status | Notes |
+|---------|--------|-------|
+| v9 | ✅ Production | Cockpit UI with full aux mode: split card selectors, channel counts, multi-card support (ALSA type multi), stable ALSA card IDs, audio devices panel, auto-refresh |
+| v8 | Superseded | First physical install on HP EliteDesk 800G3. Spotify Connect + Dante TX functional. Cockpit UI replaces Python webserver. |
+| v7 | Superseded | Added Cockpit modules, linger fix, WiFi NIC exclusion |
+| v6 | Superseded | — |
+
+---
+
+## Build (PRX-01)
+
+```bash
+ssh root@10.10.1.201
+cd /mnt/inferno-build/inferno-aoip-releases && git pull
+podman --storage-driver overlay \
+  --storage-opt overlay.mount_program=/usr/bin/fuse-overlayfs \
+  --root /mnt/inferno-build/storage \
+  build -t inferno-aoip:v10 -f Containerfile .
+```
+
 
 ## What This Repo Does
 
