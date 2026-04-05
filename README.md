@@ -146,7 +146,8 @@ systemctl --user restart inferno-aux-tx   # example for aux-in mode
 
 | Version | Status | Notes |
 |---------|--------|-------|
-| v9 | ✅ Production | Cockpit UI with full aux mode: split card selectors, channel counts, multi-card support (ALSA type multi), stable ALSA card IDs, audio devices panel, auto-refresh |
+| v10 | ✅ Production | Hot-plug USB audio support (udev rules), dynamic ALSA device detection on add/remove, Spotify Connect name field conditional display, TX/RX channel selectors, multi-card support |
+| v9 | Superseded | Cockpit UI with full aux mode: split card selectors, channel counts, multi-card support (ALSA type multi), stable ALSA card IDs, audio devices panel, auto-refresh |
 | v8 | Superseded | First physical install on HP EliteDesk 800G3. Spotify Connect + Dante TX functional. Cockpit UI replaces Python webserver. |
 | v7 | Superseded | Added Cockpit modules, linger fix, WiFi NIC exclusion |
 | v6 | Superseded | — |
