@@ -12,6 +12,88 @@ This appliance is named **Virgil** after the Roman poet who guides Dante through
 
 ---
 
+## ⚠️ Known Issues
+
+> **Why this section exists:** AI assistants document features convincingly even when the underlying code is broken. The items below are confirmed defects — do not rely on them working until they are marked fixed.
+
+### 🔴 OTA upgrade via Cockpit IoT Updater is broken
+
+**Status:** Broken in all versions. Not yet fixed.
+
+Uploading a `.iotupdate` bundle through the Cockpit IoT Updater UI will fail with a misleading error. The root cause is a missing `skopeo copy \` command in `iot-updater/scripts/apply-update.sh` (around line 107) — the shell receives dangling arguments with no command and exits immediately. The OCI image is never loaded into podman storage, so `bootc switch` is never reached.
+
+**Symptom:** The Cockpit updater reports "skopeo copy failed" immediately after upload completes.
+
+**Workaround — upgrade via SSH tar pipe instead:**
+```bash
+VERSION=v11
+NODE=192.168.1.46
+
+# Load the image tarball directly
+ssh root@10.10.1.98 "cat /opt/inferno-build/releases/inferno-appliance-${VERSION}.tar" \
+  | ssh core@${NODE} 'sudo podman load'
+
+# Switch and reboot
+ssh core@${NODE} "sudo bootc switch localhost/inferno-appliance:${VERSION} && sudo reboot"
+```
+
+**Fix:** Add `skopeo copy \` before the arguments in `apply-update.sh`. Tracked as **BUG-01** in [`IMPROVEMENT_ROADMAP.md`](IMPROVEMENT_ROADMAP.md).
+
+---
+
+### 🔴 `bootc-fetch-apply-updates.service` fails to start
+
+**Status:** Fails on boot. Not yet fixed.
+
+The `bootc-fetch-apply-updates` systemd service (part of the upstream bootc package) fails to start on this appliance. This service is responsible for automatic background OTA updates from a container registry. It is not used by the Inferno upgrade workflow (which uses the Cockpit IoT Updater instead), but the failure generates journal errors that can be confusing.
+
+**Symptom:** `systemctl status bootc-fetch-apply-updates.service` shows a failed state. Journal shows errors related to missing registry credentials or unresolvable image reference.
+
+**Why it fails:** The appliance image is built locally (not pushed to a public registry). `bootc` cannot find the image reference at any known registry URL. The service has no meaningful target to fetch from.
+
+**Workaround:** Mask the service to suppress the errors — it is not needed:
+```bash
+sudo systemctl mask bootc-fetch-apply-updates.service bootc-fetch-apply-updates.timer
+```
+
+**Note:** This does **not** affect upgrades. Use the Cockpit IoT Updater (once BUG-01 is fixed) or the SSH tar pipe method above.
+
+---
+
+### 🟠 Install ISO requires manual disk/user confirmation (not fully unattended)
+
+**Status:** Active. No kickstart is embedded in the ISO.
+
+The installer ISO is built without a kickstart file. Anaconda may pause for disk selection, timezone, or root password prompts depending on the target hardware. The install is **not** fully unattended on first use.
+
+**Workaround:** Watch the install and respond to any Anaconda prompts. The install will proceed to completion once the prompts are answered.
+
+**Fix:** Add `[[customizations.installer.kickstart]]` to `build/config.toml`. Tracked as **Item 1** in [`IMPROVEMENT_ROADMAP.md`](IMPROVEMENT_ROADMAP.md).
+
+---
+
+### 🟠 NIC selection does not verify link state
+
+**Status:** Active. No fix yet.
+
+`inferno-configure.sh` selects the Dante NIC by picking the first non-virtual, non-wireless interface alphabetically. It does **not** check whether that interface has physical link (cable connected). On a machine with two wired NICs where the wrong one is cabled, the appliance silently configures Dante on a dead interface.
+
+**Symptom:** Node appears to configure successfully (reboots cleanly, `/etc/inferno.conf` is written) but no Dante device appears on the network.
+
+**Workaround:** SSH in and check `ip link show` — if the configured NIC shows `NO-CARRIER`, the wrong NIC was selected. Delete `/etc/inferno.conf` and reboot to retrigger configure, after ensuring only the correct NIC has a cable connected.
+
+**Fix:** Add carrier check to NIC detection. Tracked as **Item 8** in [`IMPROVEMENT_ROADMAP.md`](IMPROVEMENT_ROADMAP.md).
+
+---
+
+### 🟡 Build documentation references outdated PRX-01 build environment
+
+**Status:** Active. Build instructions in this README and `build/README.md` reference PRX-01 (`10.10.1.201`) and paths under `/mnt/inferno-build/`. Builds have moved to **COPILOT-BUILD-01** (`10.10.1.98`, Ubuntu 24.04) with artifacts at `/opt/inferno-build/releases/`.
+
+**Use the `inferno-build` Copilot skill** to trigger and monitor builds, or SSH directly to `root@10.10.1.98`.
+
+---
+
 ## Operating Modes
 
 | Mode | Audio path | Dante devices created |
