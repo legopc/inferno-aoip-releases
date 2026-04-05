@@ -188,14 +188,16 @@ function parseCards(output, filterFn) {
     var seen = {};
     var cards = [];
     (output || "").split("\n").forEach(function(line) {
-        var m = line.match(/^card\s+(\d+):\s+\S+\s+\[([^\]]+)\],\s+device\s+(\d+):\s+([^\[]+)/i);
+        // Groups: 1=num, 2=alsaId (short stable ID), 3=longName, 4=devNum, 5=devName
+        var m = line.match(/^card\s+(\d+):\s+(\S+)\s+\[([^\]]+)\],\s+device\s+(\d+):\s+([^\[]+)/i);
         if (!m) return;
-        var num = m[1], cardName = m[2].trim(), devName = m[4].trim();
+        var num = m[1], alsaId = m[2], cardName = m[3].trim(), devName = m[5].trim();
         if (seen[num]) return;
         if (/Loopback/i.test(cardName)) return;
         if (filterFn && filterFn(cardName, devName)) return;
         seen[num] = true;
-        cards.push({ num: num, label: num + " \u2014 " + devName });
+        // Use stable ALSA card ID as value; label shows number + device name for clarity
+        cards.push({ num: num, alsaId: alsaId, label: num + " \u2014 " + devName + " [" + alsaId + "]" });
     });
     return cards;
 }
@@ -221,10 +223,10 @@ async function populateAudio(currentIn, currentOut) {
     var playbackCards = parseCards(playOut, hdmiFilter);
 
     captureCards.forEach(function(c) {
-        selIn.add(new Option(c.label, c.num, false, c.num === currentIn));
+        selIn.add(new Option(c.label, c.alsaId, false, c.alsaId === currentIn || c.num === currentIn));
     });
     playbackCards.forEach(function(c) {
-        selOut.add(new Option(c.label, c.num, false, c.num === currentOut));
+        selOut.add(new Option(c.label, c.alsaId, false, c.alsaId === currentOut || c.num === currentOut));
     });
 
     if (!selIn.options.length)  selIn.add(new Option("0 (default)", "0"));
@@ -387,46 +389,44 @@ async function ensureAuxSetup(cardIn, cardOut, danteName) {
         await cockpit.file(ASOUNDRC).replace(prefix + asoundText + auxBlock + "\n");
     }
 
-    // Write service files if missing
+    // Always write/update service files — ensures card change in UI always takes effect.
+    // Uses stable ALSA card ID (plughw:CARD=PCH,DEV=0) so card number shifts on reboot
+    // (e.g. when adding a USB soundcard) don't break the service.
     var svcDir  = USER_HOME + "/.config/systemd/user";
     var txSvc   = svcDir + "/inferno-aux-tx.service";
     var rxSvc   = svcDir + "/inferno-aux-rx.service";
+    var cardInArg  = /^\d+$/.test(cardIn)  ? cardIn  : "CARD=" + cardIn;
+    var cardOutArg = /^\d+$/.test(cardOut) ? cardOut : "CARD=" + cardOut;
 
-    var txContent = await cockpit.file(txSvc).read().catch(function() { return null; });
-    if (!txContent) {
-        await cockpit.file(txSvc).replace([
-            "[Unit]",
-            "Description=Inferno AUX TX Bridge \u2014 analog in to Dante",
-            "After=statime-inferno.service default.target",
-            "",
-            "[Service]",
-            "ExecStart=/usr/bin/alsaloop -C plughw:" + cardIn + ",0 -P inferno_aux_tx -r 48000 -f S32_LE -c 2 -t 10000",
-            "Restart=on-failure",
-            "RestartSec=3",
-            "",
-            "[Install]",
-            "WantedBy=default.target",
-        ].join("\n") + "\n");
-    }
+    await cockpit.file(txSvc).replace([
+        "[Unit]",
+        "Description=Inferno AUX TX Bridge \u2014 analog in to Dante",
+        "After=statime-inferno.service default.target",
+        "",
+        "[Service]",
+        "ExecStart=/usr/bin/alsaloop -C plughw:" + cardInArg + ",0 -P inferno_aux_tx -r 48000 -f S32_LE -c 2 -t 10000",
+        "Restart=on-failure",
+        "RestartSec=3",
+        "",
+        "[Install]",
+        "WantedBy=default.target",
+    ].join("\n") + "\n");
 
-    var rxContent = await cockpit.file(rxSvc).read().catch(function() { return null; });
-    if (!rxContent) {
-        await cockpit.file(rxSvc).replace([
-            "[Unit]",
-            "Description=Inferno AUX RX Bridge \u2014 Dante to analog out",
-            "After=statime-inferno.service default.target",
-            "",
-            "[Service]",
-            "ExecStart=/usr/bin/alsaloop -C inferno_aux_rx -P plughw:" + cardOut + ",0 -r 48000 -f S32_LE -c 2 -t 10000",
-            "Restart=on-failure",
-            "RestartSec=3",
-            "",
-            "[Install]",
-            "WantedBy=default.target",
-        ].join("\n") + "\n");
-    }
+    await cockpit.file(rxSvc).replace([
+        "[Unit]",
+        "Description=Inferno AUX RX Bridge \u2014 Dante to analog out",
+        "After=statime-inferno.service default.target",
+        "",
+        "[Service]",
+        "ExecStart=/usr/bin/alsaloop -C inferno_aux_rx -P plughw:" + cardOutArg + ",0 -r 48000 -f S32_LE -c 2 -t 10000",
+        "Restart=on-failure",
+        "RestartSec=3",
+        "",
+        "[Install]",
+        "WantedBy=default.target",
+    ].join("\n") + "\n");
 
-    return needsAlsa; // true if ALSA blocks were freshly written
+    return true; // always trigger daemon-reload so updated service files take effect
 }
 
 // ── Save config ────────────────────────────────────────────────────────────────
@@ -473,15 +473,13 @@ async function saveConfig() {
 
         await spUser("systemctl --user daemon-reload");
 
-        // For aux modes: ensure ALSA PCM defs and service files exist before starting
+        // For aux modes: ensure ALSA PCM defs + always rewrite service files with current card
         if (newMode !== "spotify") {
             var cardIn    = $("cfg-audio-in").value  || "0";
             var cardOut   = $("cfg-audio-out").value || "0";
             var freshAlsa = await ensureAuxSetup(cardIn, cardOut, newDanteName);
             if (freshAlsa) {
-                // New ALSA definitions written — must reload daemon again
                 await spUser("systemctl --user daemon-reload");
-                msgs.push("AUX ALSA devices configured");
             }
         }
 
