@@ -11,9 +11,12 @@ const LIBRESPOT_SVC = "/var/home/core/.config/systemd/user/librespot.service";
 
 const SYSTEM_SVCS  = ["statime-inferno"];
 const SPOTIFY_SVCS = ["librespot", "librespot-watchdog", "inferno-bridge", "inferno-keepalive"];
-// Note: inferno-aux-keepalive intentionally excluded — running keepalive alongside
-// inferno-aux-rx creates two competing Dante subscription owners and breaks streaming.
-const AUX_SVCS     = ["inferno-aux-tx", "inferno-aux-rx"];
+// aux-keepalive must NOT run alongside aux-rx (competing Dante subscription owners break streaming).
+const AUX_IN_SVCS    = ["inferno-aux-tx"];
+const AUX_OUT_SVCS   = ["inferno-aux-rx"];
+const AUX_BIDIR_SVCS = ["inferno-aux-tx", "inferno-aux-rx"];
+// All aux services — used for stop-before-switch
+const ALL_AUX_SVCS   = ["inferno-aux-tx", "inferno-aux-rx", "inferno-aux-keepalive"];
 
 const SVC_LABELS = {
     "librespot":             { label: "librespot",           desc: "Spotify Connect receiver" },
@@ -150,11 +153,9 @@ function markDirty() {
 
 function onModeChange() {
     currentMode = $("cfg-mode").value;
-    if (currentMode === "aux") {
-        $("field-audio").classList.remove("hidden");
-    } else {
-        $("field-audio").classList.add("hidden");
-    }
+    // Show audio card selector only when an analog input is involved
+    var needsCard = (currentMode === "aux-in" || currentMode === "aux-bidir");
+    $("field-audio").classList.toggle("hidden", !needsCard);
 }
 
 // ── NIC discovery ──────────────────────────────────────────────────────────────
@@ -235,17 +236,22 @@ async function saveConfig() {
 
         await spUser("systemctl --user daemon-reload");
 
-        if (newMode === "spotify") {
-            // Stop all aux services (including keepalive variant), then start spotify set
-            await spUser("systemctl --user stop inferno-aux-tx inferno-aux-rx inferno-aux-keepalive 2>/dev/null; true");
-            await spUser("systemctl --user start librespot librespot-watchdog inferno-bridge inferno-keepalive");
-            if (modeChanged) msgs.push("Switched to <b>Spotify</b> mode");
-        } else {
-            // Stop all spotify services, then start aux set (no keepalive in aux mode)
-            await spUser("systemctl --user stop librespot librespot-watchdog inferno-bridge inferno-keepalive inferno-aux-keepalive 2>/dev/null; true");
-            await spUser("systemctl --user start inferno-aux-tx inferno-aux-rx");
-            if (modeChanged) msgs.push("Switched to <b>AUX</b> mode");
-        }
+        var targetSvcs = modeToSvcs(newMode);
+        var stopSvcs   = SPOTIFY_SVCS.concat(ALL_AUX_SVCS)
+                           .filter(function(s) { return !targetSvcs.includes(s); })
+                           .join(" ");
+        var startSvcs  = targetSvcs.join(" ");
+
+        if (stopSvcs)  await spUser("systemctl --user stop "  + stopSvcs  + " 2>/dev/null; true");
+        if (startSvcs) await spUser("systemctl --user start " + startSvcs + " 2>/dev/null; true");
+
+        var modeLabels = {
+            "spotify":   "Spotify Connect → Dante TX",
+            "aux-in":    "Analog In → Dante TX",
+            "aux-out":   "Dante RX → Analog Out",
+            "aux-bidir": "Analog In + Out",
+        };
+        if (modeChanged) msgs.push("Mode → <b>" + (modeLabels[newMode] || newMode) + "</b>");
 
         toast((msgs.length ? msgs.join(", ") + ". " : "Configuration saved. ") + "Services updated.", "success", 8000);
 
@@ -262,8 +268,16 @@ async function saveConfig() {
 }
 
 // ── Service status ─────────────────────────────────────────────────────────────
+function modeToSvcs(mode) {
+    if (mode === "aux-in")    return AUX_IN_SVCS;
+    if (mode === "aux-out")   return AUX_OUT_SVCS;
+    if (mode === "aux-bidir") return AUX_BIDIR_SVCS;
+    if (mode === "aux")       return AUX_BIDIR_SVCS; // legacy value
+    return SPOTIFY_SVCS;
+}
+
 function activeSvcs() {
-    return SYSTEM_SVCS.concat(currentMode === "spotify" ? SPOTIFY_SVCS : AUX_SVCS);
+    return SYSTEM_SVCS.concat(modeToSvcs(currentMode));
 }
 
 async function getSvcStatus(svc) {
