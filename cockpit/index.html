@@ -104,6 +104,12 @@
             <div class="form-hint">Number of audio channels sent to Dante TX.</div>
           </div>
 
+          <div class="form-field hidden" id="field-audio-in2">
+            <label class="form-label">Input Card 2 (Capture)</label>
+            <select class="form-select" id="cfg-audio-in2"></select>
+            <div class="form-hint">Optional second card for channels 3–4 of the TX stream.</div>
+          </div>
+
           <div class="form-field hidden" id="field-audio-out">
             <label class="form-label">Output Card (Playback)</label>
             <select class="form-select" id="cfg-audio-out"></select>
@@ -119,6 +125,12 @@
               <option value="8">8 channels</option>
             </select>
             <div class="form-hint">Number of audio channels received from Dante RX.</div>
+          </div>
+
+          <div class="form-field hidden" id="field-audio-out2">
+            <label class="form-label">Output Card 2 (Playback)</label>
+            <select class="form-select" id="cfg-audio-out2"></select>
+            <div class="form-hint">Optional second card for channels 3–4 of the RX stream.</div>
           </div>
 
           <hr class="form-divider">

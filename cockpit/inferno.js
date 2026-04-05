@@ -140,9 +140,11 @@ async function loadConfig() {
     onModeChange();
 
     await populateNics(currentConf.INFERNO_NIC || "auto");
-    var cardIn  = currentConf.INFERNO_AUDIO_CARD_IN  || currentConf.INFERNO_AUDIO_CARD || "0";
-    var cardOut = currentConf.INFERNO_AUDIO_CARD_OUT || currentConf.INFERNO_AUDIO_CARD || "0";
-    await populateAudio(cardIn, cardOut);
+    var cardIn   = currentConf.INFERNO_AUDIO_CARD_IN   || currentConf.INFERNO_AUDIO_CARD || "0";
+    var cardOut  = currentConf.INFERNO_AUDIO_CARD_OUT  || currentConf.INFERNO_AUDIO_CARD || "0";
+    var cardIn2  = currentConf.INFERNO_AUDIO_CARD_IN2  || "none";
+    var cardOut2 = currentConf.INFERNO_AUDIO_CARD_OUT2 || "none";
+    await populateAudio(cardIn, cardOut, cardIn2, cardOut2);
 
     $("cfg-tx-channels").value = currentConf.INFERNO_TX_CHANNELS || "2";
     $("cfg-rx-channels").value = currentConf.INFERNO_RX_CHANNELS || "2";
@@ -166,6 +168,16 @@ function onModeChange() {
     $("field-tx-channels").classList.toggle("hidden", !isAuxIn);
     $("field-audio-out").classList.toggle("hidden", !isAuxOut);
     $("field-rx-channels").classList.toggle("hidden", !isAuxOut);
+    onChannelChange(); // update card-2 visibility
+}
+
+function onChannelChange() {
+    var txCh = parseInt($("cfg-tx-channels").value) || 2;
+    var rxCh = parseInt($("cfg-rx-channels").value) || 2;
+    var isAuxIn  = currentMode === "aux-in"  || currentMode === "aux-bidir";
+    var isAuxOut = currentMode === "aux-out" || currentMode === "aux-bidir";
+    $("field-audio-in2").classList.toggle("hidden",  !(isAuxIn  && txCh >= 4));
+    $("field-audio-out2").classList.toggle("hidden", !(isAuxOut && rxCh >= 4));
 }
 
 // ── NIC discovery ──────────────────────────────────────────────────────────────
@@ -207,11 +219,15 @@ function parseCards(output, filterFn) {
     return cards;
 }
 
-async function populateAudio(currentIn, currentOut) {
-    var selIn  = $("cfg-audio-in");
-    var selOut = $("cfg-audio-out");
+async function populateAudio(currentIn, currentOut, currentIn2, currentOut2) {
+    var selIn   = $("cfg-audio-in");
+    var selOut  = $("cfg-audio-out");
+    var selIn2  = $("cfg-audio-in2");
+    var selOut2 = $("cfg-audio-out2");
     selIn.innerHTML  = "";
     selOut.innerHTML = "";
+    selIn2.innerHTML  = '<option value="none">None — not used</option>';
+    selOut2.innerHTML = '<option value="none">None — not used</option>';
     var playOut = "";
     var recOut  = "";
     try {
@@ -229,9 +245,11 @@ async function populateAudio(currentIn, currentOut) {
 
     captureCards.forEach(function(c) {
         selIn.add(new Option(c.label, c.alsaId, false, c.alsaId === currentIn || c.num === currentIn));
+        selIn2.add(new Option(c.label, c.alsaId, false, c.alsaId === currentIn2 || c.num === currentIn2));
     });
     playbackCards.forEach(function(c) {
         selOut.add(new Option(c.label, c.alsaId, false, c.alsaId === currentOut || c.num === currentOut));
+        selOut2.add(new Option(c.label, c.alsaId, false, c.alsaId === currentOut2 || c.num === currentOut2));
     });
 
     if (!selIn.options.length)  selIn.add(new Option("0 (default)", "0"));
@@ -241,9 +259,15 @@ async function populateAudio(currentIn, currentOut) {
         selIn.add(new Option(currentIn  + " (from config)", currentIn));
     if (currentOut && ![].some.call(selOut.options, function(o) { return o.value === currentOut; }))
         selOut.add(new Option(currentOut + " (from config)", currentOut));
+    if (currentIn2 && currentIn2 !== "none" && ![].some.call(selIn2.options, function(o) { return o.value === currentIn2; }))
+        selIn2.add(new Option(currentIn2 + " (from config)", currentIn2));
+    if (currentOut2 && currentOut2 !== "none" && ![].some.call(selOut2.options, function(o) { return o.value === currentOut2; }))
+        selOut2.add(new Option(currentOut2 + " (from config)", currentOut2));
 
-    selIn.value  = currentIn  || (selIn.options[0]  && selIn.options[0].value)  || "0";
-    selOut.value = currentOut || (selOut.options[0] && selOut.options[0].value) || "0";
+    selIn.value   = currentIn   || (selIn.options[0]   && selIn.options[0].value)   || "0";
+    selOut.value  = currentOut  || (selOut.options[0]  && selOut.options[0].value)  || "0";
+    selIn2.value  = currentIn2  || "none";
+    selOut2.value = currentOut2 || "none";
 }
 
 // ── Audio device info panel ────────────────────────────────────────────────────
@@ -314,7 +338,7 @@ function deriveDeviceId(baseId, offset) {
     return (baseId || "000000000000").slice(0, -4) + suffix.toString(16).padStart(4, "0");
 }
 
-async function ensureAuxSetup(cardIn, cardOut, txCh, rxCh, danteName) {
+async function ensureAuxSetup(cardIn, cardIn2, cardOut, cardOut2, txCh, rxCh, danteName) {
     var asoundText = await cockpit.file(ASOUNDRC).read() || "";
     var needsAlsa  = !asoundText.includes("pcm.inferno_aux_tx");
 
@@ -329,6 +353,29 @@ async function ensureAuxSetup(cardIn, cardOut, txCh, rxCh, danteName) {
     var rxId       = deriveDeviceId(baseId, 2);
     var txName     = (danteName || "Inferno") + "-TX";
     var rxName     = (danteName || "Inferno") + "-RX";
+
+    var useMultiIn  = cardIn2  && cardIn2  !== "none" && txCh >= 4;
+    var useMultiOut = cardOut2 && cardOut2 !== "none" && rxCh >= 4;
+
+    // Helper to build ALSA stable hw string
+    function hwStr(c) { return /^\d+$/.test(c) ? c + ",0" : "CARD=" + c + ",DEV=0"; }
+
+    function multiBlock(name, card1, card2, ch1, ch2) {
+        var lines = [
+            "pcm." + name + " {",
+            "    type multi",
+            "    slaves {",
+            "        a { pcm \"plughw:" + hwStr(card1) + "\" channels " + ch1 + " }",
+            "        b { pcm \"plughw:" + hwStr(card2) + "\" channels " + ch2 + " }",
+            "    }",
+            "    bindings {",
+        ];
+        for (var i = 0; i < ch1; i++) lines.push("        " + i + " { slave a channel " + i + " }");
+        for (var j = 0; j < ch2; j++) lines.push("        " + (ch1 + j) + " { slave b channel " + j + " }");
+        lines.push("    }");
+        lines.push("}");
+        return lines.join("\n");
+    }
 
     if (needsAlsa) {
         var auxBlock = [
@@ -379,6 +426,8 @@ async function ensureAuxSetup(cardIn, cardOut, txCh, rxCh, danteName) {
             "    slave { pcm \"inferno_aux_rx\" format S32_LE rate 48000 }",
             "}",
         ].join("\n");
+        if (useMultiIn)  auxBlock += "\n\n# Multi-card capture for TX\n" + multiBlock("inferno_aux_multi_in",  cardIn,  cardIn2,  2, 2);
+        if (useMultiOut) auxBlock += "\n\n# Multi-card playback for RX\n" + multiBlock("inferno_aux_multi_out", cardOut, cardOut2, 2, 2);
         // pcm_type.inferno lib must be at top — only add if missing
         var prefix = asoundText.includes("pcm_type.inferno") ? "" :
             "pcm_type.inferno {\n    lib \"" + pluginPath + "\"\n}\n";
@@ -387,6 +436,16 @@ async function ensureAuxSetup(cardIn, cardOut, txCh, rxCh, danteName) {
         // Aux blocks already exist — update TX/RX channel counts in place with scoped sed
         await spUser("sed -i '/pcm\\.inferno_aux_tx/,/^}/s/TX_CHANNELS.*/TX_CHANNELS " + txCh + "/' " + ASOUNDRC);
         await spUser("sed -i '/pcm\\.inferno_aux_rx/,/^}/s/RX_CHANNELS.*/RX_CHANNELS " + rxCh + "/' " + ASOUNDRC);
+
+        // Multi blocks: remove stale ones, rewrite if needed
+        await spUser("sed -i '/^# Multi-card/,/^}/d' " + ASOUNDRC);
+        if (useMultiIn || useMultiOut) {
+            var multiAppend = "";
+            if (useMultiIn)  multiAppend += "\n\n# Multi-card capture for TX\n" + multiBlock("inferno_aux_multi_in",  cardIn,  cardIn2,  2, 2);
+            if (useMultiOut) multiAppend += "\n\n# Multi-card playback for RX\n" + multiBlock("inferno_aux_multi_out", cardOut, cardOut2, 2, 2);
+            var current = await cockpit.file(ASOUNDRC).read() || "";
+            await cockpit.file(ASOUNDRC).replace(current.trimEnd() + multiAppend + "\n");
+        }
     }
 
     // Always write/update service files — ensures card change in UI always takes effect.
@@ -395,8 +454,12 @@ async function ensureAuxSetup(cardIn, cardOut, txCh, rxCh, danteName) {
     var svcDir  = USER_HOME + "/.config/systemd/user";
     var txSvc   = svcDir + "/inferno-aux-tx.service";
     var rxSvc   = svcDir + "/inferno-aux-rx.service";
-    var cardInArg  = /^\d+$/.test(cardIn)  ? cardIn  : "CARD=" + cardIn;
-    var cardOutArg = /^\d+$/.test(cardOut) ? cardOut : "CARD=" + cardOut;
+    var cardInArg   = /^\d+$/.test(cardIn)   ? cardIn   : "CARD=" + cardIn;
+    var cardOutArg  = /^\d+$/.test(cardOut)  ? cardOut  : "CARD=" + cardOut;
+    // TX: use multi_in PCM when two input cards, else direct plughw
+    var txCapture = useMultiIn ? "inferno_aux_multi_in" : ("plughw:" + cardInArg + ",0");
+    // RX: use multi_out PCM when two output cards, else direct plughw
+    var rxPlayback = useMultiOut ? "inferno_aux_multi_out" : ("plughw:" + cardOutArg + ",0");
 
     await cockpit.file(txSvc).replace([
         "[Unit]",
@@ -404,7 +467,7 @@ async function ensureAuxSetup(cardIn, cardOut, txCh, rxCh, danteName) {
         "After=statime-inferno.service default.target",
         "",
         "[Service]",
-        "ExecStart=/usr/bin/alsaloop -C plughw:" + cardInArg + ",0 -P inferno_aux_tx -r 48000 -f S32_LE -c " + txCh + " -t 10000",
+        "ExecStart=/usr/bin/alsaloop -C " + txCapture + " -P inferno_aux_tx -r 48000 -f S32_LE -c " + txCh + " -t 10000",
         "Restart=on-failure",
         "RestartSec=3",
         "",
@@ -418,7 +481,7 @@ async function ensureAuxSetup(cardIn, cardOut, txCh, rxCh, danteName) {
         "After=statime-inferno.service default.target",
         "",
         "[Service]",
-        "ExecStart=/usr/bin/alsaloop -C inferno_aux_rx -P plughw:" + cardOutArg + ",0 -r 48000 -f S32_LE -c " + rxCh + " -t 10000",
+        "ExecStart=/usr/bin/alsaloop -C inferno_aux_rx -P " + rxPlayback + " -r 48000 -f S32_LE -c " + rxCh + " -t 10000",
         "Restart=on-failure",
         "RestartSec=3",
         "",
@@ -445,14 +508,16 @@ async function saveConfig() {
     try {
         // Write /etc/inferno.conf via sudo tee
         var newConf = Object.assign({}, currentConf, {
-            INFERNO_MODE:         newMode,
-            INFERNO_SPOTIFY_NAME: newSpotifyName,
-            INFERNO_DANTE_NAME:   newDanteName,
-            INFERNO_NIC:           $("cfg-nic").value,
+            INFERNO_MODE:           newMode,
+            INFERNO_SPOTIFY_NAME:   newSpotifyName,
+            INFERNO_DANTE_NAME:     newDanteName,
+            INFERNO_NIC:            $("cfg-nic").value,
             INFERNO_AUDIO_CARD_IN:  $("cfg-audio-in").value,
+            INFERNO_AUDIO_CARD_IN2: $("cfg-audio-in2").value  || "none",
             INFERNO_AUDIO_CARD_OUT: $("cfg-audio-out").value,
-            INFERNO_TX_CHANNELS:   $("cfg-tx-channels").value,
-            INFERNO_RX_CHANNELS:   $("cfg-rx-channels").value,
+            INFERNO_AUDIO_CARD_OUT2:$("cfg-audio-out2").value || "none",
+            INFERNO_TX_CHANNELS:    $("cfg-tx-channels").value,
+            INFERNO_RX_CHANNELS:    $("cfg-rx-channels").value,
         });
         await writeFileAsSudo(CONF, buildConfText(newConf));
         currentConf = newConf;
@@ -477,11 +542,13 @@ async function saveConfig() {
 
         // For aux modes: ensure ALSA PCM defs + always rewrite service files with current card/channels
         if (newMode !== "spotify") {
-            var cardIn    = $("cfg-audio-in").value  || "0";
-            var cardOut   = $("cfg-audio-out").value || "0";
+            var cardIn    = $("cfg-audio-in").value   || "0";
+            var cardIn2   = $("cfg-audio-in2").value  || "none";
+            var cardOut   = $("cfg-audio-out").value  || "0";
+            var cardOut2  = $("cfg-audio-out2").value || "none";
             var txCh      = parseInt($("cfg-tx-channels").value) || 2;
             var rxCh      = parseInt($("cfg-rx-channels").value) || 2;
-            var freshAlsa = await ensureAuxSetup(cardIn, cardOut, txCh, rxCh, newDanteName);
+            var freshAlsa = await ensureAuxSetup(cardIn, cardIn2, cardOut, cardOut2, txCh, rxCh, newDanteName);
             if (freshAlsa) {
                 await spUser("systemctl --user daemon-reload");
             }
@@ -788,13 +855,15 @@ async function init() {
     $("log-svc-select").addEventListener("change", loadLog);
     $("cfg-mode").addEventListener("change", function() { onModeChange(); markDirty(); });
     $("cfg-audio-in").addEventListener("change", markDirty);
+    $("cfg-audio-in2").addEventListener("change", markDirty);
     $("cfg-audio-out").addEventListener("change", markDirty);
+    $("cfg-audio-out2").addEventListener("change", markDirty);
     $("cfg-nic").addEventListener("change", markDirty);
+    $("cfg-tx-channels").addEventListener("change", function() { onChannelChange(); markDirty(); });
+    $("cfg-rx-channels").addEventListener("change", function() { onChannelChange(); markDirty(); });
     $("btn-audio-devices").addEventListener("click", refreshAudioDevices);
     $("cfg-spotify-name").addEventListener("input", markDirty);
     $("cfg-dante-name").addEventListener("input", markDirty);
-    $("cfg-tx-channels").addEventListener("change", markDirty);
-    $("cfg-rx-channels").addEventListener("change", markDirty);
 
     await loadConfig();
     refreshHeader();
