@@ -72,12 +72,14 @@ launch_build() {
 
     cd "${BUILD_DIR}/inferno-aoip-releases"
     git pull --quiet
+    git submodule update --init --recursive --quiet
 
     systemd-run \
         --unit="$unit" \
         --description="Inferno AoIP auto-build ${version}" \
         --property="StandardOutput=append:${build_log}" \
         --property="StandardError=append:${build_log}" \
+        --setenv="HOME=/root" \
         --setenv="BUILD_DIR=${BUILD_DIR}" \
         --setenv="PROXMOX_ISO_HOST=${PROXMOX_ISO_HOST:-root@10.10.1.202}" \
         --setenv="PROXMOX_ISO_DIR=${PROXMOX_ISO_DIR:-/var/lib/vz/template/iso}" \
