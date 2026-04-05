@@ -1,3 +1,9 @@
 [submodule "cockpit-inferno"]
 	path = cockpit-inferno
 	url = https://github.com/legopc/cockpit-inferno.git
+[submodule "branding"]
+	path = branding
+	url = https://github.com/legopc/inferno-branding
+[submodule "iot-updater"]
+	path = iot-updater
+	url = https://github.com/legopc/cockpit-iot-updater

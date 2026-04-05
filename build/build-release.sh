@@ -48,15 +48,7 @@ cd "${BUILD_DIR}/inferno-aoip-releases"
 git pull
 git submodule update --init --recursive
 
-# Pull or clone the branding repo (always alongside the main repo)
 BRANDING_DIR="${BUILD_DIR}/inferno-aoip-releases/branding"
-if [[ -d "${BRANDING_DIR}/.git" ]]; then
-  echo "Pulling branding repo..."
-  git -C "${BRANDING_DIR}" pull --ff-only
-else
-  echo "Cloning branding repo..."
-  git clone https://github.com/legopc/inferno-branding "${BRANDING_DIR}"
-fi
 
 # ── Step 2: Build container image ────────────────────────────────────────────
 echo ""

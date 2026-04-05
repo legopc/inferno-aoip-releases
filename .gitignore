@@ -5,8 +5,6 @@ output/
 *.qcow2
 *.vmdk
 
-# Branding repo — cloned locally, not committed (managed by prepare/build scripts)
-branding/
 
 # Credentials — never commit
 # build/config.toml contains SSH keys and password hashes

@@ -166,10 +166,10 @@ RUN mkdir -p /var/home && \
 # Provides the web UI for delivering OCI update bundles (~2 GB) via Cockpit.
 # Sidecar (iot-updater.service) runs persistently on 127.0.0.1:8088.
 # Apply service (iot-update.service) is started on-demand by the sidecar — NOT enabled at boot.
-COPY iot-updater/cockpit/      /usr/share/cockpit/iot-updater/
-COPY iot-updater/server.py     /var/lib/iot-updater/server.py
-COPY iot-updater/apply-update.sh /var/lib/iot-updater/apply-update.sh
-COPY iot-updater/iot-updater.service /etc/systemd/system/iot-updater.service
-COPY iot-updater/iot-update.service  /etc/systemd/system/iot-update.service
+COPY iot-updater/cockpit-page/  /usr/share/cockpit/iot-updater/
+COPY iot-updater/sidecar/server.py     /var/lib/iot-updater/server.py
+COPY iot-updater/scripts/apply-update.sh /var/lib/iot-updater/apply-update.sh
+COPY iot-updater/systemd/iot-updater.service /etc/systemd/system/iot-updater.service
+COPY iot-updater/systemd/iot-update.service  /etc/systemd/system/iot-update.service
 RUN chmod +x /var/lib/iot-updater/apply-update.sh && \
     systemctl enable iot-updater
