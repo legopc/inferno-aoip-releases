@@ -63,7 +63,7 @@ function spSudo(cmd) {
 function writeFileAsSudo(path, content) {
     const proc = cockpit.spawn(["sudo", "-n", "tee", path],
         { err: "message", environ: userEnv() });
-    proc.input(content, true);
+    proc.input(content);   // no second arg = stream:false = close stdin after this chunk
     return proc;
 }
 
