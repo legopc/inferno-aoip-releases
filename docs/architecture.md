@@ -265,20 +265,29 @@ To force reconfiguration: `sudo rm /etc/inferno.conf && sudo reboot`
 The image is defined in `Containerfile`. It is a standard OCI container image that boots directly via [bootc](https://containers.github.io/bootc/).
 
 Key layers:
-1. `FROM quay.io/fedora/fedora-bootc:41` — immutable Fedora base
-2. `dnf install` — Cockpit, statime, alsaloop, alsa-utils, etc.
-3. `COPY templates/` → `/etc/inferno/` — config templates baked in
-4. `COPY cockpit/` → `/usr/share/cockpit/inferno/` — Cockpit UI baked in
-5. `COPY build/inferno-configure.sh` → installed as `inferno-configure.service`
-6. `snd-aloop` pinned to card index 5 via modprobe options (avoids conflicts with physical cards)
+1. `FROM registry.fedoraproject.org/fedora-bootc:43` — immutable Fedora base
+2. `dnf install` — Cockpit, alsa-utils, avahi, openssh, skopeo, curl
+3. Download `inferno-aoip.tar.gz` from GitHub Releases (SHA256 verified) → install `statime`, `librespot`, ALSA plugin
+4. `COPY templates/` → `/etc/inferno/` — config templates baked in
+5. `COPY cockpit/` → `/usr/share/cockpit/inferno/` — Cockpit UI baked in
+6. `COPY build/inferno-configure.sh` → installed as `inferno-configure.service`
+7. `snd-aloop` pinned to card index 5 via modprobe options (avoids conflicts with physical cards)
+8. `COPY iot-updater/` — OCI update delivery Cockpit page + sidecar service
 
-Built on PRX-01:
+Built on PRX-01 using the build script:
 ```bash
-podman --storage-driver overlay \
-  --storage-opt overlay.mount_program=/usr/bin/fuse-overlayfs \
-  --root /mnt/inferno-build/storage \
-  build -t inferno-aoip:v9 -f Containerfile .
+/mnt/inferno-build/inferno-aoip-releases/build/build-release.sh v10
 ```
+
+See [`docs/build-and-release.md`](build-and-release.md) for the full build process.
+
+---
+
+## USB Audio Hot-Plug (v10+)
+
+A udev rule detects USB audio card add/remove events and triggers an ALSA device rescan. This allows USB soundcards plugged in after installation or after a reboot to appear in the Cockpit UI without requiring a full reboot.
+
+The Cockpit **Audio Devices** panel shows a live list of detected soundcards with capture/playback indicators. A **Refresh** button manually re-polls the device list at any time.
 
 ---
 
