@@ -148,6 +148,7 @@ async function loadConfig() {
 
     $("cfg-tx-channels").value = currentConf.INFERNO_TX_CHANNELS || "2";
     $("cfg-rx-channels").value = currentConf.INFERNO_RX_CHANNELS || "2";
+    onChannelChange(); // sync card-2 visibility with loaded channel count
 
     isDirty = false;
     $("cfg-dirty-badge").classList.add("hidden");

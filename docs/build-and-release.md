@@ -1,19 +1,20 @@
 # Inferno AoIP — Build and Release Process
 
 > Full step-by-step guide for building a new Inferno AoIP release on PRX-01.
-> Covers: container image → installer ISO → upgrade tarball → node deployment.
+> Covers: container image → installer ISO → upgrade tarball → .iotupdate bundle → node deployment.
 
 ---
 
 ## Overview
 
-A release consists of three artifacts, all produced by one script:
+A release consists of four artifacts, all produced by one script:
 
 | Artifact | Purpose |
 |----------|---------|
 | **Container image** | The bootable OS image (`localhost/inferno-appliance:vN`) |
 | **Installer ISO** | Bootable USB/CD for fresh installs (via Anaconda) |
-| **Upgrade tarball** | `podman save` export for upgrading existing nodes (no registry needed) |
+| **Upgrade tarball** | Raw `podman save` export — used for streaming upgrades (node-to-node via SSH pipe) |
+| **`.iotupdate` bundle** | Packaged upgrade for the Cockpit IoT Updater UI (includes `version.json` + SHA-256 integrity) |
 
 The build runs on **PRX-01** (`root@10.10.1.201`) using a dedicated 25GB LV at `/mnt/inferno-build`.
 
@@ -101,11 +102,12 @@ cd /mnt/inferno-build/inferno-aoip-releases && git pull
 
 ```bash
 VERSION=v11   # bump for each release
+DESCRIPTION="Brief description of changes in this release"
 
 mkdir -p /run/containers/storage
 
 systemd-run --unit=inferno-build-${VERSION} \
-  /mnt/inferno-build/inferno-aoip-releases/build/build-release.sh ${VERSION} \
+  /mnt/inferno-build/inferno-aoip-releases/build/build-release.sh ${VERSION} "${DESCRIPTION}" \
   > /mnt/inferno-build/build-${VERSION}.log 2>&1
 ```
 
@@ -119,7 +121,7 @@ systemctl is-active inferno-build-${VERSION}
 tail -f /mnt/inferno-build/build-${VERSION}.log
 ```
 
-The script logs `── [N/4] ...` section headers and appends `BUILD_EXIT:0` on success.  
+The script logs `── [N/5] ...` section headers and appends `BUILD_EXIT:0` on success.  
 If the build is killed, there will be no `BUILD_EXIT` line in the log.
 
 ### Step 4 — Verify outputs
@@ -137,19 +139,22 @@ ls -lh /var/lib/vz/template/iso/inferno-appliance-${VERSION}.iso
 
 # Upgrade tarball
 ls -lh /mnt/inferno-build/inferno-appliance-${VERSION}.tar
+
+# IoT Updater bundle
+ls -lh /mnt/inferno-build/inferno-appliance-${VERSION}.iotupdate
 ```
 
 ---
 
 ## What `build-release.sh` Does
 
-The script at `build/build-release.sh` runs four steps in sequence:
+The script at `build/build-release.sh` runs five steps in sequence:
 
-### [1/4] Git pull
+### [1/5] Git pull
 
 Ensures the repo on PRX-01 is current before building.
 
-### [2/4] Container image build
+### [2/5] Container image build
 
 ```bash
 podman ... build -t inferno-appliance:vN -f Containerfile .
@@ -176,7 +181,7 @@ podman ... build -t inferno-appliance:vN -f Containerfile .
 
 **Expected time:** ~10 minutes (mostly network: base image pull + binary tarball download).
 
-### [3/4] Installer ISO
+### [3/5] Installer ISO
 
 Uses `ghcr.io/osbuild/bootc-image-builder` (BIB) to convert the container image into an Anaconda installer ISO:
 
@@ -204,15 +209,29 @@ ln -sf /mnt/inferno-build/output-vN/bootiso/install.iso \
   /var/lib/vz/template/iso/inferno-appliance-vN.iso
 ```
 
-### [4/4] Upgrade tarball
+### [4/5] Upgrade tarball
 
 ```bash
 podman ... save localhost/inferno-appliance:vN \
   -o /mnt/inferno-build/inferno-appliance-vN.tar
 ```
 
-Exports all image layers as a portable tar. Nodes load it via `podman load` — no registry required.  
+Exports all image layers as a portable tar. Used for streaming upgrades over SSH.  
 **Expected time:** ~3–5 minutes. Output: ~1.9 GB.
+
+### [5/5] .iotupdate bundle
+
+```bash
+build/make-oci-bundle.sh \
+  --archive /mnt/inferno-build/inferno-appliance-vN.tar \
+  --version vN \
+  --description "Change description" \
+  --out /mnt/inferno-build/inferno-appliance-vN.iotupdate
+```
+
+Packages the raw tar with a `version.json` manifest and SHA-256 hash into a single `.iotupdate` bundle.  
+This is the file you upload via the **Cockpit IoT Updater** UI to upgrade a node over the network.  
+**Expected time:** ~1–2 minutes (just SHA-256 + tar wrap). Output: same size as upgrade tar.
 
 ---
 
@@ -262,6 +281,16 @@ podman --storage-driver overlay \
   -o /mnt/inferno-build/inferno-appliance-vN.tar
 ```
 
+### Package .iotupdate bundle only (upgrade tarball already exists)
+
+```bash
+/mnt/inferno-build/inferno-aoip-releases/build/make-oci-bundle.sh \
+  --archive /mnt/inferno-build/inferno-appliance-vN.tar \
+  --version vN \
+  --description "Change description here" \
+  --out /mnt/inferno-build/inferno-appliance-vN.iotupdate
+```
+
 ---
 
 ## After the Build — Checklist
@@ -269,6 +298,7 @@ podman --storage-driver overlay \
 - [ ] `grep "BUILD_EXIT:0" /mnt/inferno-build/build-vN.log` — confirm success
 - [ ] ISO symlink present: `ls -lh /var/lib/vz/template/iso/inferno-appliance-vN.iso`
 - [ ] Upgrade tar present: `ls -lh /mnt/inferno-build/inferno-appliance-vN.tar`
+- [ ] IoT bundle present: `ls -lh /mnt/inferno-build/inferno-appliance-vN.iotupdate`
 - [ ] Update `README.md` version table (set new version to ✅ Production, old to Superseded)
 - [ ] Update `docs/upgrade.md` version table
 - [ ] `git commit && git push`
@@ -288,14 +318,22 @@ podman --storage-driver overlay \
 3. Node reboots → first-boot `inferno-configure.service` runs → reboots again.
 4. Node is operational. Access Cockpit at `https://node-ip:9090`.
 
-### Online upgrade from tarball (preferred — no USB needed)
+### Online upgrade via Cockpit IoT Updater (recommended)
+
+1. Copy the `.iotupdate` bundle to a machine that can reach the node's Cockpit UI.
+2. Open `https://<node-ip>:9090` → **IoT Updater**.
+3. Drag-and-drop (or select) the `.iotupdate` file.
+4. The UI shows version info and SHA-256 preview — click **Apply**.
+5. The sidecar streams the bundle, calls `bootc switch`, and reboots the node automatically.
+
+### Online upgrade via tarball streaming (fallback — no browser needed)
 
 ```bash
 VERSION=v11
 NODE=192.168.1.46   # or .47 for second node
 
 # Stream tar from PRX-01 directly into node's podman
-ssh -i ~/.ssh/inferno_proxmox -o StrictHostKeyChecking=no root@10.10.1.201 \
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 \
   "cat /mnt/inferno-build/inferno-appliance-${VERSION}.tar" \
   | ssh -i ~/.ssh/id_ed25519 core@${NODE} 'sudo podman load'
 
