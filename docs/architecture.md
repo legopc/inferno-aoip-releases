@@ -269,14 +269,14 @@ Key layers:
 2. `dnf install` — Cockpit, alsa-utils, avahi, openssh, skopeo, curl
 3. Download `inferno-aoip.tar.gz` from GitHub Releases (SHA256 verified) → install `statime`, `librespot`, ALSA plugin
 4. `COPY templates/` → `/etc/inferno/` — config templates baked in
-5. `COPY cockpit/` → `/usr/share/cockpit/inferno/` — Cockpit UI baked in
+5. `COPY cockpit-inferno/src/` → `/usr/share/cockpit/inferno/` — Cockpit UI baked in (git submodule)
 6. `COPY build/inferno-configure.sh` → installed as `inferno-configure.service`
 7. `snd-aloop` pinned to card index 5 via modprobe options (avoids conflicts with physical cards)
 8. `COPY iot-updater/` — OCI update delivery Cockpit page + sidecar service
 
-Built on PRX-01 using the build script:
+Built on COPILOT-BUILD-01 using the build script:
 ```bash
-/mnt/inferno-build/inferno-aoip-releases/build/build-release.sh v10
+/opt/inferno-build/inferno-aoip-releases/build/build-release.sh vN
 ```
 
 See [`docs/build-and-release.md`](build-and-release.md) for the full build process.

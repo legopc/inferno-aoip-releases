@@ -100,7 +100,7 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILI+T7Koyd+yPIskHka+byxPdg/oQ4Zr7LEoWKI8G/6d
 |-----------|-----|-------------|
 | Proxmox Cockpit (PRX-01) | `https://10.10.1.201:9090` | `core` / `inferno123` |
 | Proxmox Cockpit (PRX-02) | `https://10.10.1.202:9090` | `core` / `inferno123` |
-| Inferno Web UI | `http://<node-ip>:8080` | — |
+| Inferno Cockpit (node) | `https://<node-ip>:9090` | `core` / `inferno123` |
 | Proxmox UI | `https://10.10.1.201:8006` | API token or root |
 | FortiGate | `https://10.10.1.1` | — |
 
@@ -236,10 +236,9 @@ systemctl --user restart inferno-bt-loop
 | `build/config.toml` | bootc-image-builder ISO config |
 | `build/inferno-configure.sh` | First-boot config script |
 | `Containerfile` | Appliance container image definition |
-| `docs/install-guide.md` | Authoritative install guide |
-| `docs/bluetooth-bridge.md` | Bluetooth bridge docs |
-| `config/bluetooth/inferno-bt-bridge.service` | BT bridge — requires `--volume=software` |
-| `ignition/inferno-template.ign` | Ignition template for appliance VMs |
-| `ansible/` | Ansible roles and playbooks |
+| `docs/build-and-release.md` | Authoritative build and release guide |
+| `docs/upgrade.md` | Node upgrade procedure |
+| `docs/architecture.md` | System architecture and component reference |
 | `~/copilot_projects/key` | GitHub PAT — never commit |
-| PRX-01: `/mnt/inferno-build/` | ISO build workspace (25GB LV) |
+| COPILOT-BUILD-01: `/opt/inferno-build/` | Build workspace and release artifacts |
+| COPILOT-BUILD-01: `/opt/inferno-build/releases/` | ISO, upgrade tar, IoT bundle |

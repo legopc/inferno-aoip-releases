@@ -1,7 +1,7 @@
 # Inferno Appliance — Upgrade Procedure
 
 > Upgrade nodes like network equipment: stage a new image, reboot to apply, roll back if needed.
-> No registry required — everything works over the LAN from PRX-01.
+> No registry required — everything works over the LAN from COPILOT-BUILD-01.
 
 ---
 
@@ -24,38 +24,38 @@ Build new image on PRX-01
 
 ---
 
-## Step 1 — Build New Image on PRX-01
+## Step 1 — Build New Image on COPILOT-BUILD-01
 
-The build script (`build/build-release.sh`) automatically produces both the installer ISO and the upgrade tarball. Run it via `systemd-run` so it survives SSH disconnects:
+The build script (`build/build-release.sh`) automatically produces both the installer ISO and the upgrade tarball. Use the `inferno-build` Copilot skill, or run it manually via `systemd-run` so it survives SSH disconnects:
 
 ```bash
-VERSION=v10   # change for each release
+VERSION=v11   # change for each release
 
-ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.98 "
   mkdir -p /run/containers/storage
   systemd-run --unit=inferno-build-${VERSION} \
-    /mnt/inferno-build/inferno-aoip-releases/build/build-release.sh ${VERSION} \
-    > /mnt/inferno-build/build-${VERSION}.log 2>&1
+    /opt/inferno-build/inferno-aoip-releases/build/build-release.sh ${VERSION} \
+    > /opt/inferno-build/build-${VERSION}.log 2>&1
 "
 
 # Monitor
-ssh -i ~/.ssh/inferno_proxmox root@10.10.1.201 "tail -f /mnt/inferno-build/build-${VERSION}.log"
+ssh -i ~/.ssh/inferno_proxmox root@10.10.1.98 "tail -f /opt/inferno-build/build-${VERSION}.log"
 ```
 
-When complete, the upgrade tarball is at `/mnt/inferno-build/inferno-appliance-${VERSION}.tar`.
+When complete, the upgrade tarball is at `/opt/inferno-build/releases/inferno-appliance-${VERSION}.tar`.
 
 ---
 
 ## Step 2 — Apply Upgrade to a Node
 
 ```bash
-# From legopc (has SSH access to both PRX-01 and nodes):
+# From legopc (has SSH access to both COPILOT-BUILD-01 and nodes):
 NODE=192.168.1.46
-VERSION=v10
+VERSION=v11
 
-# Step A: stream tar from PRX-01 directly into node's podman
-ssh -i ~/.ssh/inferno_proxmox -o StrictHostKeyChecking=no root@10.10.1.201 \
-  "cat /mnt/inferno-build/inferno-appliance-${VERSION}.tar" \
+# Step A: stream tar from COPILOT-BUILD-01 directly into node's podman
+ssh -i ~/.ssh/inferno_proxmox -o StrictHostKeyChecking=no root@10.10.1.98 \
+  "cat /opt/inferno-build/releases/inferno-appliance-${VERSION}.tar" \
   | ssh -i ~/.ssh/id_ed25519 core@${NODE} 'sudo podman load'
 
 # Step B: stage the new image (must use --transport containers-storage for podman-load images)
@@ -109,8 +109,8 @@ VERSION=v10
 for NODE in $NODES; do
   echo "=== Upgrading $NODE ==="
   # Load image
-  ssh -i ~/.ssh/inferno_proxmox -o StrictHostKeyChecking=no root@10.10.1.201 \
-    "cat /mnt/inferno-build/inferno-appliance-${VERSION}.tar" \
+  ssh -i ~/.ssh/inferno_proxmox -o StrictHostKeyChecking=no root@10.10.1.98 \
+    "cat /opt/inferno-build/releases/inferno-appliance-${VERSION}.tar" \
     | ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 core@${NODE} \
       'sudo podman load'
 
