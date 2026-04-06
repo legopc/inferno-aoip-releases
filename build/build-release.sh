@@ -62,7 +62,7 @@ ${PODMAN} build --network=host -t "inferno-appliance:${VERSION}" -f Containerfil
 echo ""
 echo "── [3/5] Building installer ISO → ${OUTPUT_DIR} ──"
 mkdir -p "${OUTPUT_DIR}"
-${PODMAN} run --rm --privileged \
+${PODMAN} run --rm --privileged --network=host \
   -v "${STORAGE_ROOT}:/var/lib/containers/storage" \
   -v "${OUTPUT_DIR}:/output" \
   -v "${CONFIG_TOML}:/config.toml:ro" \
