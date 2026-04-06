@@ -56,7 +56,7 @@ BRANDING_DIR="${BUILD_DIR}/inferno-aoip-releases/branding"
 # ── Step 2: Build container image ────────────────────────────────────────────
 echo ""
 echo "── [2/5] Building container image localhost/inferno-appliance:${VERSION} ──"
-${PODMAN} build -t "inferno-appliance:${VERSION}" -f Containerfile .
+${PODMAN} build --network=host -t "inferno-appliance:${VERSION}" -f Containerfile .
 
 # ── Step 3: Build installer ISO ───────────────────────────────────────────────
 echo ""
