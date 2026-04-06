@@ -111,7 +111,7 @@ jobs:
       - name: Assemble release tarball
         run: |
           STAGE=inferno-aoip
-          mkdir -p ${STAGE}/{bin,lib,templates/{systemd/{system,user},alsa},scripts}
+          mkdir -p ${STAGE}/{bin,lib,templates/{systemd/{system,user},alsa}}
 
           # Binaries
           cp inferno/target/release/libasound_module_pcm_inferno.so ${STAGE}/lib/
@@ -121,8 +121,6 @@ jobs:
 
           # Templates and scripts from this repo
           cp -r releases-repo/templates/. ${STAGE}/templates/
-          cp releases-repo/scripts/inferno-deploy.sh  ${STAGE}/scripts/
-          cp releases-repo/scripts/inferno-web.py     ${STAGE}/scripts/
 
           # Version manifest
           cat > ${STAGE}/VERSION <<EOF
