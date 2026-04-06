@@ -48,11 +48,11 @@ All 57 items sorted by importance (Critical → High → Medium → Low), then b
 | 47 | Operations | Cockpit: Surface Node Identity | 🟠 High | Easy (<2h) | Low | None |
 | 48 | Operations | Health HTTP Endpoint | 🟠 High | Easy (<2h) | Low | None |
 | 50 | Operations | Upgrade Audit Log with Rollback Events | 🟠 High | Easy (<2h) | Low | Item 17 |
-| 51 | Operations | Cockpit: `bootc status` Panel | 🟠 High | Easy (<2h) | Low | None |
+| 51 | Operations | Cockpit: `bootc status` Panel | ✅ Implemented | Easy (<2h) | Low | None |
 | 54 | Operations | Cockpit: Dante Device Status | 🟠 High | Easy (<2h) | Low | Item 47 |
 | 7 | Install | Kickstart `%pre` Disk Detection Script | 🟠 High | Medium (half-day) | Medium | Item 1 |
 | 15 | Upgrade | Version Sentinel Comparison in `inferno-configure.sh` | 🟠 High | Medium (half-day) | Medium | BUG-01 |
-| 17 | Upgrade | Auto-Rollback on Failed Boot | 🟠 High | Medium (half-day) | Medium | BUG-01 |
+| 17 | Upgrade | Auto-Rollback on Failed Boot | ✅ Implemented | Medium (half-day) | Medium | BUG-01 |
 | 23 | First-boot | `systemd-sysusers` and `tmpfiles.d` for User and Directory Setup | 🟠 High | Medium (half-day) | Medium | None |
 | 38 | RT/Reliability | NIC Link-Down Recovery | 🟠 High | Medium (half-day) | Low | Item 10 |
 | 3 | Install | Boot Timeout = 1s | 🟡 Medium | Easy (<2h) | Low | Item 1 |
@@ -67,7 +67,7 @@ All 57 items sorted by importance (Critical → High → Medium → Low), then b
 | 19 | Upgrade | Delta / Layer-Based Upgrades via Local OCI Registry | 🟡 Medium | Medium (half-day) | Low | BUG-01 |
 | 24 | First-boot | Eliminate the Reboot at End of `inferno-configure.sh` | 🟡 Medium | Medium (half-day) | Medium | Item 11 |
 | 32 | Security | Cockpit TLS: Custom Certificate | 🟡 Medium | Medium (half-day) | Low | None |
-| 52 | Operations | Cockpit: One-Click Rollback Button | 🟡 Medium | Medium (half-day) | Medium | Items 50, 51 |
+| 52 | Operations | Cockpit: One-Click Rollback Button | ✅ Implemented | Medium (half-day) | Medium | Items 50, 51 |
 | 53 | Operations | Cockpit: Mode Switcher (Spotify ↔ AUX) | 🟡 Medium | Medium (half-day) | Medium | None |
 | 55 | Operations | Cockpit: PTP Clock Status | 🟡 Medium | Medium (half-day) | Low | None |
 | 56 | Operations | Cockpit: Certificate Management | 🟡 Medium | Medium (half-day) | Medium | None |
@@ -1404,6 +1404,8 @@ The implementation reads the booted image version via `bootc status --format jso
 
 #### Item 17 — Auto-Rollback on Failed Boot
 
+**Status:** ✅ **Implemented** — April 2026 (commit `de9f58b` on `legopc/inferno-aoip-releases`)
+
 **Importance:** 🟠 High  
 **Impact:** A bad upgrade cannot permanently brick a node; the previous working image is restored automatically  
 **Difficulty:** Medium (half-day)  
@@ -1474,6 +1476,16 @@ touch /run/inferno-upgrade-pending
 ```
 
 Add the service and script to `Containerfile`. Enable it in the image (not via first-boot config) so it is always present after upgrades.
+
+##### Resolution
+
+✅ **Implemented April 2026** — commit `de9f58b` on `legopc/inferno-aoip-releases`.
+
+- `scripts/inferno-health-check.sh` — 120 s grace period, checks `statime-inferno` and `cockpit.socket`. Triggers `bootc rollback + reboot` only if ALL critical services are inactive AND a rollback deployment exists (conservative: one healthy service = no rollback). Logs via `logger` (visible in `journalctl -u inferno-health-check`). Writes `/var/lib/inferno/health-check-ok` on a clean pass.
+- `templates/systemd/system/inferno-health-check.service` — oneshot, `After=multi-user.target`, `ConditionPathExists=/run/ostree-booted` (skips on non-bootc systems), `ExecStartPre=/bin/sleep 120`.
+- `Containerfile` — COPYs both files, enables `inferno-health-check` in the image so it is baked into every build from v11 onwards.
+
+Note: The prerequisite `Item 15` (version sentinel in `inferno-configure.sh`) was not completed before this implementation; the health check does not depend on it in practice — it evaluates running service state, not version metadata. Item 15 remains pending.
 
 ---
 
@@ -3210,6 +3222,8 @@ Only defer if item 17 (auto-rollback) is not implemented — without auto-rollba
 
 #### Item 51 — Cockpit: `bootc status` Panel
 
+**Status:** ✅ **Implemented** — The `cockpit-iot-updater` Cockpit page already implements this. See `legopc/cockpit-iot-updater` commits `a8d2890`/`a1cd215`.
+
 **Importance:** 🟠 High  
 **Impact:** Makes the full deployment state visible in the UI — no SSH required  
 **Difficulty:** Easy (<2h)  
@@ -3279,6 +3293,8 @@ No reason to defer. `bootc status --format=json` is a fast local operation. The 
 ---
 
 #### Item 52 — Cockpit: One-Click Rollback Button
+
+**Status:** ✅ **Implemented** — The `cockpit-iot-updater` Cockpit page includes `/rollback` endpoint in `server.py` and a "Roll Back" button in `update.js`. Verified working: node at `192.168.1.43` shows rollback to `localhost/inferno-appliance:v8` available. See `legopc/cockpit-iot-updater` commits `a8d2890`/`a1cd215`.
 
 **Importance:** 🟡 Medium  
 **Impact:** Enables version rollback without SSH — from 5 minutes to 30 seconds  
