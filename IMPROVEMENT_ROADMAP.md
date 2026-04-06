@@ -24,7 +24,7 @@ All 57 items sorted by importance (Critical → High → Medium → Low), then b
 
 | ID | Category | Title | Importance | Difficulty | Risk | Prerequisites |
 |---|---|---|---|---|---|---|
-| BUG-01 | Bug | `apply-update.sh`: Missing `skopeo copy` Command | 🔴 Critical | Easy (<2h) | Low | None |
+| BUG-01 | Bug | `apply-update.sh`: Missing `skopeo copy` Command | ✅ Resolved | Easy (<2h) | Low | None |
 | 1 | Install | Add Kickstart to BIB `config.toml` | 🔴 Critical | Easy (<2h) | Low | None |
 | 8 | Hardware | NIC Carrier Check | 🔴 Critical | Easy (<2h) | Low | None |
 | 26 | Security | Default Password Policy | 🔴 Critical | Easy (<2h) | Low | None |
@@ -58,7 +58,7 @@ All 57 items sorted by importance (Critical → High → Medium → Low), then b
 | 3 | Install | Boot Timeout = 1s | 🟡 Medium | Easy (<2h) | Low | Item 1 |
 | 13 | Hardware | CPU Frequency Scaling: Performance Governor | 🟡 Medium | Easy (<2h) | Low | None |
 | 14 | Hardware | `probe-node.sh` Output to `/var/log/inferno-probe.log` | 🟡 Medium | Easy (<2h) | Low | Items 8, 12 |
-| 16 | Upgrade | Pre-Upgrade Version Check in `apply-update.sh` | 🟡 Medium | Easy (<2h) | Low | BUG-01 |
+| 16 | Upgrade | Pre-Upgrade Version Check in `apply-update.sh` | ✅ Implemented | Easy (<2h) | Low | BUG-01 |
 | 22 | First-boot | Butane YAML for Ignition | 🟡 Medium | Easy (<2h) | Low | None |
 | 44 | Build | Generate `BUILD_DATE` and `GIT_SHA` Build-Args | 🟡 Medium | Easy (<2h) | Low | Item 43 |
 | 46 | Build | Parallel ISO Branding + Tarball Export | 🟡 Medium | Easy (<2h) | Medium | None |
@@ -85,7 +85,7 @@ All 57 items sorted by importance (Critical → High → Medium → Low), then b
 
 ### Top 5 Quick Wins (Easy difficulty, High or Critical importance)
 
-1. **BUG-01 — `apply-update.sh`: Missing `skopeo copy`** — The entire OTA upgrade path is completely broken without this; it is also a prerequisite for Items 15, 16, 17, 18, 19, 20. Fix this first, before touching anything else upgrade-related.
+1. **BUG-01 — `apply-update.sh`: Missing `skopeo copy`** — ✅ **RESOLVED** (April 2026, commits `a8d2890` / `a1cd215` on `legopc/cockpit-iot-updater`). See BUG-01 section for full resolution notes including additional bugs fixed during investigation.
 2. **Item 33 — Hardware Watchdog** — A Critical+Easy item that gives the appliance automatic crash/hang recovery. Without it, a wedged librespot or a kernel panic requires physical intervention at the customer site.
 3. **Item 26 — Default Password Policy** — The appliance ships with a default credential; this must be enforced before any unit leaves the build pipeline. One-liner in `inferno-configure.sh` or the Containerfile.
 4. **Item 31 — SELinux: `restorecon` After Custom File Copies** — Critical and trivially easy; without it, files copied into the image via `COPY` in the Containerfile may carry wrong SELinux labels, causing silent service failures after first boot.
@@ -94,7 +94,7 @@ All 57 items sorted by importance (Critical → High → Medium → Low), then b
 ### Top 5 High-Impact Items (regardless of difficulty)
 
 1. **Item 17 — Auto-Rollback on Failed Boot** — Without this, a bad image update permanently bricks the appliance (requires physical access to recover). This is the single highest safety item in the entire roadmap; once BUG-01 is fixed this should be next.
-2. **BUG-01 — `apply-update.sh`: Missing `skopeo copy`** — Unlocks the entire upgrade subsystem. Every upgrade-related item (15, 16, 17, 18, 19, 20, 50) is blocked until this is resolved.
+2. **BUG-01 — `apply-update.sh`: Missing `skopeo copy`** — ✅ **RESOLVED** (April 2026). Unlocks the entire upgrade subsystem. Every upgrade-related item (15, 16, 17, 18, 19, 20, 50) is blocked until this is resolved.
 3. **Item 33 — Hardware Watchdog** — Auto-recovery from crashes and hangs without human intervention; critical for a headless appliance deployed in AV racks.
 4. **Item 26 — Default Password Policy** — A shipped appliance with a known default credential is a security incident waiting to happen; eliminates that risk entirely.
 5. **Item 1 — Add Kickstart to BIB `config.toml`** — Enables fully unattended zero-touch provisioning; without it every new node requires manual install interaction. It is also the prerequisite foundation for Items 2, 3, 4, 5, 7.
@@ -164,6 +164,10 @@ Items 47–56 → (none, each independent; some enhanced by Items 12, 30)
 
 #### BUG-01 — `apply-update.sh`: Missing `skopeo copy` Command
 
+**Status:** ✅ **RESOLVED** — April 2026  
+**Resolved in:** `legopc/cockpit-iot-updater` commits `a8d2890` and `a1cd215`  
+**Verified on:** Node `inferno-110f04` (192.168.1.43), v10 bundle applied successfully, node rebooted to `43.20260404.0`
+
 **Importance:** 🔴 Critical  
 **Impact:** Every OCI-path upgrade attempt fails immediately; the update path is completely broken  
 **Difficulty:** Easy (<2h)  
@@ -209,6 +213,23 @@ There is no valid reason to defer this. The fix is a single-line insertion. The 
    ```
    Confirm `skopeo copy` logs appear and `bootc switch` proceeds.
 3. Bump the submodule ref in the parent repo and tag a patch release.
+
+##### Resolution
+
+✅ **RESOLVED April 2026** — `legopc/cockpit-iot-updater` commits `a8d2890` and `a1cd215`.  
+Verified end-to-end on node `inferno-110f04` (192.168.1.43): v10 bundle applied, node rebooted to `43.20260404.0`.
+
+During investigation, three additional bugs were discovered and fixed in the same commit series:
+
+1. **Format mismatch (`docker-archive` vs `oci-archive`)** — The build pipeline uses `podman save` which produces docker-archive format, but `apply-update.sh` used `oci-archive:` prefix for skopeo, causing skopeo to fail even after BUG-01 was fixed. Fix: auto-detect format by probing for `index.json` inside the bundle's `image.tar`. If absent → `docker-archive:`, if present → `oci-archive:`. Also added `--format oci-archive` to `tools/make-oci-bundle.sh` so future builds produce true OCI archives.
+
+2. **State recovery after failed update** — After a failed update attempt, the UI would not allow a new upload. Root cause: `read_external_status()` in `server.py` polled `/run/iot-update-status.json` on every GET, overwriting the new upload's `uploading` state with the stale `error` state from the previous run. Fix: skip the overwrite when current stage is `uploading`/`extracting`/`verifying`; also delete the status file before starting a new upload.
+
+3. **Sidecar memory spike (~2 GB during upload)** — `verify_bundle_hash()` in `server.py` used `tarfile.open(bundle, "r:")` + `getmember()` which indexes the full archive in RAM before seeking, buffering the entire ~2 GB bundle. Fixed with `"r|"` (streaming pipe mode) and sequential member iteration — verified at 19.8 MB RSS post-reboot vs. 1.9–6 GB before.
+
+Also delivered in commit `a1cd215`:
+- **UI error state reset** — `cockpit-page/update.js` error state now hides the useless "Retry Upload" button and resets the drop zone so users can drag a new file without a page reload. If a bundle was already staged, shows "Retry Apply vX".
+- **Item 16 pre-upgrade version check** — Implemented; see Item 16.
 
 ---
 
@@ -1326,6 +1347,8 @@ The medium risk rating is real. If `inferno-configure.sh` re-runs and contains a
 
 #### Item 16 — Pre-Upgrade Version Check in `apply-update.sh`
 
+**Status:** ✅ **Implemented** — April 2026 (commit `a1cd215` on `legopc/cockpit-iot-updater`)
+
 **Importance:** 🟡 Medium  
 **Impact:** Prevents accidental downgrades and redundant re-application of the same image version  
 **Difficulty:** Easy (<2h)  
@@ -1370,6 +1393,12 @@ fi
 ```
 
 If `python3-packaging` is not available, use a simpler shell-based comparison or ship a small helper. `jq` and `bootc` are already required; add `python3-packaging` to the `Containerfile` if not present.
+
+##### Resolution
+
+✅ **Implemented April 2026** — commit `a1cd215` on `legopc/cockpit-iot-updater`.
+
+The implementation reads the booted image version via `bootc status --format json` (pure Python3 inline, no `jq` dependency) and logs a warning when the bundle version matches the booted version. The check is skipped in dry-run mode and degrades gracefully when `bootc status` returns no version metadata (as is the case with images built without OCI version labels — see Item 43/44). Downgrade protection and hard refusal are intentionally deferred until Item 43/44 ensure `bootc status` reliably returns a parseable version; for now a warning is emitted but the apply proceeds.
 
 ---
 
