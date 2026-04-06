@@ -131,13 +131,22 @@ COPY build/inferno-configure.sh /usr/local/sbin/inferno-configure.sh
 COPY build/systemd/inferno-configure.service /etc/systemd/system/inferno-configure.service
 RUN chmod +x /usr/local/sbin/inferno-configure.sh
 
+# ── Post-boot health check — auto-rollback on bad upgrade (Item 17) ───────────
+# Runs 120 s after multi-user.target; calls 'bootc rollback + reboot' if all
+# critical services (statime-inferno, cockpit.socket) are down simultaneously.
+# Protects headless nodes from being permanently bricked by a bad OTA update.
+COPY scripts/inferno-health-check.sh /usr/local/sbin/inferno-health-check.sh
+COPY templates/systemd/system/inferno-health-check.service /etc/systemd/system/inferno-health-check.service
+RUN chmod +x /usr/local/sbin/inferno-health-check.sh
+
 # ── Enable system services ─────────────────────────────────────────────────────
 RUN systemctl enable \
     sshd \
     cockpit.socket \
     avahi-daemon \
     statime-inferno \
-    inferno-configure
+    inferno-configure \
+    inferno-health-check
 
 # ── Mask conflicting time sync services (PTP manages the clock) ───────────────
 RUN systemctl mask systemd-timesyncd chronyd ntpd

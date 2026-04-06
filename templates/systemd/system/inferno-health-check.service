@@ -1,0 +1,20 @@
+[Unit]
+Description=Inferno Boot Health Check — auto-rollback on bad upgrade
+Documentation=https://github.com/legopc/inferno-aoip-releases
+# Run after the services we're checking have had time to start
+After=multi-user.target statime-inferno.service cockpit.socket
+# Only meaningful when there are multiple bootc deployments available
+ConditionPathExists=/run/ostree-booted
+
+[Service]
+Type=oneshot
+# 120-second grace period — give all services time to start before judging
+ExecStartPre=/bin/sleep 120
+ExecStart=/usr/local/sbin/inferno-health-check.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=inferno-health-check
+
+[Install]
+WantedBy=multi-user.target

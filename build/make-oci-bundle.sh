@@ -4,6 +4,7 @@
 # Usage:
 #   make-oci-bundle.sh --image inferno-appliance:v9 --version v9 --description "Add foo" --out bundle.iotupdate
 #   make-oci-bundle.sh --archive /path/to/image.tar --version v9 --description "Add foo" --out bundle.iotupdate
+#   make-oci-bundle.sh --archive /path/to/image.tar --image-name localhost/inferno-appliance:v9 ...
 #
 # Requirements (run on the build host — PRX-01 or any machine with podman):
 #   podman  (for --image mode, to export the image)
@@ -16,6 +17,7 @@ set -euo pipefail
 
 IMAGE=""
 ARCHIVE=""
+IMAGE_NAME_OVERRIDE=""
 VERSION=""
 DESCRIPTION=""
 OUT_FILE=""
@@ -26,6 +28,8 @@ usage() {
     echo ""
     echo "  --image      Podman image name+tag to export (uses 'podman save')"
     echo "  --archive    Pre-exported OCI tar file (skips 'podman save')"
+    echo "  --image-name Override the oci_image_name stored in version.json"
+    echo "               (useful with --archive when the image name is known)"
     echo "  --version    Version string, e.g. v9 (stored in version.json)"
     echo "  --description Human-readable change description"
     echo "  --out        Output .iotupdate file path"
@@ -36,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --image)       IMAGE="$2"; shift 2 ;;
         --archive)     ARCHIVE="$2"; shift 2 ;;
+        --image-name)  IMAGE_NAME_OVERRIDE="$2"; shift 2 ;;
         --version)     VERSION="$2"; shift 2 ;;
         --description) DESCRIPTION="$2"; shift 2 ;;
         --out)         OUT_FILE="$2"; shift 2 ;;
@@ -55,18 +60,27 @@ WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 IMAGE_TAR="${WORK_DIR}/image.tar"
-IMAGE_NAME="${IMAGE:-inferno-appliance:unknown}"
+# Determine the image name stored in version.json:
+#   1. --image-name override (explicit, highest priority)
+#   2. --image value (when exporting directly from podman)
+#   3. "inferno-appliance:unknown" (fallback for --archive without --image-name)
+if [[ -n "$IMAGE_NAME_OVERRIDE" ]]; then
+    IMAGE_NAME="$IMAGE_NAME_OVERRIDE"
+elif [[ -n "$IMAGE" ]]; then
+    IMAGE_NAME="$IMAGE"
+else
+    IMAGE_NAME="inferno-appliance:unknown"
+fi
 
 # ── Export image if --image was given ─────────────────────────────────────────
 if [[ -n "$IMAGE" ]]; then
     echo "Exporting podman image: ${IMAGE}"
     echo "  (This may take a few minutes for a ~2GB image…)"
-    podman save "${IMAGE}" -o "${IMAGE_TAR}" || {
+    podman save --format oci-archive "${IMAGE}" -o "${IMAGE_TAR}" || {
         echo "ERROR: podman save failed. Is the image '${IMAGE}' available locally?"
         echo "  Try: podman images | grep inferno-appliance"
         exit 1
     }
-    IMAGE_NAME="${IMAGE}"
     echo "  Image exported: $(du -sh "${IMAGE_TAR}" | cut -f1)"
 elif [[ -n "$ARCHIVE" ]]; then
     [[ -f "$ARCHIVE" ]] || { echo "ERROR: Archive not found: $ARCHIVE"; exit 1; }

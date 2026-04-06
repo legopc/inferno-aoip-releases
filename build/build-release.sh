@@ -101,6 +101,7 @@ echo ""
 echo "── [5/5] Packaging .iotupdate bundle for Cockpit IoT Updater → ${IOTUPDATE_BUNDLE} ──"
 "${SCRIPT_DIR}/make-oci-bundle.sh" \
   --archive "${UPGRADE_TAR}" \
+  --image-name "localhost/inferno-appliance:${VERSION}" \
   --version "${VERSION}" \
   --description "${DESCRIPTION}" \
   --out "${IOTUPDATE_BUNDLE}"
