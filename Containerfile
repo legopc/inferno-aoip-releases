@@ -38,6 +38,8 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     openssh-server \
     # Required by IoT Updater apply-update.sh (OCI image import)
     skopeo \
+    # bsdiff: bspatch used by iot-updater apply-update.sh for delta bundle support
+    bsdiff \
     && dnf clean all
 
 # ── Directory structure ────────────────────────────────────────────────────────
