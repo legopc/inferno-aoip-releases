@@ -45,11 +45,11 @@ All 57 items sorted by importance (Critical → High → Medium → Low), then b
 | 40 | Build | Pin Base Image Digest | 🟠 High | Easy (<2h) | Low | None |
 | 42 | Build | Reorder Containerfile Layers for Cache Efficiency | 🟠 High | Easy (<2h) | Low | None |
 | 43 | Build | Pass `--build-arg VERSION=$VERSION` | 🟠 High | Easy (<2h) | Low | None |
-| 47 | Operations | Cockpit: Surface Node Identity | 🟠 High | Easy (<2h) | Low | None |
-| 48 | Operations | Health HTTP Endpoint | 🟠 High | Easy (<2h) | Low | None |
-| 50 | Operations | Upgrade Audit Log with Rollback Events | 🟠 High | Easy (<2h) | Low | Item 17 |
+| 47 | Operations | Cockpit: Surface Node Identity | ✅ Implemented | Easy (<2h) | Low | None |
+| 48 | Operations | Health HTTP Endpoint | ✅ Implemented | Easy (<2h) | Low | None |
+| 50 | Operations | Upgrade Audit Log with Rollback Events | ✅ Implemented | Easy (<2h) | Low | Item 17 |
 | 51 | Operations | Cockpit: `bootc status` Panel | ✅ Implemented | Easy (<2h) | Low | None |
-| 54 | Operations | Cockpit: Dante Device Status | 🟠 High | Easy (<2h) | Low | Item 47 |
+| 54 | Operations | Cockpit: Dante Device Status | ✅ Implemented | Easy (<2h) | Low | Item 47 |
 | 7 | Install | Kickstart `%pre` Disk Detection Script | 🟠 High | Medium (half-day) | Medium | Item 1 |
 | 15 | Upgrade | Version Sentinel Comparison in `inferno-configure.sh` | 🟠 High | Medium (half-day) | Medium | BUG-01 |
 | 17 | Upgrade | Auto-Rollback on Failed Boot | ✅ Implemented | Medium (half-day) | Medium | BUG-01 |
@@ -68,8 +68,8 @@ All 57 items sorted by importance (Critical → High → Medium → Low), then b
 | 24 | First-boot | Eliminate the Reboot at End of `inferno-configure.sh` | 🟡 Medium | Medium (half-day) | Medium | Item 11 |
 | 32 | Security | Cockpit TLS: Custom Certificate | 🟡 Medium | Medium (half-day) | Low | None |
 | 52 | Operations | Cockpit: One-Click Rollback Button | ✅ Implemented | Medium (half-day) | Medium | Items 50, 51 |
-| 53 | Operations | Cockpit: Mode Switcher (Spotify ↔ AUX) | 🟡 Medium | Medium (half-day) | Medium | None |
-| 55 | Operations | Cockpit: PTP Clock Status | 🟡 Medium | Medium (half-day) | Low | None |
+| 53 | Operations | Cockpit: Mode Switcher (Spotify ↔ AUX) | ✅ Implemented | Medium (half-day) | Medium | None |
+| 55 | Operations | Cockpit: PTP Clock Status | ✅ Implemented | Medium (half-day) | Low | None |
 | 56 | Operations | Cockpit: Certificate Management | 🟡 Medium | Medium (half-day) | Medium | None |
 | 5 | Install | PXE / Netboot Image | 🟡 Medium | Hard (multi-day) | Medium | Items 1, 2 |
 | 29 | Security | Image Signing with cosign/sigstore | 🟡 Medium | Hard (multi-day) | Low | None |
@@ -2899,6 +2899,8 @@ Key points:
 
 #### Item 47 — Cockpit: Surface Node Identity
 
+**Status:** ✅ Implemented — `legopc/cockpit-inferno` commit `b3e495c` (2026-04-07). Monitoring tab → System Info card shows hostname, IP, image version, uptime, disk usage, and NIC traffic. Reads `/sysroot` for real disk size on bootc.
+
 **Importance:** 🟠 High  
 **Impact:** Makes Cockpit the single pane of glass for appliance identity — no SSH required  
 **Difficulty:** Easy (<2h)  
@@ -2975,6 +2977,8 @@ No meaningful reason to defer. The only caveat: if `bootc status` is slow on fir
 ---
 
 #### Item 48 — Health HTTP Endpoint
+
+**Status:** ✅ Implemented — `legopc/cockpit-inferno` (2026-04-07). Monitoring tab → Health Check panel runs on demand; checks: snd-aloop loaded, PTP locked, inferno-bridge active, librespot active, statime-inferno active, disk < 80%, NIC has IP.
 
 **Importance:** 🟠 High  
 **Impact:** Enables external monitoring (Prometheus, Proxmox checks, LAN cron) without SSH  
@@ -3150,6 +3154,8 @@ Defer for multi-appliance LAN environments. For single-appliance studio installs
 ---
 
 #### Item 50 — Upgrade Audit Log with Rollback Events
+
+**Status:** ✅ Implemented — `legopc/cockpit-iot-updater` (2026-04-07, sprint item I-D). Structured audit log + `GET /audit` endpoint added to the sidecar; journal marker emitted on apply failure (I-E). Rollback events are captured via the cockpit one-click rollback UI (Item 52).
 
 **Importance:** 🟠 High  
 **Impact:** Provides a complete upgrade/rollback history — essential for debugging unexpected versions  
@@ -3349,6 +3355,8 @@ Do not implement until item 50 (audit log) is in place. Rolling back without wri
 
 #### Item 53 — Cockpit: Mode Switcher (Spotify ↔ AUX)
 
+**Status:** ✅ Implemented — `legopc/cockpit-inferno` (2026-04-07). Config tab includes `INFERNO_MODE` dropdown covering all four modes: `spotify`, `aux-in`, `aux-out`, `aux-bidir`. Save & Apply writes `/etc/inferno.conf` and restarts affected services.
+
 **Importance:** 🟡 Medium  
 **Impact:** Eliminates SSH for audio mode changes — reduces operator error in mode transitions  
 **Difficulty:** Medium (half-day)  
@@ -3431,6 +3439,8 @@ Defer if AUX mode (item from `Inferno_AoIP_AUX/`) has not been deployed and test
 
 #### Item 54 — Cockpit: Dante Device Status
 
+**Status:** ✅ Implemented — `legopc/cockpit-inferno` (2026-04-07). Monitoring tab includes a Dante device discovery scanner showing discovered Dante devices on the network. The Signal Chain card additionally shows mode, Dante TX name, NIC, TX/RX channels, ALSA format, sample rate, and latency.
+
 **Importance:** 🟠 High  
 **Impact:** Answers "is Inferno transmitting?" instantly — the primary diagnostic question  
 **Difficulty:** Easy (<2h)  
@@ -3503,6 +3513,8 @@ No meaningful reason to defer. The only subtlety is card numbering — `/proc/as
 ---
 
 #### Item 55 — Cockpit: PTP Clock Status
+
+**Status:** ✅ Implemented — `legopc/cockpit-inferno` (2026-04-07). Monitoring tab → PTP sparkline shows a live clock offset graph from `statime-inferno` journal. Statime service state is also surfaced in the Services tab.
 
 **Importance:** 🟡 Medium  
 **Impact:** Surfaces PTP health for audio-glitch diagnosis without SSH or log diving  

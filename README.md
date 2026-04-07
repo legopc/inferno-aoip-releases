@@ -16,28 +16,9 @@ This appliance is named **Virgil** after the Roman poet who guides Dante through
 
 > **Why this section exists:** AI assistants document features convincingly even when the underlying code is broken. The items below are confirmed defects — do not rely on them working until they are marked fixed.
 
-### 🔴 OTA upgrade via Cockpit IoT Updater is broken
+### ~~🔴 OTA upgrade via Cockpit IoT Updater is broken~~
 
-**Status:** Broken in all versions. Not yet fixed.
-
-Uploading a `.iotupdate` bundle through the Cockpit IoT Updater UI will fail with a misleading error. The root cause is a missing `skopeo copy \` command in `iot-updater/scripts/apply-update.sh` (around line 107) — the shell receives dangling arguments with no command and exits immediately. The OCI image is never loaded into podman storage, so `bootc switch` is never reached.
-
-**Symptom:** The Cockpit updater reports "skopeo copy failed" immediately after upload completes.
-
-**Workaround — upgrade via SSH tar pipe instead:**
-```bash
-VERSION=v11
-NODE=192.168.1.46
-
-# Load the image tarball directly
-ssh root@10.10.1.98 "cat /opt/inferno-build/releases/inferno-appliance-${VERSION}.tar" \
-  | ssh core@${NODE} 'sudo podman load'
-
-# Switch and reboot
-ssh core@${NODE} "sudo bootc switch localhost/inferno-appliance:${VERSION} && sudo reboot"
-```
-
-**Fix:** Add `skopeo copy \` before the arguments in `apply-update.sh`. Tracked as **BUG-01** in [`IMPROVEMENT_ROADMAP.md`](IMPROVEMENT_ROADMAP.md).
+**Status:** ✅ **RESOLVED** — April 2026 (`legopc/cockpit-iot-updater` commits `a8d2890` / `a1cd215`). The missing `skopeo copy` command (BUG-01) is fixed, along with a docker-archive vs. oci-archive format mismatch and a 2 GB sidecar memory spike. OTA upgrades via the Cockpit IoT Updater UI work correctly as of v14+. See [`IMPROVEMENT_ROADMAP.md`](IMPROVEMENT_ROADMAP.md) BUG-01 section for full resolution notes.
 
 ---
 
@@ -56,7 +37,7 @@ The `bootc-fetch-apply-updates` systemd service (part of the upstream bootc pack
 sudo systemctl mask bootc-fetch-apply-updates.service bootc-fetch-apply-updates.timer
 ```
 
-**Note:** This does **not** affect upgrades. Use the Cockpit IoT Updater (once BUG-01 is fixed) or the SSH tar pipe method above.
+**Note:** This does **not** affect upgrades. Use the Cockpit IoT Updater (BUG-01 is resolved — works as of v14+) or the SSH tar pipe method above.
 
 ---
 
