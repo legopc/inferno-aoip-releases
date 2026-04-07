@@ -151,6 +151,7 @@
                 <option value="aux-in">🎙 Analog In → Dante TX</option>
                 <option value="aux-out">🔈 Dante RX → Analog Out</option>
                 <option value="aux-bidir">⇄ In + Out (bidirectional)</option>
+                <option value="iradio">📻 Internet Radio → Dante TX</option>
               </select>
             </div>
 
@@ -201,6 +202,24 @@
               <div class="range-wrap">
                 <input type="range" class="form-range" id="cfg-loop-latency" min="1000" max="50000" step="1000" value="10000">
                 <span id="cfg-loop-latency-val" class="range-val">10 ms</span>
+              </div>
+            </div>
+
+            <div class="form-row hidden" id="field-iradio">
+              <label class="row-label">Internet Radio</label>
+              <div class="info-block">
+                <p class="text-muted" style="margin:0 0 6px">
+                  iradio-bridge streams internet radio stations to Dante TX channels.<br>
+                  Manage stations and players at:
+                  <a id="iradio-ui-link" href="#" target="_blank"
+                     style="color:#0066cc;text-decoration:none">
+                    http://&lt;node-ip&gt;:8765
+                  </a>
+                </p>
+                <p class="text-muted" style="margin:0;font-size:12px">
+                  The binary must be installed at <code>/usr/local/bin/iradio-bridge</code>.
+                  Saving will auto-configure ALSA and create the systemd user service.
+                </p>
               </div>
             </div>
 
@@ -360,6 +379,7 @@
               <option value="inferno-keepalive">inferno-keepalive</option>
               <option value="librespot-watchdog">librespot-watchdog</option>
               <option value="statime-inferno">statime-inferno</option>
+              <option value="iradio-bridge">iradio-bridge</option>
             </select>
             <select class="form-select select-auto" id="log-level-select" title="Filter by level">
               <option value="all">All</option>

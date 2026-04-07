@@ -18,6 +18,8 @@ const AUX_BIDIR_SVCS = ["inferno-aux-tx", "inferno-aux-rx"];
 // All aux services — used for stop-before-switch
 const ALL_AUX_SVCS   = ["inferno-aux-tx", "inferno-aux-rx", "inferno-aux-keepalive"];
 
+const IRADIO_SVCS  = ["iradio-bridge"];
+
 const SVC_LABELS = {
     "librespot":             { label: "librespot",           desc: "Spotify Connect receiver" },
     "librespot-watchdog":    { label: "librespot-watchdog",  desc: "Watchdog & auto-restart" },
@@ -27,6 +29,7 @@ const SVC_LABELS = {
     "inferno-aux-rx":        { label: "inferno-aux-rx",      desc: "Dante RX to AUX output" },
     "inferno-aux-keepalive": { label: "inferno-aux-keepalive", desc: "AUX Dante keepalive" },
     "statime-inferno":       { label: "statime",             desc: "PTP hardware clock sync" },
+    "iradio-bridge":         { label: "iradio-bridge",       desc: "Internet Radio → Dante TX" },
 };
 
 let currentConf = {};
@@ -194,6 +197,7 @@ function onModeChange() {
     var isSpotify  = currentMode === "spotify";
     var isAuxIn    = currentMode === "aux-in"    || currentMode === "aux-bidir";
     var isAuxOut   = currentMode === "aux-out"   || currentMode === "aux-bidir";
+    var isIradio   = currentMode === "iradio";
     $("field-spotify-name").classList.toggle("hidden", !isSpotify);
     $("field-librespot-bitrate").classList.toggle("hidden", !isSpotify);
     $("field-librespot-bitrate-hint").classList.toggle("hidden", !isSpotify);
@@ -204,6 +208,15 @@ function onModeChange() {
     $("field-audio-out").classList.toggle("hidden", !isAuxOut);
     $("field-rx-channels").classList.toggle("hidden", !isAuxOut);
     $("field-loop-latency").classList.toggle("hidden", !isAuxIn && !isAuxOut);
+    if ($("field-iradio")) {
+        $("field-iradio").classList.toggle("hidden", !isIradio);
+        if (isIradio && $("iradio-ui-link")) {
+            var host = window.location.hostname || "localhost";
+            var url  = "http://" + host + ":8765";
+            $("iradio-ui-link").href = url;
+            $("iradio-ui-link").textContent = url;
+        }
+    }
     onChannelChange();
     updateModeFlow();
 }
@@ -525,8 +538,99 @@ function deriveDeviceId(baseId, offset) {
     return (baseId || "000000000000").slice(0, -4) + suffix.toString(16).padStart(4, "0");
 }
 
-async function ensureAuxSetup(cardIn, cardIn2, cardOut, cardOut2, txCh, rxCh, danteName) {
+// ── Internet Radio (iradio-bridge) ALSA setup ──────────────────────────────────
+// Mirrors ensureAuxSetup but writes pcm.inferno_iradio_N blocks (slots 1–4)
+// and a systemd user service unit for iradio-bridge.
+const IRADIO_BRIDGE_BIN   = "/usr/local/bin/iradio-bridge";
+const IRADIO_CONFIG_DIR   = "/var/home/core/.config/iradio";
+const IRADIO_CONFIG_PATH  = "/var/home/core/.config/iradio/config.toml";
+const IRADIO_SVC_PATH     = "/var/home/core/.config/systemd/user/iradio-bridge.service";
+const IRADIO_MAX_SLOTS    = 4;
+const IRADIO_ALT_PORT_BASE= 6100;
+const IRADIO_PID_BASE     = 10; // slots 1..4 → PIDs 10..13
+
+async function ensureIradioSetup(danteName) {
     var asoundText = await cockpit.file(ASOUNDRC).read() || "";
+    var needsAlsa  = !asoundText.includes("pcm.inferno_iradio_1");
+
+    var bindIpMatch   = asoundText.match(/BIND_IP\s+(\S+)/);
+    var deviceIdMatch = asoundText.match(/DEVICE_ID\s+([0-9a-f]+)/i);
+    var clockMatch    = asoundText.match(/CLOCK_PATH\s+(\S+)/);
+    var pluginMatch   = asoundText.match(/lib\s+"([^"]+)"/);
+
+    var bindIp     = bindIpMatch   ? bindIpMatch[1]   : "127.0.0.1";
+    var baseId     = deviceIdMatch ? deviceIdMatch[1]  : "000000000000000";
+    var clockPath  = clockMatch    ? clockMatch[1]     : "/tmp/ptp-usrvclock";
+    var pluginPath = pluginMatch   ? pluginMatch[1]    : "/usr/lib64/alsa-lib/libasound_module_pcm_inferno.so";
+
+    if (needsAlsa) {
+        var blocks = "\n";
+        for (var slot = 1; slot <= IRADIO_MAX_SLOTS; slot++) {
+            var pid     = IRADIO_PID_BASE + (slot - 1);
+            var altPort = IRADIO_ALT_PORT_BASE + (slot - 1) * 20;
+            var devId   = deriveDeviceId(baseId, IRADIO_PID_BASE + (slot - 1));
+            var name    = (danteName || "Inferno") + "-ir" + slot;
+            blocks +=
+                "# iradio-bridge Dante TX slot " + slot + "\n" +
+                "pcm.inferno_iradio_" + slot + " {\n" +
+                "    type inferno\n" +
+                "    lib \"" + pluginPath + "\"\n" +
+                "    NAME \"" + name + "\"\n" +
+                "    BIND_IP " + bindIp + "\n" +
+                "    SAMPLE_RATE 48000\n" +
+                "    PROCESS_ID " + pid + "\n" +
+                "    ALT_PORT " + altPort + "\n" +
+                "    RX_CHANNELS 0\n" +
+                "    TX_CHANNELS 2\n" +
+                "    TX_LATENCY_NS 10000000\n" +
+                "    RX_LATENCY_NS 10000000\n" +
+                "    CLOCK_PATH " + clockPath + "\n" +
+                "    DEVICE_ID " + devId + "\n" +
+                "    hint { show off description \"Inferno iradio slot " + slot + " TX\" }\n" +
+                "}\n\n";
+        }
+        await cockpit.file(ASOUNDRC).replace(asoundText.trimEnd() + "\n" + blocks);
+    }
+
+    // Write config directory + config.toml
+    await spUser("mkdir -p " + IRADIO_CONFIG_DIR);
+    var cfgExists = await cockpit.file(IRADIO_CONFIG_PATH).read().catch(function() { return null; });
+    if (!cfgExists) {
+        var toml =
+            "# iradio-bridge configuration — auto-generated by cockpit-inferno\n" +
+            "port = 8765\n" +
+            "max_players = 4\n" +
+            "favourites_path = \"/var/home/core/.local/share/iradio/favourites.json\"\n\n" +
+            "[auth]\nenabled = false\nusername = \"\"\npassword = \"\"\n\n" +
+            "[alsa]\nsetup_alsa = false\n" +
+            "asoundrc_path = \"/var/home/core/.asoundrc\"\n" +
+            "sample_rate = 48000\nbuffer_frames = 4096\n\n" +
+            "[radiobrowser]\napi_url = \"\"\nrequest_timeout_secs = 10\n";
+        await cockpit.file(IRADIO_CONFIG_PATH).replace(toml);
+    }
+
+    // Write systemd user service unit
+    var unitExists = await cockpit.file(IRADIO_SVC_PATH).read().catch(function() { return null; });
+    if (!unitExists) {
+        var unit =
+            "[Unit]\n" +
+            "Description=Inferno Internet Radio Bridge\n" +
+            "After=network-online.target\n" +
+            "Wants=network-online.target\n\n" +
+            "[Service]\n" +
+            "Type=simple\n" +
+            "ExecStart=" + IRADIO_BRIDGE_BIN + " --config " + IRADIO_CONFIG_PATH + "\n" +
+            "Restart=on-failure\nRestartSec=5\n" +
+            "Environment=RUST_LOG=info\n\n" +
+            "[Install]\n" +
+            "WantedBy=default.target\n";
+        await cockpit.file(IRADIO_SVC_PATH).replace(unit);
+    }
+
+    return needsAlsa;
+}
+
+
     var needsAlsa  = !asoundText.includes("pcm.inferno_aux_tx");
 
     var bindIpMatch    = asoundText.match(/BIND_IP\s+(\S+)/);
@@ -744,7 +848,7 @@ async function saveConfig() {
         await spUser("systemctl --user daemon-reload");
 
         // For aux modes: ensure ALSA PCM defs + always rewrite service files with current card/channels
-        if (newMode !== "spotify") {
+        if (newMode === "aux-in" || newMode === "aux-out" || newMode === "aux-bidir") {
             var cardIn    = $("cfg-audio-in").value   || "0";
             var cardIn2   = $("cfg-audio-in2").value  || "none";
             var cardOut   = $("cfg-audio-out").value  || "0";
@@ -757,8 +861,14 @@ async function saveConfig() {
             }
         }
 
+        // For iradio mode: ensure iradio-bridge is installed and configured
+        if (newMode === "iradio") {
+            await ensureIradioSetup(newDanteName);
+            await spUser("systemctl --user daemon-reload");
+        }
+
         var targetSvcs = modeToSvcs(newMode);
-        var stopSvcs   = SPOTIFY_SVCS.concat(ALL_AUX_SVCS)
+        var stopSvcs   = SPOTIFY_SVCS.concat(ALL_AUX_SVCS).concat(IRADIO_SVCS)
                            .filter(function(s) { return !targetSvcs.includes(s); })
                            .join(" ");
         var startSvcs  = targetSvcs.join(" ");
@@ -771,6 +881,7 @@ async function saveConfig() {
             "aux-in":    "Analog In → Dante TX",
             "aux-out":   "Dante RX → Analog Out",
             "aux-bidir": "Analog In + Out",
+            "iradio":    "Internet Radio → Dante TX",
         };
         if (modeChanged) msgs.push("Mode → <b>" + (modeLabels[newMode] || newMode) + "</b>");
 
@@ -795,6 +906,7 @@ function modeToSvcs(mode) {
     if (mode === "aux-out")   return AUX_OUT_SVCS;
     if (mode === "aux-bidir") return AUX_BIDIR_SVCS;
     if (mode === "aux")       return AUX_BIDIR_SVCS; // legacy value
+    if (mode === "iradio")    return IRADIO_SVCS;
     return SPOTIFY_SVCS;
 }
 
@@ -1416,6 +1528,7 @@ function updateModeFlow() {
         "aux-in":    [["Analog In", "source"], ["snd-aloop", "middle"], ["inferno-aux-tx", "middle"], ["Dante TX", "dest"]],
         "aux-out":   [["Dante RX", "source"], ["inferno-aux-rx", "middle"], ["Analog Out", "dest"]],
         "aux-bidir": [["Analog In", "source"], ["Dante TX", "dest"], ["\u2194", "middle"], ["Dante RX", "source"], ["Analog Out", "dest"]],
+        "iradio":    [["Internet Radio", "source"], ["iradio-bridge", "middle"], ["Dante TX", "dest"]],
     };
     var nodes = flows[mode] || [];
     nodes.forEach(function(n, i) {
