@@ -148,7 +148,7 @@ RUN chmod +x /usr/local/sbin/inferno-health-check.sh
 # ── Benchmark suite ───────────────────────────────────────────────────────────
 COPY scripts/bench/ /usr/local/sbin/inferno-bench/
 RUN chmod +x /usr/local/sbin/inferno-bench/*.sh && \
-    ln -s /usr/local/sbin/inferno-bench/inferno-bench.sh /usr/local/sbin/inferno-bench
+    ln -s /usr/local/sbin/inferno-bench/inferno-bench.sh /usr/local/bin/inferno-bench
 
 # ── Enable system services ─────────────────────────────────────────────────────
 RUN systemctl enable \
