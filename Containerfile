@@ -40,6 +40,10 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     skopeo \
     # bsdiff: bspatch used by iot-updater apply-update.sh for delta bundle support
     bsdiff \
+    # Benchmarking and stress testing (inferno-bench suite)
+    # stress-ng: system stress (CPU/memory/network) for PTP degradation testing
+    # rt-tests: cyclictest for scheduler latency measurement under load
+    stress-ng rt-tests \
     && dnf clean all
 
 # ── Directory structure ────────────────────────────────────────────────────────
@@ -140,6 +144,11 @@ RUN chmod +x /usr/local/sbin/inferno-configure.sh
 COPY scripts/inferno-health-check.sh /usr/local/sbin/inferno-health-check.sh
 COPY templates/systemd/system/inferno-health-check.service /etc/systemd/system/inferno-health-check.service
 RUN chmod +x /usr/local/sbin/inferno-health-check.sh
+
+# ── Benchmark suite ───────────────────────────────────────────────────────────
+COPY scripts/bench/ /usr/local/sbin/inferno-bench/
+RUN chmod +x /usr/local/sbin/inferno-bench/*.sh && \
+    ln -s /usr/local/sbin/inferno-bench/inferno-bench.sh /usr/local/sbin/inferno-bench
 
 # ── Enable system services ─────────────────────────────────────────────────────
 RUN systemctl enable \
