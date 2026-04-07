@@ -213,6 +213,7 @@ inferno-aoip-releases/
 │   └── systemd/user/           User service templates (inferno-bridge, librespot, aux-tx, aux-rx…)
 ├── docs/
 │   ├── architecture.md         Full system architecture, ALSA device hierarchy, PTP, service map
+│   ├── benchmarking.md         Benchmark & diagnostics suite — PTP jitter, ALSA health, stress test
 │   ├── build-and-release.md    Step-by-step build and release process
 │   ├── cockpit-ui.md           Cockpit UI internals and ALSA/systemd provisioning logic
 │   ├── upgrade.md              Node upgrade procedure (tar-based, no registry required)
@@ -220,6 +221,13 @@ inferno-aoip-releases/
 │   ├── operations.md           Lab hosts, IPs, credentials, operational runbook
 │   └── troubleshooting.md      Common failures and fixes
 ├── scripts/
+│   ├── bench/                  Benchmarking & diagnostics suite (6 scripts)
+│   │   ├── inferno-bench.sh    Master orchestrator (quick/full/ptp-only/health-only modes)
+│   │   ├── ptp-bench.sh        PTP jitter collection + compare two saved runs
+│   │   ├── alsa-health.sh      ALSA xrun detection, PCM state, service health
+│   │   ├── dante-network-bench.sh  Dante mDNS device discovery, PTP port check
+│   │   ├── audio-loopback-test.sh  Audio pipeline health (ALSA fallback or full signal analysis)
+│   │   └── stress-bench.sh     Phased CPU/memory/network stress + PTP correlation
 │   ├── probe-node.sh           Diagnose a running node
 │   └── inferno-deploy.sh       Deploy/upgrade helper script
 ├── IMPROVEMENT_ROADMAP.md      Tracked defects and planned improvements
@@ -276,6 +284,32 @@ Images are built on **COPILOT-BUILD-01** (`10.10.1.98`) at `/opt/inferno-build/`
 ### USB hot-plug (udev)
 
 A udev rule detects USB audio card add/remove events and triggers an ALSA rescan. The Cockpit UI's **Audio Devices** panel shows a live list of cards with capture/playback capability, with a manual **Refresh** button alongside.
+
+---
+
+## Benchmarking & Diagnostics
+
+The `scripts/bench/` suite provides non-intrusive performance measurement,
+health checks, and before/after comparisons — useful when validating hardware
+changes (HW vs SW PTP), kernel changes (RT vs standard), or configuration tuning.
+
+Scripts run from the dev machine via SSH, or on-node via `/usr/local/sbin/inferno-bench/`.
+The same tools are in the **🩺 Diagnostics** tab in Cockpit.
+
+```bash
+# Quick health snapshot (PTP jitter + ALSA + Dante, ~2 min)
+bash scripts/bench/inferno-bench.sh core@192.168.1.43 --mode quick
+
+# Before/after comparison
+bash scripts/bench/inferno-bench.sh core@NODE --mode ptp-only --label before
+# ... make the change ...
+bash scripts/bench/inferno-bench.sh core@NODE --mode ptp-only --label after
+bash scripts/bench/inferno-bench.sh --compare ~/.inferno-bench/before-*/ ~/.inferno-bench/after-*/
+```
+
+**Measured baseline (EliteDesk-01, Intel I219-LM HW PTP):** abs max 22 µs, p99 22 µs, mean 8 µs — ★ HW PTP class.
+
+See [`docs/benchmarking.md`](docs/benchmarking.md) for the full reference.
 
 ---
 

@@ -32,6 +32,17 @@ cat /etc/inferno.conf                     # empty/missing = first boot hasn't ru
 bootc status
 ```
 
+> **For deeper diagnostics, performance measurement, and before/after comparisons,
+> use the bench suite — see [`docs/benchmarking.md`](benchmarking.md).**
+>
+> ```bash
+> # Quick health snapshot from dev machine (PTP + ALSA + Dante, ~2 min)
+> bash scripts/bench/inferno-bench.sh core@<node-ip> --mode quick
+>
+> # Or from the node itself (image must be v16+ / post-cde60cb)
+> inferno-bench --mode quick
+> ```
+
 ---
 
 ## Finding the Node IP After Install
