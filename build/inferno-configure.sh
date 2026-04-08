@@ -191,6 +191,7 @@ substitute /etc/inferno/systemd/user/inferno-aux-rx.service "${SYSTEMD_USER}/inf
 cp "/etc/inferno/systemd/user/inferno-aux-keepalive.service" "${SYSTEMD_USER}/"
 
 chown -R core:core "${CORE_HOME}"
+restorecon -Rv /var/home/core/ 2>/dev/null || true
 
 # ── Enable linger for core (user services start at boot, not just at login) ───
 loginctl enable-linger core
