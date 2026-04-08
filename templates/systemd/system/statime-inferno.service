@@ -1,7 +1,8 @@
 [Unit]
 Description=Statime PTP daemon (Inferno fork)
-After=network-online.target
+After=network-online.target inferno-configure.service
 Wants=network-online.target
+ConditionPathExists=/etc/inferno.conf
 
 [Service]
 Type=simple
@@ -9,6 +10,7 @@ User=root
 ExecStart=/usr/local/bin/statime -c /etc/statime-inferno.toml
 Restart=on-failure
 RestartSec=5
+LimitMEMLOCK=infinity
 
 [Install]
 WantedBy=multi-user.target

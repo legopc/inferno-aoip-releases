@@ -110,7 +110,12 @@ RUN systemctl enable \
     inferno-health-check
 
 # ── Mask conflicting time sync services (PTP manages the clock) ───────────────
-RUN systemctl mask systemd-timesyncd chronyd ntpd
+# ── Mask unnecessary Fedora services (not needed on headless appliance) ───────
+RUN systemctl mask \
+    systemd-timesyncd chronyd ntpd \
+    plymouth-start plymouth-quit plymouth-quit-wait \
+    sssd ModemManager bluetooth cups cups-browsed \
+    dnf-makecache.service dnf-makecache.timer
 
 # ── Default target (fedora-bootc:43 defaults to graphical — force headless) ───
 RUN systemctl set-default multi-user.target

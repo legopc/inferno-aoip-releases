@@ -5,6 +5,7 @@ After=statime-inferno.service
 After=default.target
 Before=inferno-keepalive.service
 Before=librespot.service
+ConditionPathExists=/etc/inferno.conf
 
 [Service]
 # Bridges loopback capture → inferno_spotify, keeping DeviceServer permanently open.
@@ -21,6 +22,7 @@ ExecStart=/usr/local/bin/Virgil-Appliance \
 Restart=always
 RestartSec=3
 TimeoutStopSec=5
+LimitMEMLOCK=infinity
 
 [Install]
 WantedBy=default.target

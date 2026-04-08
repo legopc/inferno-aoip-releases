@@ -93,6 +93,16 @@ HOSTNAME="inferno-$(echo "${MAC_SUFFIX}" | tr '[:upper:]' '[:lower:]')"
 hostnamectl set-hostname "${HOSTNAME}"
 echo "Hostname: ${HOSTNAME}"
 
+# ── Hardware watchdog (auto-detect — enable only if device is present) ────────
+if [ -e /dev/watchdog ]; then
+    mkdir -p /etc/systemd/system.conf.d
+    printf '[Manager]\nRuntimeWatchdogSec=15\nRebootWatchdogSec=10min\n' \
+        > /etc/systemd/system.conf.d/inferno-watchdog.conf
+    echo "Hardware watchdog: enabled (RuntimeWatchdogSec=15s)"
+else
+    echo "Hardware watchdog: /dev/watchdog not present — skipping"
+fi
+
 # ── core user environment ──────────────────────────────────────────────────────
 CORE_HOME=/var/home/core
 CORE_UID=$(id -u core)

@@ -3,6 +3,7 @@ Description=Inferno Dante Keepalive
 Documentation=https://gitlab.com/lumifaza/inferno
 After=inferno-bridge.service
 After=default.target
+ConditionPathExists=/etc/inferno.conf
 
 [Service]
 # Writes silence to inferno_mix to keep the Dante TX advertised when librespot is idle.

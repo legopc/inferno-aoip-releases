@@ -5,6 +5,7 @@ Documentation=https://github.com/legopc/inferno-aoip-releases
 After=multi-user.target statime-inferno.service cockpit.socket
 # Only meaningful when there are multiple bootc deployments available
 ConditionPathExists=/run/ostree-booted
+ConditionPathExists=/etc/inferno.conf
 
 [Service]
 Type=oneshot

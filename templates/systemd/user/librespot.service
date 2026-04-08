@@ -2,6 +2,7 @@
 Description=Librespot Spotify Connect
 After=default.target
 Wants=default.target
+ConditionPathExists=/etc/inferno.conf
 
 [Service]
 ExecStartPre=/bin/sh -c 'while [ ! -S /tmp/ptp-usrvclock ]; do sleep 1; done'
@@ -25,6 +26,7 @@ ExecStart=/usr/local/bin/librespot \
     --onevent /var/home/core/bin/inferno-sink-event
 Restart=always
 RestartSec=5
+LimitMEMLOCK=infinity
 
 [Install]
 WantedBy=default.target

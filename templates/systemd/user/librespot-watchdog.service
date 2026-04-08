@@ -1,5 +1,6 @@
 [Unit]
 Description=Librespot Audio Key Error Watchdog
+ConditionPathExists=/etc/inferno.conf
 
 [Service]
 ExecStart=/var/home/core/bin/librespot-watchdog
