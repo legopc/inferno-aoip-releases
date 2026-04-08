@@ -162,6 +162,8 @@ Items 47–56 → (none, each independent; some enhanced by Items 12, 30)
 | ID | Title | Importance | Difficulty | Risk | Prerequisites |
 |---|---|---|---|---|---|
 | BUG-01 | `apply-update.sh`: missing `skopeo copy` command | ✅ Implemented | Easy (<2h) | Low | None |
+| BUG-02 | Wizard overlay blocks own dialog (z-index conflict) | ✅ Implemented | Easy (<2h) | Low | None |
+| BUG-03 | Add `cockpit-pcp` for Cockpit Metrics & History | ✅ Implemented | Easy (<1h) | Low | None |
 
 ---
 
