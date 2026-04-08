@@ -2,7 +2,7 @@
 
 > **Document type:** Engineering review and improvement backlog  
 > **Scope:** Fedora bootc appliance (installer, first-boot, runtime, upgrade, build pipeline, operations)  
-> **Total items:** 58 (1 bug fix + 57 improvements) — 13 resolved, 7 rejected, 5 deferred, 33 active  
+> **Total items:** 58 (1 bug fix + 57 improvements) — 20 resolved, 7 rejected, 5 deferred, 26 active  
 > **Generated:** April 2026  
 
 > Resolved items archived in [archived/IMPROVEMENT_ROADMAP_DONE.md](archived/IMPROVEMENT_ROADMAP_DONE.md)
@@ -30,21 +30,21 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 1 | Install | Add Kickstart to BIB `config.toml` | 🟡 Medium | Easy (<2h) | Low | None |
 | 8 | Hardware | NIC Carrier Check | 🔴 Critical | Easy (<2h) | Low | None |
 | 26 | Security | Default Password Policy | 🔴 Critical | Easy (<2h) | Low | None |
-| 31 | Security | SELinux: `restorecon` After Custom File Copies | 🔴 Critical | Easy (<2h) | Low | None |
+| 31 | Security | SELinux: `restorecon` After Custom File Copies | ✅ Implemented | Easy (<2h) | Low | None |
 | 33 | RT/Reliability | Hardware Watchdog | 🔴 Critical | Easy (<2h) | Low | None |
 | 45 | Build | Clean Up `output-vN/` Directories After Build | 🔴 Critical | Easy (<2h) | Low | None |
 | 2 | Install | Dynamic Disk Selection in Kickstart | ❌ Rejected | Easy (<2h) | Medium | Item 1 |
-| 6 | Install | `multi-user.target` as Default | 🟠 High | Easy (<2h) | Low | None |
+| 6 | Install | `multi-user.target` as Default | ✅ Implemented | Easy (<2h) | Low | None |
 | 9 | Hardware | Multiple NIC Support / INFERNO_NIC_OVERRIDE | 🟠 High | Easy (<2h) | Low | Item 8 |
-| 11 | Hardware | snd-aloop Index: Dynamic at First-Boot | 🟠 High | Easy (<2h) | Medium | None |
+| 11 | Hardware | snd-aloop Index: Bump to 10 | ✅ Implemented | Easy (<2h) | Medium | None |
 | 12 | Hardware | Hardware PTP Auto-Reporting | 🔴 Critical | Easy (<2h) | Low | Item 8 |
 | 27 | Security | SSH: Disable Password Authentication | ❌ Rejected | Easy (<2h) | Medium | Item 26 |
 | 28 | Security | Firewalld: Configure in the Containerfile | ❌ Rejected | Easy (<2h) | Low | None |
 | 34 | RT/Reliability | Service Dependency: `ConditionPathExists=/etc/inferno.conf` | 🟠 High | Easy (<2h) | Low | None |
-| 35 | RT/Reliability | journald Log Size Limit | 🟠 High | Easy (<2h) | Low | None |
+| 35 | RT/Reliability | journald Log Size Limit | ✅ Implemented | Easy (<2h) | Low | None |
 | 36 | RT/Reliability | `LimitMEMLOCK=infinity` for RT Services | 🟠 High | Easy (<2h) | Low | None |
 | 39 | RT/Reliability | Boot: Mask Unnecessary Fedora Services | 🟠 High | Easy (<2h) | Low | None |
-| 40 | Build | Pin Base Image Digest | 🟠 High | Easy (<2h) | Low | None |
+| 40 | Build | Pin Base Image Digest | ✅ Implemented | Easy (<2h) | Low | None |
 | 42 | Build | Reorder Containerfile Layers for Cache Efficiency | 🟠 High | Easy (<2h) | Low | None |
 | 43 | Build | Pass `--build-arg VERSION=$VERSION` | 🟠 High | Easy (<2h) | Low | None |
 | 47 | Operations | Cockpit: Surface Node Identity | ✅ Implemented | Easy (<2h) | Low | None |
@@ -58,8 +58,8 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 23 | First-boot | `systemd-sysusers` and `tmpfiles.d` for User and Directory Setup | 🟠 High | Medium (half-day) | Medium | None |
 | 57 | Security | Cockpit First-Login Password Prompt | 🟠 High | Medium (half-day) | Low | None |
 | 38 | RT/Reliability | NIC Link-Down Recovery | 🟡 Medium | Medium (half-day) | Low | Items 8, 9 |
-| 3 | Install | Boot Timeout = 3s | 🟡 Medium | Easy (<2h) | Low | Item 1 |
-| 13 | Hardware | CPU Frequency Scaling: Performance Governor | 🟡 Medium | Easy (<2h) | Low | None |
+| 3 | Install | Boot Timeout = 3s | ✅ Implemented | Easy (<2h) | Low | Item 1 |
+| 13 | Hardware | CPU Frequency Scaling: Performance Governor | ✅ Implemented | Easy (<2h) | Low | None |
 | 14 | Hardware | `probe-node.sh` Output to `/var/log/inferno-probe.log` | 🟡 Medium | Easy (<2h) | Low | Items 8, 12 |
 | 16 | Upgrade | Pre-Upgrade Version Check in `apply-update.sh` | ✅ Implemented | Easy (<2h) | Low | BUG-01 |
 | 22 | First-boot | Butane YAML for Ignition | 🟡 Medium | Easy (<2h) | Low | None |
@@ -237,6 +237,8 @@ Key decisions: `rootpw --lock` disables root login; `reboot --eject` prevents re
 
 #### Item 3 — Boot Timeout = 3s
 
+> ✅ **Implemented** — Sprint 1, commit `3aa6e1a` (`inferno-aoip-releases`)
+
 **Importance:** �� Medium
 **Impact:** Reduces install time by 2 seconds; eliminates the GRUB pause on headless hardware
 **Difficulty:** Easy
@@ -292,6 +294,8 @@ Track [BIB release notes](https://github.com/osbuild/bootc-image-builder) for na
 ---
 
 #### Item 6 — `multi-user.target` as Default
+
+> ✅ **Implemented** — Sprint 1, commit `3aa6e1a` (`inferno-aoip-releases`)
 
 **Importance:** 🟠 High
 **Impact:** Eliminates display manager and X11/Wayland init on a headless appliance; reduces boot time and attack surface
@@ -496,6 +500,8 @@ Write `INFERNO_NIC_OVERRIDE=` (empty) into the generated `/etc/inferno.conf` as 
 
 #### Item 11 — snd-aloop Index: Bump to 10
 
+> ✅ **Implemented** — Sprint 1, commit `3aa6e1a` (`inferno-aoip-releases`)
+
 **Importance:** 🟠 High  
 **Impact:** Eliminates ALSA card index conflict on machines with ≥5 physical sound cards  
 **Difficulty:** Easy  
@@ -612,6 +618,8 @@ or:
 ---
 
 #### Item 13 — CPU Frequency Scaling: Performance Governor
+
+> ✅ **Implemented** — Sprint 1, commit `3aa6e1a` (`inferno-aoip-releases`)
 
 **Importance:** 🟡 Medium  
 **Impact:** Reduces PTP timestamp jitter and audio buffer underruns caused by dynamic CPU clock scaling  
@@ -1247,6 +1255,8 @@ No meaningful reason to defer. This is the lowest-risk, lowest-effort item in th
 
 #### Item 31 — SELinux: `restorecon` After Custom File Copies
 
+> ✅ **Implemented** — Sprint 1, commit `3aa6e1a` (`inferno-aoip-releases`)
+
 **Importance:** 🔴 Critical  
 **Impact:** Prevents silent permission denials for custom binaries and systemd units under SELinux enforcing mode  
 **Difficulty:** Easy  
@@ -1439,6 +1449,8 @@ Bake both unit files into the `Containerfile` and `systemctl enable inferno-conf
 ---
 
 #### Item 35 — journald Log Size Limit
+
+> ✅ **Implemented** — Sprint 1, commit `3aa6e1a` (`inferno-aoip-releases`)
 
 **Importance:** 🟠 High  
 **Impact:** The appliance does not silently fill its disk with journal logs over months of operation  
@@ -1684,6 +1696,8 @@ systemd-analyze blame | head -20
 ---
 
 #### Item 40 — Pin Base Image Digest
+
+> ✅ **Implemented** — Sprint 1, commit `3aa6e1a` (`inferno-aoip-releases`)
 
 **Importance:** 🟠 High  
 **Impact:** Builds become reproducible; silent base image drift between runs is eliminated  
