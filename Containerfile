@@ -100,14 +100,11 @@ RUN mkdir -p /usr/lib/bootc/kargs.d /usr/lib/sysusers.d /etc/security/limits.d &
     printf '@realtime - rtprio 99\n@realtime - memlock unlimited\n' \
       > /etc/security/limits.d/realtime.conf
 
-# ── Enable system services ─────────────────────────────────────────────────────
+# ── Enable package-provided services ──────────────────────────────────────────
 RUN systemctl enable \
     sshd \
     cockpit.socket \
-    avahi-daemon \
-    statime-inferno \
-    inferno-configure \
-    inferno-health-check
+    avahi-daemon
 
 # ── Mask conflicting time sync services (PTP manages the clock) ───────────────
 # ── Mask unnecessary Fedora services (not needed on headless appliance) ───────
@@ -180,6 +177,7 @@ COPY cockpit-inferno/src/ /usr/share/cockpit/inferno/
 
 # ── Systemd SYSTEM units ───────────────────────────────────────────────────────
 COPY templates/systemd/system/statime-inferno.service /etc/systemd/system/
+RUN systemctl enable statime-inferno
 
 # ── Systemd USER units (templates — copied to user dir at first boot) ─────────
 # inferno-bridge, inferno-keepalive are static (no placeholders)
@@ -198,7 +196,8 @@ COPY templates/systemd/user/inferno-aux-keepalive.service /etc/inferno/systemd/u
 # sets up core user environment. Runs once (gated on /etc/inferno.conf absent).
 COPY build/inferno-configure.sh /usr/local/sbin/inferno-configure.sh
 COPY build/systemd/inferno-configure.service /etc/systemd/system/inferno-configure.service
-RUN chmod +x /usr/local/sbin/inferno-configure.sh
+RUN chmod +x /usr/local/sbin/inferno-configure.sh && \
+    systemctl enable inferno-configure
 
 # ── Post-boot health check — auto-rollback on bad upgrade (Item 17) ───────────
 # Runs 120 s after multi-user.target; calls 'bootc rollback + reboot' if all
@@ -206,7 +205,8 @@ RUN chmod +x /usr/local/sbin/inferno-configure.sh
 # Protects headless nodes from being permanently bricked by a bad OTA update.
 COPY scripts/inferno-health-check.sh /usr/local/sbin/inferno-health-check.sh
 COPY templates/systemd/system/inferno-health-check.service /etc/systemd/system/inferno-health-check.service
-RUN chmod +x /usr/local/sbin/inferno-health-check.sh
+RUN chmod +x /usr/local/sbin/inferno-health-check.sh && \
+    systemctl enable inferno-health-check
 
 # ── Hardware probe script (Item 14 — invoked by inferno-configure.sh at firstboot) ──
 COPY scripts/probe-node.sh /usr/local/sbin/probe-node.sh
