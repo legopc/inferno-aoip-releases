@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Inferno AoIP</title>
+  <script src="../base1/cockpit.js"></script>
+  <link rel="stylesheet" href="inferno.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="page-header-left">
+      <span class="flame-icon">🔥</span>
+      <div>
+        <div class="page-title-row">
+          <span class="page-title">Inferno AoIP</span>
+          <div class="node-pills">
+            <div class="pill"><span class="pill-dot blue"></span><span id="hdr-hostname">…</span></div>
+            <div class="pill"><span class="pill-dot blue"></span><span id="hdr-ip">…</span></div>
+            <div class="pill ptp-pill"><span id="hdr-ptp">PTP …</span></div>
+            <div class="pill"><span id="hdr-mode-badge">…</span></div>
+          </div>
+        </div>
+        <div class="page-subtitle">Spotify Connect → Dante AoIP transmitter</div>
+      </div>
+    </div>
+    <button class="btn btn-secondary btn-sm" id="btn-refresh">↻ Refresh</button>
+  </div>
+
+  <!-- Toast area -->
+  <div id="toast-area"></div>
+
+  <!-- Tab Navigation -->
+  <nav class="tab-nav">
+    <button class="tab-btn tab-btn-active" data-tab="tab-config">🔧 Config</button>
+    <button class="tab-btn" data-tab="tab-services">⚙ Services</button>
+    <button class="tab-btn" data-tab="tab-audio">🔊 Audio</button>
+    <button class="tab-btn" data-tab="tab-monitoring">📊 Monitoring</button>
+  </nav>
+
+  <div class="page-body">
+
+    <!-- ── Tab: Services ──────────────────────────────────────────────── -->
+    <div class="tab-panel tab-panel-hidden" id="tab-services">
+
+      <!-- Services -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Services</span>
+          <div class="btn-group">
+            <select class="form-select select-auto" id="svc-refresh-select" title="Auto-refresh interval">
+              <option value="10000">↻ 10s</option>
+              <option value="20000" selected>↻ 20s</option>
+              <option value="60000">↻ 60s</option>
+              <option value="0">↻ Manual</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="btn-restart-all">⟳ Restart All</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="svc-grid" id="svc-grid">
+            <div class="loading-text">Loading services…</div>
+          </div>
+          <div id="restart-progress" class="restart-progress hidden"></div>
+        </div>
+      </div>
+
+      <!-- PTP Clock Sync -->
+      <div class="card" id="card-ptp">
+        <div class="card-header">
+          <span class="card-title">PTP Clock Sync</span>
+          <div class="btn-group">
+            <span id="ptp-state-badge" class="ptp-state-badge ptp-unknown">acquiring…</span>
+            <button class="btn btn-secondary btn-sm" id="btn-ptp-refresh">↻</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="ptp-content" class="ptp-content-grid">
+            <span class="loading-text">Loading PTP status…</span>
+          </div>
+          <svg id="ptp-sparkline" class="sparkline" viewBox="0 0 300 40" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
+
+    </div><!-- /tab-services -->
+
+    <!-- ── Tab: Config ─────────────────────────────────────────────────── -->
+    <div class="tab-panel" id="tab-config">
+
+      <!-- Config + System Info / Actions -->
+      <div class="two-col">
+
+        <!-- Config -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Configuration</span>
+            <div class="btn-group">
+              <span id="cfg-dirty-badge" class="dirty-badge hidden">● unsaved</span>
+              <button class="btn btn-secondary btn-sm" id="btn-cfg-export" title="Export config">⬇ Export</button>
+              <button class="btn btn-secondary btn-sm" id="btn-cfg-import" title="Import config">⬆ Import</button>
+              <input type="file" id="cfg-import-file" accept=".conf,text/plain" class="hidden">
+            </div>
+          </div>
+          <div class="card-body">
+
+            <div class="section-sep">Device identity</div>
+
+            <div class="form-field name-field-highlight" id="field-spotify-name">
+              <div class="form-row">
+                <label class="row-label">🎵 Spotify Name</label>
+                <input class="form-input" id="cfg-spotify-name" type="text" placeholder="Inferno-XXXXXX">
+              </div>
+              <div class="row-hint">Shown in Spotify as playback target · restarts librespot on save</div>
+            </div>
+
+            <div class="form-row hidden field-disabled" id="field-librespot-bitrate">
+              <label class="row-label row-label-disabled">Bitrate</label>
+              <select class="form-select" id="cfg-librespot-bitrate" disabled>
+                <option value="320">320 kbps (High Quality)</option>
+                <option value="160">160 kbps</option>
+                <option value="96">96 kbps</option>
+              </select>
+            </div>
+            <div class="row-hint field-disabled-hint hidden" id="field-librespot-bitrate-hint">Runtime bitrate changes are not supported — requires ALSA reconfiguration.</div>
+            <div class="form-row hidden field-disabled" id="field-librespot-normalize">
+              <label class="row-label row-label-disabled">Normalise</label>
+              <select class="form-select" id="cfg-librespot-normalize" disabled>
+                <option value="">Off</option>
+                <option value="auto">Auto</option>
+                <option value="album">Album</option>
+                <option value="track">Track</option>
+              </select>
+            </div>
+            <div class="row-hint field-disabled-hint hidden" id="field-librespot-normalize-hint">Normalisation is not supported by this librespot build.</div>
+
+            <div class="name-field-highlight">
+              <div class="form-row">
+                <label class="row-label">🔊 Dante TX Name</label>
+                <input class="form-input" id="cfg-dante-name" type="text" placeholder="Inferno-XXXXXX">
+              </div>
+              <div class="row-hint">Shown in Dante Controller · restarts inferno-bridge on save</div>
+            </div>
+
+            <div class="section-sep">Audio routing</div>
+
+            <div class="form-row">
+              <label class="row-label">Mode</label>
+              <select class="form-select" id="cfg-mode">
+                <option value="spotify">🎵 Spotify → Dante TX</option>
+                <option value="aux-in">🎙 Analog In → Dante TX</option>
+                <option value="aux-out">🔈 Dante RX → Analog Out</option>
+                <option value="aux-bidir">⇄ In + Out (bidirectional)</option>
+                <option value="iradio">📻 Internet Radio → Dante TX</option>
+              </select>
+            </div>
+
+            <div id="mode-flow-diagram" class="mode-flow"></div>
+
+            <div class="form-row hidden" id="field-tx-channels">
+              <label class="row-label">TX Channels</label>
+              <select class="form-select" id="cfg-tx-channels">
+                <option value="2">2 ch (stereo)</option>
+                <option value="4">4 channels</option>
+                <option value="6">6 channels</option>
+                <option value="8">8 channels</option>
+              </select>
+            </div>
+
+            <div class="form-row hidden" id="field-audio-in">
+              <label class="row-label">Input Card</label>
+              <select class="form-select" id="cfg-audio-in"></select>
+            </div>
+
+            <div class="form-row hidden" id="field-audio-in2">
+              <label class="row-label">Input Card 2</label>
+              <select class="form-select" id="cfg-audio-in2"></select>
+            </div>
+
+            <div class="form-row hidden" id="field-rx-channels">
+              <label class="row-label">RX Channels</label>
+              <select class="form-select" id="cfg-rx-channels">
+                <option value="2">2 ch (stereo)</option>
+                <option value="4">4 channels</option>
+                <option value="6">6 channels</option>
+                <option value="8">8 channels</option>
+              </select>
+            </div>
+
+            <div class="form-row hidden" id="field-audio-out">
+              <label class="row-label">Output Card</label>
+              <select class="form-select" id="cfg-audio-out"></select>
+            </div>
+
+            <div class="form-row hidden" id="field-audio-out2">
+              <label class="row-label">Output Card 2</label>
+              <select class="form-select" id="cfg-audio-out2"></select>
+            </div>
+
+            <div class="form-row hidden" id="field-loop-latency">
+              <label class="row-label">Loop Latency</label>
+              <div class="range-wrap">
+                <input type="range" class="form-range" id="cfg-loop-latency" min="1000" max="50000" step="1000" value="10000">
+                <span id="cfg-loop-latency-val" class="range-val">10 ms</span>
+              </div>
+            </div>
+
+            <div class="form-row hidden" id="field-iradio">
+              <label class="row-label">Internet Radio</label>
+              <div class="info-block">
+                <p class="text-muted" style="margin:0 0 10px">
+                  iradio-bridge streams internet radio stations to Dante TX channels.<br>
+                  Manage stations and players at:
+                  <a id="iradio-ui-link" href="#" target="_blank"
+                     style="color:#0066cc;text-decoration:none">
+                    http://&lt;node-ip&gt;:8765
+                  </a>
+                </p>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <label for="cfg-iradio-channels" style="font-size:13px;color:#151515">Dante TX channels:</label>
+                  <select class="form-select" id="cfg-iradio-channels" style="width:auto">
+                    <option value="1">1 stereo pair (2 channels)</option>
+                    <option value="2" selected>2 stereo pairs (4 channels)</option>
+                    <option value="4">4 stereo pairs (8 channels)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="section-sep">Network</div>
+
+            <div class="form-row">
+              <label class="row-label">Interface</label>
+              <select class="form-select" id="cfg-nic"></select>
+            </div>
+
+            <div class="save-section">
+              <button class="btn btn-primary btn-save" id="btn-save">
+                <span id="save-label">💾  Save &amp; Apply</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- System Info + Actions -->
+        <div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">System Info</span></div>
+            <div class="card-body">
+              <table class="info-table" id="info-table">
+                <tr><td class="info-key">Loading</td><td>…</td></tr>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span class="card-title">Actions</span></div>
+            <div class="card-body">
+              <div class="danger-zone">
+                <div class="danger-zone-title">⚠ Destructive actions</div>
+                <div class="btn-group">
+                  <button class="btn btn-warning" id="btn-redeploy">🔄 Re-deploy binaries</button>
+                  <button class="btn btn-danger"  id="btn-reboot">⏻ Reboot</button>
+                </div>
+                <div class="form-hint danger-hint">
+                  <b>Re-deploy</b>: removes the deploy sentinel and reboots — node re-downloads Inferno binaries from GitHub on next boot.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /two-col config+info -->
+
+    </div><!-- /tab-config -->
+
+    <!-- ── Tab: Audio ──────────────────────────────────────────────────── -->
+    <div class="tab-panel tab-panel-hidden" id="tab-audio">
+
+      <!-- Audio Devices + Volume Control side by side -->
+      <div class="two-col">
+
+        <div class="card card-collapsible" id="card-audio-devices">
+          <div class="card-header">
+            <span class="card-title">Audio Devices</span>
+            <div class="btn-group">
+              <button class="btn btn-secondary btn-sm" id="btn-audio-devices">↻ Refresh</button>
+              <button class="btn-collapse" id="btn-collapse-audio" title="Collapse">▾</button>
+            </div>
+          </div>
+          <div class="card-body" id="card-body-audio">
+            <div id="audio-devices-content"><span class="loading-text">Click Refresh to scan audio hardware…</span></div>
+          </div>
+        </div>
+
+        <div class="card card-collapsible" id="card-volume">
+          <div class="card-header">
+            <span class="card-title">Volume Control</span>
+            <div class="btn-group">
+              <button class="btn btn-secondary btn-sm" id="btn-vol-normalize">Set All to 100%</button>
+              <button class="btn-collapse" id="btn-collapse-volume" title="Collapse">▾</button>
+            </div>
+          </div>
+          <div class="card-body" id="card-body-volume">
+            <div id="volume-sliders"><span class="loading-text">Loading volumes…</span></div>
+          </div>
+        </div>
+
+      </div><!-- /two-col audio+volume -->
+
+      <!-- Audio Level Monitor (G-1) -->
+      <div class="card card-collapsible" id="card-peak-meters">
+        <div class="card-header">
+          <span class="card-title">Audio Level Monitor</span>
+          <div class="btn-group">
+            <button class="btn btn-secondary btn-sm" id="btn-peak-toggle">▶ Start Monitor</button>
+            <button class="btn-collapse" id="btn-collapse-peak" title="Collapse">▾</button>
+          </div>
+        </div>
+        <div class="card-body" id="card-body-peak">
+          <div id="peak-meters-content" class="peak-meters">
+            <span class="loading-text">Click "Start Monitor" to poll ALSA mixer levels…</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-audio -->
+
+    <!-- ── Tab: Monitoring ─────────────────────────────────────────────── -->
+    <div class="tab-panel tab-panel-hidden" id="tab-monitoring">
+
+      <!-- Signal Chain Info -->
+      <div class="card" id="card-signal-chain">
+        <div class="card-header">
+          <span class="card-title">📡 Signal Chain</span>
+          <span class="card-subtitle">Read from inferno.conf and .asoundrc</span>
+        </div>
+        <div class="card-body" id="signal-chain-content">
+          <span class="loading-text">Loading…</span>
+        </div>
+      </div>
+
+      <!-- Health Check -->
+      <div class="card" id="card-health">
+        <div class="card-header">
+          <span class="card-title">Health Check</span>
+          <div class="btn-group">
+            <span id="hc-summary" class="hc-summary"></span>
+            <button class="btn btn-secondary btn-sm" id="btn-health-check">▶ Run Checks</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="hc-results" class="hc-results">
+            <span class="loading-text">Click "Run Checks" to diagnose this node…</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dante Device Discovery -->
+      <div class="card card-collapsible" id="card-dante">
+        <div class="card-header">
+          <span class="card-title">Dante Device Discovery</span>
+          <div class="btn-group">
+            <button class="btn btn-secondary btn-sm" id="btn-dante-scan">↻ Scan</button>
+            <button class="btn-collapse" id="btn-collapse-dante" title="Collapse">▾</button>
+          </div>
+        </div>
+        <div class="card-body" id="card-body-dante">
+          <div id="dante-devices-content"><span class="loading-text">Click Scan to discover Dante devices on the network…</span></div>
+        </div>
+      </div>
+
+      <!-- Journal -->
+      <div class="card card-collapsible" id="card-journal">
+        <div class="card-header">
+          <span class="card-title">Journal</span>
+          <div class="btn-group">
+            <select class="form-select select-auto" id="log-svc-select">
+              <option value="__all__">All services</option>
+              <option value="librespot">librespot</option>
+              <option value="inferno-bridge">inferno-bridge</option>
+              <option value="inferno-keepalive">inferno-keepalive</option>
+              <option value="librespot-watchdog">librespot-watchdog</option>
+              <option value="statime-inferno">statime-inferno</option>
+              <option value="iradio-bridge">iradio-bridge</option>
+            </select>
+            <select class="form-select select-auto" id="log-level-select" title="Filter by level">
+              <option value="all">All</option>
+              <option value="warn">Warn+</option>
+              <option value="error">Error only</option>
+            </select>
+            <select class="form-select select-auto" id="log-lines-select" title="Line count">
+              <option value="50">50</option>
+              <option value="100" selected>100</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="btn-log-follow" title="Live follow mode">▶ Follow</button>
+            <button class="btn btn-secondary btn-sm" id="btn-log-export" title="Download log">⬇</button>
+            <button class="btn btn-secondary btn-sm" id="btn-log-refresh">↻</button>
+            <button class="btn-collapse" id="btn-collapse-journal" title="Collapse">▾</button>
+          </div>
+        </div>
+        <div class="card-body card-body-flush" id="card-body-journal">
+          <div class="log-box" id="log-box">Select a service above…</div>
+        </div>
+      </div>
+
+    </div><!-- /tab-monitoring -->
+
+  </div><!-- /page-body -->
+
+  <!-- Config change diff modal (F-2) -->
+  <dialog id="cfg-diff-modal" class="diff-modal">
+    <div class="diff-modal-header">
+      <span class="diff-modal-title">⚠ Config Changes Preview</span>
+    </div>
+    <div class="diff-modal-body">
+      <p class="diff-modal-intro">The following settings will be changed:</p>
+      <table id="cfg-diff-table" class="diff-table"></table>
+    </div>
+    <div class="diff-modal-footer">
+      <button class="btn btn-primary" id="btn-diff-confirm">✓ Apply Changes</button>
+      <button class="btn btn-secondary" id="btn-diff-cancel">✕ Cancel</button>
+    </div>
+  </dialog>
+
+  <!-- Credits -->
+  <div class="credits-card">
+    <div class="credits-flame">🔥</div>
+    <div class="credits-body">
+      <div class="credits-title">Standing on the shoulders of giants</div>
+      <div class="credits-text">
+        This Cockpit UI is built on top of the excellent work of
+        <a class="credits-link" href="https://gitlab.com/lumifaza/inferno" target="_blank" rel="noopener">lumifaza</a>
+        — the original creator of <strong>Inferno</strong>, who did the hard part of actually making
+        professional AoIP work on commodity Linux hardware. Respect. 🙏
+      </div>
+      <div class="credits-text">
+        Sincere thanks to every contributor who submitted a patch, filed an issue, or tested a build.
+        The PTP clock is locked — and so is our gratitude. 🕐
+      </div>
+      <div class="credits-links">
+        <a class="credits-link" href="https://gitlab.com/lumifaza/inferno" target="_blank" rel="noopener">
+          🦊 gitlab.com/lumifaza/inferno
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script src="inferno.js"></script>
+</body>
+</html>
