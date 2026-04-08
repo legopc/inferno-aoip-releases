@@ -27,7 +27,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | ID | Category | Title | Importance | Difficulty | Risk | Prerequisites |
 |---|---|---|---|---|---|---|
 | BUG-01 | Bug | `apply-update.sh`: Missing `skopeo copy` Command | ✅ Resolved | Easy (<2h) | Low | None |
-| 1 | Install | Add Kickstart to BIB `config.toml` | 🟡 Medium | Easy (<2h) | Low | None |
+| 1 | Install | Add Kickstart to BIB `config.toml` | ✅ Implemented | Easy (<2h) | Low | None |
 | 8 | Hardware | NIC Carrier Check | ✅ Implemented | Easy (<2h) | Low | None |
 | 26 | Security | Default Password Policy | 🔴 Critical | Easy (<2h) | Low | None |
 | 31 | Security | SELinux: `restorecon` After Custom File Copies | ✅ Implemented | Easy (<2h) | Low | None |
@@ -52,7 +52,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 50 | Operations | Upgrade Audit Log with Rollback Events | ✅ Implemented | Easy (<2h) | Low | Item 17 |
 | 51 | Operations | Cockpit: `bootc status` Panel | ✅ Implemented | Easy (<2h) | Low | None |
 | 54 | Operations | Cockpit: Dante Device Status | ✅ Implemented | Easy (<2h) | Low | Item 47 |
-| 7 | Install | Kickstart `%pre` Disk Detection Script | 🟠 High | Medium (half-day) | Medium | Item 1 |
+| 7 | Install | Kickstart `%pre` Disk Detection Script | ✅ Implemented | Medium (half-day) | Medium | Item 1 |
 | 15 | Upgrade | Version Sentinel Comparison in `inferno-configure.sh` | ✅ Implemented | Medium (half-day) | Medium | BUG-01 |
 | 17 | Upgrade | Auto-Rollback on Failed Boot | ✅ Implemented | Medium (half-day) | Medium | BUG-01 |
 | 23 | First-boot | `systemd-sysusers` and `tmpfiles.d` for User and Directory Setup | ✅ Implemented (Stage 1) | Medium (half-day) | Medium | None |
@@ -62,7 +62,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 13 | Hardware | CPU Frequency Scaling: Performance Governor | ✅ Implemented | Easy (<2h) | Low | None |
 | 14 | Hardware | `probe-node.sh` Output to `/var/log/inferno-probe.log` | ✅ Implemented | Easy (<2h) | Low | Items 8, 12 |
 | 16 | Upgrade | Pre-Upgrade Version Check in `apply-update.sh` | ✅ Implemented | Easy (<2h) | Low | BUG-01 |
-| 22 | First-boot | Butane YAML for Ignition | 🟡 Medium | Easy (<2h) | Low | None |
+| 22 | First-boot | Butane YAML for Ignition | ✅ Implemented | Easy (<2h) | Low | None |
 | 44 | Build | Generate `BUILD_DATE` and `GIT_SHA` Build-Args | ✅ Implemented| Easy (<2h) | Low | Item 43 |
 | 46 | Build | Parallel ISO Branding + Tarball Export | ✅ Implemented| Easy (<2h) | Medium | None |
 | 49 | Operations | mDNS Alias `inferno.local` | ❌ Rejected | Easy (<2h) | Medium | None |
@@ -80,7 +80,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 20 | Upgrade | Upgrade History in Cockpit | ✅ Implemented | Easy (<2h) | Low | BUG-01 |
 | 25 | First-boot | `INFERNO_NIC_OVERRIDE` in Ignition/Kickstart | ✅ Implemented | Easy (<2h) | Low | Item 9 |
 | 30 | Security | OCI Labels for Version Tracking | ✅ Implemented| Easy (<2h) | Low | None |
-| 4 | Install | GRUB / Boot Screen Branding via BIB | 🟢 Low | Medium (half-day) | Low | Item 1 |
+| 4 | Install | GRUB / Boot Screen Branding via BIB | ⏸ Deferred — BIB has no native GRUB branding API | Medium (half-day) | Low | Item 1 |
 | 41 | Build | Multi-Stage Containerfile | ❌ Rejected | Medium (half-day) | Low | None |
 | 18 | Upgrade | Upload Resume / Chunked Upload | ✅ Implemented | Hard (multi-day) | Medium | BUG-01 |
 
@@ -164,6 +164,18 @@ Items 47–56 → (none, each independent; some enhanced by Items 12, 30)
 | BUG-01 | `apply-update.sh`: missing `skopeo copy` command | ✅ Implemented | Easy (<2h) | Low | None |
 | BUG-02 | Wizard overlay blocks own dialog (z-index conflict) | ✅ Implemented | Easy (<2h) | Low | None |
 | BUG-03 | Add `cockpit-pcp` for Cockpit Metrics & History | ✅ Implemented | Easy (<1h) | Low | None |
+| BUG-04 | Dante discovery: longer scan + better results table | 🟡 Medium | Easy (<2h) | Low | None |
+
+#### BUG-04 — Dante Network Discovery: Longer Scan + Better Results
+
+**Problem:** The Dante scan uses `avahi-browse -t` (one-shot/terminate immediately after initial results — typically 2–3 s). Slow devices may not respond in time and results are shown in a minimal text list.
+
+**Solution:**
+- Remove `-t` flag; use `timeout 8 avahi-browse -rp _netaudio-arc._tcp` so the scan runs for 8 seconds and captures late responders
+- Present results as a clean table with columns: **Device Name**, **IP Address**, **Hostname**
+- Show a count of devices found after scan completes
+
+**File:** `cockpit-inferno/src/inferno.js` — `scanDanteDevices()` function
 
 ---
 
@@ -175,17 +187,19 @@ Items 47–56 → (none, each independent; some enhanced by Items 12, 30)
 
 | ID | Title | Importance | Difficulty | Risk | Prerequisites |
 |---|---|---|---|---|---|
-| 1 | Add Kickstart to BIB `config.toml` | 🟡 Medium | Easy | Low | None |
+| 1 | Add Kickstart to BIB `config.toml` | ✅ Implemented | Easy | Low | None |
 | 2 | Dynamic disk selection in Kickstart | ❌ Rejected | Easy | Medium | 1 |
 | 3 | Boot timeout = 3s | 🟡 Medium | Easy | Low | 1 |
-| 4 | GRUB / boot screen branding via BIB | 🟢 Low | Medium | Low | 1 |
+| 4 | GRUB / boot screen branding via BIB | ⏸ Deferred — BIB has no native GRUB branding API | Medium | Low | 1 |
 | 5 | PXE / netboot image | ❌ Rejected | Hard | Medium | 1, 2 |
-| 6 | `multi-user.target` as default | 🟠 High | Easy | Low | None |
-| 7 | Kickstart `%pre` disk detection script | 🟠 High | Medium | Medium | 1 |
+| 6 | `multi-user.target` as default | ✅ Implemented | Easy | Low | None |
+| 7 | Kickstart `%pre` disk detection script | ✅ Implemented | Medium | Medium | 1 |
 
 ---
 
 #### Item 1 — Add Kickstart to BIB `config.toml`
+
+> ✅ **Implemented** — Sprint 6, commit pending (`inferno-aoip-releases`)
 
 **Importance:** 🟡 Medium
 **Impact:** Eliminates all interactive Anaconda prompts; enables fully unattended install from a single ISO boot
@@ -330,6 +344,8 @@ Verify: `podman run --rm <image> systemctl get-default` → should output `multi
 ---
 
 #### Item 7 — Kickstart `%pre` Disk Detection Script
+
+> ✅ **Implemented** — Sprint 6, commit pending (`inferno-aoip-releases`)
 
 **Importance:** 🟠 High
 **Impact:** Makes disk targeting fully automatic and safe on multi-disk hardware without destroying non-target disks
@@ -769,6 +785,9 @@ Ensure `/var/log/` exists and is writable at configure time (it always is on Fed
 ---
 
 #### Item 22 — Butane YAML for Ignition
+
+> ✅ **Implemented** — Sprint 6, commit pending (`inferno-aoip-releases`)
+> `ignition/inferno-template.bu` — Butane YAML source; compile with `butane --pretty --strict inferno-template.bu > inferno-template.ign`
 
 **Importance:** 🟡 Medium  
 **Impact:** Ignition config becomes readable, diffable, and compile-time validated  

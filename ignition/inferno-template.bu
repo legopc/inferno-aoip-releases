@@ -1,0 +1,160 @@
+variant: fcos
+version: 1.5.0
+
+# ─── Inferno AoIP — Butane YAML ignition source ──────────────────────────────
+# This file is the human-readable source for inferno-template.ign.
+# Edit this file, then compile with:
+#   butane --pretty --strict inferno-template.bu > inferno-template.ign
+# Both files are committed to the repo.  The .bu is the source of truth;
+# the .ign is the compiled output served to new nodes via the ignition skill.
+#
+# Placeholders that must be replaced per-deployment:
+#   INFERNO_CORE_PASSWORD_HASH  — bcrypt hash, e.g. from `openssl passwd -6`
+#   INFERNO_SSH_KEY_RSA         — RSA public key for PRX-01 jumphost (optional)
+#   INFERNO_SSH_KEY_ED25519     — ed25519 public key for legopc@jumphost
+# ─────────────────────────────────────────────────────────────────────────────
+
+passwd:
+  users:
+    - name: core
+      password_hash: "INFERNO_CORE_PASSWORD_HASH"
+      groups:
+        - wheel
+      home_dir: /var/home/core
+      shell: /bin/bash
+      ssh_authorized_keys:
+        - "INFERNO_SSH_KEY_RSA"
+        - "INFERNO_SSH_KEY_ED25519"
+
+storage:
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: InfernoNode
+
+    - path: /etc/sudoers.d/core-nopasswd
+      mode: 0440
+      overwrite: true
+      contents:
+        inline: |
+          core ALL=(ALL) NOPASSWD:ALL
+
+    - path: /etc/inferno.conf
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          # Inferno AoIP node configuration — seed file written by Ignition
+          # inferno-deploy.sh reads this on first boot and replaces it with derived values.
+
+          # Mode: spotify or aux or bluetooth
+          INFERNO_MODE=spotify
+
+          # Dante device name (appears in Dante Controller)
+          INFERNO_NAME=InfernoNode
+
+          # NIC name or 'auto' (auto = first non-loopback interface)
+          INFERNO_NIC=auto
+
+          # Physical audio card number (0 = first card)
+          INFERNO_AUDIO_CARD=0
+
+    - path: /etc/inferno/nic-override
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          # Inferno NIC override - provisioned by Ignition (Item 25).
+          # Set to the wired NIC name to force Dante to use that interface.
+          # Leave all lines commented to use auto-detection in inferno-configure.sh.
+          # enp3s0
+
+    - path: /usr/local/bin/inferno-postdeploy.sh
+      mode: 0755
+      overwrite: true
+      contents:
+        inline: |
+          #!/bin/bash
+          set -euo pipefail
+          # Fix SELinux context on inferno binaries so they can execute
+          chcon -t bin_t /var/lib/inferno/bin/* 2>/dev/null || true
+          # Enable and start statime (OSTree merge doesn't reliably carry over enables)
+          systemctl enable --now statime-inferno.service 2>/dev/null || true
+          # Mark done
+          touch /var/lib/inferno/.postdeploy-done
+
+    - path: /usr/local/bin/inferno-firstboot.sh
+      mode: 0755
+      overwrite: true
+      contents:
+        inline: |
+          #!/bin/bash
+          # Bootstrap script — downloads and runs the full inferno-deploy.sh from the tarball.
+          set -euo pipefail
+
+          RELEASES_BASE="https://github.com/legopc/inferno-aoip-releases/releases/latest/download"
+          SENTINEL="/var/lib/inferno/.deployed"
+
+          [ -f "${SENTINEL}" ] && exit 0
+
+          mkdir -p /var/lib/inferno/bin
+          curl -fsSL "${RELEASES_BASE}/inferno-aoip.tar.gz" -o /tmp/inferno-aoip.tar.gz
+          curl -fsSL "${RELEASES_BASE}/inferno-aoip.tar.gz.sha256" -o /tmp/inferno-aoip.tar.gz.sha256
+          (cd /tmp && sha256sum -c inferno-aoip.tar.gz.sha256)
+          tar -xzf /tmp/inferno-aoip.tar.gz -C /tmp/
+          bash /tmp/inferno-aoip/scripts/inferno-deploy.sh
+
+systemd:
+  units:
+    - name: inferno-firstboot.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Inferno AoIP first-boot deployment
+        After=network-online.target
+        Wants=network-online.target
+        ConditionPathExists=!/var/lib/inferno/.deployed
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/local/bin/inferno-firstboot.sh
+        StandardOutput=journal
+        StandardError=journal
+
+        [Install]
+        WantedBy=multi-user.target
+
+    - name: inferno-postdeploy.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Inferno AoIP post-deploy fixup
+        After=inferno-firstboot.service network-online.target
+        Wants=network-online.target
+        ConditionPathExists=/var/lib/inferno/.deployed
+        ConditionPathExists=!/var/lib/inferno/.postdeploy-done
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/local/bin/inferno-postdeploy.sh
+        StandardOutput=journal
+        StandardError=journal
+
+        [Install]
+        WantedBy=multi-user.target
+
+    - name: getty@tty1.service
+      enabled: true
+
+    - name: coreos-installer-growfs.service
+      mask: true
+
+    - name: systemd-remount-fs.service
+      mask: true
+
+    - name: greenboot-set-rollback-trigger.service
+      mask: true

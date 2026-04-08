@@ -15,3 +15,47 @@
 # 0 = wait forever (default); 3 = auto-proceed after 3 s on headless nodes.
 [customizations.installer]
   timeout = 3
+
+# Kickstart — fully automated install, no user interaction required.
+# %include must appear before %pre in the file, but Anaconda runs %pre first;
+# the %pre block writes /tmp/disksel.ks before %include is resolved.
+[[customizations.installer.kickstart]]
+  contents = """
+lang en_US.UTF-8
+keyboard us
+timezone UTC --utc
+rootpw --lock
+bootloader --timeout=3
+reboot --eject
+
+%include /tmp/disksel.ks
+
+%pre --interpreter=/bin/bash --log=/tmp/ks-pre.log
+#!/bin/bash
+# Detect the largest non-loop, non-optical block device and write
+# the clearpart/autopart kickstart directives to /tmp/disksel.ks.
+BEST_DISK=""
+BEST_SIZE=0
+for dev in /sys/class/block/*/; do
+    name=$(basename "$dev")
+    # Skip partitions (contain a digit suffix matching a digit-only parent)
+    [[ "$name" =~ [0-9]$ ]] && continue
+    # Skip loop and optical devices
+    [[ "$name" =~ ^(loop|sr) ]] && continue
+    [[ -f "$dev/size" ]] || continue
+    size=$(cat "$dev/size")
+    if [[ "$size" -gt "$BEST_SIZE" ]]; then
+        BEST_SIZE="$size"
+        BEST_DISK="$name"
+    fi
+done
+if [[ -z "$BEST_DISK" ]]; then
+    echo "ERROR: no suitable disk found" >&2
+    exit 1
+fi
+cat > /tmp/disksel.ks <<ENDKS
+clearpart --drives=${BEST_DISK} --all --initlabel --disklabel=gpt
+autopart --type=plain --nohome
+ENDKS
+%end
+"""
