@@ -41,7 +41,7 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     cockpit-ws cockpit-system \
     cockpit-networkmanager cockpit-storaged cockpit-selinux \
     cockpit-ostree cockpit-kdump cockpit-sosreport \
-    cockpit-files \
+    cockpit-files cockpit-pcp \
     # ALSA audio stack
     alsa-lib alsa-utils alsa-plugins-speex speexdsp \
     # Avahi / mDNS (Dante discovery)
@@ -113,7 +113,8 @@ RUN mkdir -p /usr/lib/bootc/kargs.d /usr/lib/sysusers.d /etc/security/limits.d &
 RUN systemctl enable \
     sshd \
     cockpit.socket \
-    avahi-daemon
+    avahi-daemon \
+    pmcd
 
 # ── Mask conflicting time sync services (PTP manages the clock) ───────────────
 # ── Mask unnecessary Fedora services (not needed on headless appliance) ───────
