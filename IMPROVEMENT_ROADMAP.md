@@ -28,16 +28,16 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 |---|---|---|---|---|---|---|
 | BUG-01 | Bug | `apply-update.sh`: Missing `skopeo copy` Command | ✅ Resolved | Easy (<2h) | Low | None |
 | 1 | Install | Add Kickstart to BIB `config.toml` | 🟡 Medium | Easy (<2h) | Low | None |
-| 8 | Hardware | NIC Carrier Check | 🔴 Critical | Easy (<2h) | Low | None |
+| 8 | Hardware | NIC Carrier Check | ✅ Implemented | Easy (<2h) | Low | None |
 | 26 | Security | Default Password Policy | 🔴 Critical | Easy (<2h) | Low | None |
 | 31 | Security | SELinux: `restorecon` After Custom File Copies | ✅ Implemented | Easy (<2h) | Low | None |
 | 33 | RT/Reliability | Hardware Watchdog | ✅ Implemented| Easy (<2h) | Low | None |
 | 45 | Build | Clean Up `output-vN/` Directories After Build | ✅ Implemented| Easy (<2h) | Low | None |
 | 2 | Install | Dynamic Disk Selection in Kickstart | ❌ Rejected | Easy (<2h) | Medium | Item 1 |
 | 6 | Install | `multi-user.target` as Default | ✅ Implemented | Easy (<2h) | Low | None |
-| 9 | Hardware | Multiple NIC Support / INFERNO_NIC_OVERRIDE | 🟠 High | Easy (<2h) | Low | Item 8 |
+| 9 | Hardware | Multiple NIC Support / INFERNO_NIC_OVERRIDE | ✅ Implemented | Easy (<2h) | Low | Item 8 |
 | 11 | Hardware | snd-aloop Index: Bump to 10 | ✅ Implemented | Easy (<2h) | Medium | None |
-| 12 | Hardware | Hardware PTP Auto-Reporting | 🔴 Critical | Easy (<2h) | Low | Item 8 |
+| 12 | Hardware | Hardware PTP Auto-Reporting | ✅ Implemented | Easy (<2h) | Low | Item 8 |
 | 27 | Security | SSH: Disable Password Authentication | ❌ Rejected | Easy (<2h) | Medium | Item 26 |
 | 28 | Security | Firewalld: Configure in the Containerfile | ❌ Rejected | Easy (<2h) | Low | None |
 | 34 | RT/Reliability | Service Dependency: `ConditionPathExists=/etc/inferno.conf` | ✅ Implemented| Easy (<2h) | Low | None |
@@ -60,7 +60,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 38 | RT/Reliability | NIC Link-Down Recovery | 🟡 Medium | Medium (half-day) | Low | Items 8, 9 |
 | 3 | Install | Boot Timeout = 3s | ✅ Implemented | Easy (<2h) | Low | Item 1 |
 | 13 | Hardware | CPU Frequency Scaling: Performance Governor | ✅ Implemented | Easy (<2h) | Low | None |
-| 14 | Hardware | `probe-node.sh` Output to `/var/log/inferno-probe.log` | 🟡 Medium | Easy (<2h) | Low | Items 8, 12 |
+| 14 | Hardware | `probe-node.sh` Output to `/var/log/inferno-probe.log` | ✅ Implemented | Easy (<2h) | Low | Items 8, 12 |
 | 16 | Upgrade | Pre-Upgrade Version Check in `apply-update.sh` | ✅ Implemented | Easy (<2h) | Low | BUG-01 |
 | 22 | First-boot | Butane YAML for Ignition | 🟡 Medium | Easy (<2h) | Low | None |
 | 44 | Build | Generate `BUILD_DATE` and `GIT_SHA` Build-Args | ✅ Implemented| Easy (<2h) | Low | Item 43 |
@@ -78,7 +78,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 29 | Security | Image Signing with cosign/sigstore | ⏸ Deferred | Hard (multi-day) | Low | None |
 | 37 | RT/Reliability | IRQ Affinity / CPU Isolation | ⏸ Deferred | Hard (multi-day) | Medium | None |
 | 20 | Upgrade | Upgrade History in Cockpit | ✅ Implemented | Easy (<2h) | Low | BUG-01 |
-| 25 | First-boot | `INFERNO_NIC_OVERRIDE` in Ignition/Kickstart | 🟢 Low | Easy (<2h) | Low | Item 9 |
+| 25 | First-boot | `INFERNO_NIC_OVERRIDE` in Ignition/Kickstart | ✅ Implemented | Easy (<2h) | Low | Item 9 |
 | 30 | Security | OCI Labels for Version Tracking | ✅ Implemented| Easy (<2h) | Low | None |
 | 4 | Install | GRUB / Boot Screen Branding via BIB | 🟢 Low | Medium (half-day) | Low | Item 1 |
 | 41 | Build | Multi-Stage Containerfile | ❌ Rejected | Medium (half-day) | Low | None |
