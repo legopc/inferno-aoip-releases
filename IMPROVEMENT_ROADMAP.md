@@ -390,7 +390,7 @@ The `%include` line must appear **before** the `%pre` block in the kickstart —
 
 ---
 
-#### Item 8 — NIC Carrier Check
+#### Item 8 — NIC Carrier Check ✅ Sprint 4 (`b07a8db`)
 
 **Importance:** 🔴 Critical  
 **Impact:** Prevents silent misconfiguration when a machine has a disconnected NIC selected as the Dante interface  
@@ -446,7 +446,7 @@ Log a warning if the chosen NIC has no carrier — the node may be uncabled and 
 
 ---
 
-#### Item 9 — Multiple NIC Support / INFERNO_NIC_OVERRIDE
+#### Item 9 — Multiple NIC Support / INFERNO_NIC_OVERRIDE ✅ Sprint 4 (`b07a8db`)
 
 **Importance:** 🟠 High  
 **Impact:** Allows operators to select the correct Dante NIC on multi-NIC hardware without reinstalling  
@@ -551,7 +551,7 @@ Propagate `ALOOP_INDEX` into `/etc/inferno.conf` and the `asoundrc` template sub
 
 ---
 
-#### Item 12 — Hardware PTP Auto-Reporting
+#### Item 12 — Hardware PTP Auto-Reporting ✅ Sprint 4 (`b07a8db`)
 
 **Importance:** 🔴 Critical  
 **Impact:** Operators know at first boot whether they have ~100ns hardware PTP or ~500µs software PTP jitter  
@@ -683,7 +683,7 @@ This runs before `statime-inferno.service`, ensuring the PTP daemon starts on a 
 
 ---
 
-#### Item 14 — `probe-node.sh` Output to `/var/log/inferno-probe.log`
+#### Item 14 — `probe-node.sh` Output to `/var/log/inferno-probe.log` ✅ Sprint 4 (`b07a8db`)
 
 **Importance:** 🟡 Medium  
 **Impact:** Provides a persistent, single-file hardware snapshot for remote support and debugging  
@@ -961,7 +961,7 @@ Additionally, the password hash for `core` must be set somewhere. `sysusers.d` d
 
 ---
 
-#### Item 25 — `INFERNO_NIC_OVERRIDE` in Ignition/Kickstart
+#### Item 25 — `INFERNO_NIC_OVERRIDE` in Ignition/Kickstart ✅ Sprint 4 (`b07a8db`)
 
 **Importance:** 🟢 Low  
 **Impact:** Eliminates NIC auto-detection uncertainty on known-hardware deployments  
