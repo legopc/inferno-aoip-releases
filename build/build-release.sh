@@ -56,26 +56,56 @@ BRANDING_DIR="${BUILD_DIR}/inferno-aoip-releases/branding"
 # ── Step 2: Build container image ────────────────────────────────────────────
 echo ""
 echo "── [2/5] Building container image localhost/inferno-appliance:${VERSION} ──"
-${PODMAN} build --network=host -t "inferno-appliance:${VERSION}" -f Containerfile .
+BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+GIT_SHA="$(git rev-parse --short HEAD)"
+${PODMAN} build --network=host \
+  -t "inferno-appliance:${VERSION}" \
+  --build-arg VERSION="${VERSION}" \
+  --build-arg BUILD_DATE="${BUILD_DATE}" \
+  --build-arg GIT_SHA="${GIT_SHA}" \
+  -f Containerfile .
 
-# ── Step 3: Build installer ISO ───────────────────────────────────────────────
+# ── Steps 3 & 4: Build ISO and export tarball in parallel ────────────────────
 echo ""
-echo "── [3/5] Building installer ISO → ${OUTPUT_DIR} ──"
+echo "── [3/5] Building installer ISO → ${OUTPUT_DIR} (parallel with tar export) ──"
 mkdir -p "${OUTPUT_DIR}"
-${PODMAN} run --rm --privileged --network=host \
-  -v "${STORAGE_ROOT}:/var/lib/containers/storage" \
-  -v "${OUTPUT_DIR}:/output" \
-  -v "${CONFIG_TOML}:/config.toml:ro" \
-  ghcr.io/osbuild/bootc-image-builder:latest \
-  --type anaconda-iso \
-  --rootfs xfs \
-  --config /config.toml \
-  --local "localhost/inferno-appliance:${VERSION}"
 
 ISO_PATH="${OUTPUT_DIR}/bootiso/install.iso"
+ISO_LOG="${OUTPUT_DIR}/bib.log"
+TAR_LOG="${OUTPUT_DIR}/tar.log"
+
+# Background job 1: BIB ISO build
+(
+  ${PODMAN} run --rm --privileged --network=host \
+    -v "${STORAGE_ROOT}:/var/lib/containers/storage" \
+    -v "${OUTPUT_DIR}:/output" \
+    -v "${CONFIG_TOML}:/config.toml:ro" \
+    ghcr.io/osbuild/bootc-image-builder:latest \
+    --type anaconda-iso \
+    --rootfs xfs \
+    --config /config.toml \
+    --local "localhost/inferno-appliance:${VERSION}"
+) >"${ISO_LOG}" 2>&1 &
+ISO_BUILD_PID=$!
+
+# Background job 2: raw tarball export
+(
+  echo "── [4/5] Exporting raw upgrade tarball → ${UPGRADE_TAR} ──"
+  ${PODMAN} save "localhost/inferno-appliance:${VERSION}" -o "${UPGRADE_TAR}"
+  echo "Upgrade tar: $(ls -lh ${UPGRADE_TAR})"
+) >"${TAR_LOG}" 2>&1 &
+TAR_BUILD_PID=$!
+
+# Wait for both jobs
+echo "Waiting for ISO build (PID ${ISO_BUILD_PID}) and tar export (PID ${TAR_BUILD_PID})..."
+wait "${TAR_BUILD_PID}" || { echo "ERROR: tar export failed"; cat "${TAR_LOG}"; exit 1; }
+echo "Tar export done."; cat "${TAR_LOG}"
+
+wait "${ISO_BUILD_PID}" || { echo "ERROR: ISO build failed"; cat "${ISO_LOG}"; exit 1; }
+echo "ISO build done."
 echo "ISO built: $(ls -lh ${ISO_PATH})"
 
-# ── Step 3b: Inject installer branding ───────────────────────────────────────
+# ── Step 3b: Inject installer branding (sequential — depends on ISO) ─────────
 echo ""
 if [[ -d "${BRANDING_DIR}/installer/pixmaps" ]]; then
   echo "── [3b] Injecting installer branding ──"
@@ -90,10 +120,6 @@ else
   echo "── [3b] No branding pixmaps found — skipping ISO branding ──"
 fi
 
-# ── Step 4: Export raw upgrade tarball ───────────────────────────────────────
-echo ""
-echo "── [4/5] Exporting raw upgrade tarball → ${UPGRADE_TAR} ──"
-${PODMAN} save "localhost/inferno-appliance:${VERSION}" -o "${UPGRADE_TAR}"
 echo "Upgrade tar: $(ls -lh ${UPGRADE_TAR})"
 
 # ── Step 5: Package .iotupdate bundle ────────────────────────────────────────
@@ -112,6 +138,13 @@ echo "=== Local artifacts ready on build VM ==="
 echo "  ISO:        $(ls -lh ${ISO_PATH})"
 echo "  Tar:        $(ls -lh ${UPGRADE_TAR})"
 echo "  IoT bundle: $(ls -lh ${IOTUPDATE_BUNDLE})"
+
+# ── Prune old output dirs (keep 3 most recent) ────────────────────────────────
+mapfile -t OLD_OUTPUTS < <(ls -dt "${BUILD_DIR}"/output-v* 2>/dev/null | tail -n +4)
+if [[ ${#OLD_OUTPUTS[@]} -gt 0 ]]; then
+  echo "Pruning ${#OLD_OUTPUTS[@]} old output dir(s): ${OLD_OUTPUTS[*]}"
+  rm -rf "${OLD_OUTPUTS[@]}"
+fi
 
 # ── Copy ISO to Proxmox ISO storage ──────────────────────────────────────────
 LOCAL_ISO_COPY="${RELEASES_DIR}/inferno-appliance-${VERSION}.iso"

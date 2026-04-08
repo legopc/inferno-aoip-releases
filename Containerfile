@@ -210,3 +210,14 @@ RUN chmod +x /var/lib/iot-updater/apply-update.sh && \
 # Relabel all files after COPY layers to ensure correct SELinux contexts.
 # Errors are non-fatal (|| true) in case restorecon is not available in buildroot.
 RUN restorecon -R / 2>/dev/null || true
+
+# ── OCI image metadata ────────────────────────────────────────────────────────
+# Placed last so changing VERSION/BUILD_DATE/GIT_SHA does not bust earlier layers.
+ARG VERSION=dev
+ARG BUILD_DATE=unknown
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.title="Inferno AoIP Appliance" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.source="https://github.com/legopc/inferno-aoip-releases"
