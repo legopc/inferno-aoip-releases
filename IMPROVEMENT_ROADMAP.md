@@ -2,7 +2,7 @@
 
 > **Document type:** Engineering review and improvement backlog  
 > **Scope:** Fedora bootc appliance (installer, first-boot, runtime, upgrade, build pipeline, operations)  
-> **Total items:** 57 (1 bug fix + 56 improvements) — 12 resolved, 45 open  
+> **Total items:** 58 (1 bug fix + 57 improvements) — 13 resolved, 45 open  
 > **Generated:** April 2026  
 
 > Resolved items archived in [archived/IMPROVEMENT_ROADMAP_DONE.md](archived/IMPROVEMENT_ROADMAP_DONE.md)
@@ -22,24 +22,24 @@ Items marked 🔴 Critical should be addressed before any Medium or Low items re
 
 ## Executive Summary
 
-All 57 items sorted by importance (Critical → High → Medium → Low), then by difficulty (Easy → Medium → Hard) within each level.
+All 58 items sorted by importance (Critical → High → Medium → Low), then by difficulty (Easy → Medium → Hard) within each level.
 
 | ID | Category | Title | Importance | Difficulty | Risk | Prerequisites |
 |---|---|---|---|---|---|---|
 | BUG-01 | Bug | `apply-update.sh`: Missing `skopeo copy` Command | ✅ Resolved | Easy (<2h) | Low | None |
-| 1 | Install | Add Kickstart to BIB `config.toml` | 🔴 Critical | Easy (<2h) | Low | None |
+| 1 | Install | Add Kickstart to BIB `config.toml` | 🟡 Medium | Easy (<2h) | Low | None |
 | 8 | Hardware | NIC Carrier Check | 🔴 Critical | Easy (<2h) | Low | None |
 | 26 | Security | Default Password Policy | 🔴 Critical | Easy (<2h) | Low | None |
 | 31 | Security | SELinux: `restorecon` After Custom File Copies | 🔴 Critical | Easy (<2h) | Low | None |
 | 33 | RT/Reliability | Hardware Watchdog | 🔴 Critical | Easy (<2h) | Low | None |
 | 45 | Build | Clean Up `output-vN/` Directories After Build | 🔴 Critical | Easy (<2h) | Low | None |
-| 2 | Install | Dynamic Disk Selection in Kickstart | 🟠 High | Easy (<2h) | Medium | Item 1 |
+| 2 | Install | Dynamic Disk Selection in Kickstart | ❌ Rejected | Easy (<2h) | Medium | Item 1 |
 | 6 | Install | `multi-user.target` as Default | 🟠 High | Easy (<2h) | Low | None |
 | 9 | Hardware | Multiple NIC Support / INFERNO_NIC_OVERRIDE | 🟠 High | Easy (<2h) | Low | Item 8 |
 | 11 | Hardware | snd-aloop Index: Dynamic at First-Boot | 🟠 High | Easy (<2h) | Medium | None |
-| 12 | Hardware | Hardware PTP Auto-Reporting | 🟠 High | Easy (<2h) | Low | Item 8 |
-| 27 | Security | SSH: Disable Password Authentication | 🟠 High | Easy (<2h) | Medium | Item 26 |
-| 28 | Security | Firewalld: Configure in the Containerfile | 🟠 High | Easy (<2h) | Low | None |
+| 12 | Hardware | Hardware PTP Auto-Reporting | 🔴 Critical | Easy (<2h) | Low | Item 8 |
+| 27 | Security | SSH: Disable Password Authentication | ❌ Rejected | Easy (<2h) | Medium | Item 26 |
+| 28 | Security | Firewalld: Configure in the Containerfile | ❌ Rejected | Easy (<2h) | Low | None |
 | 34 | RT/Reliability | Service Dependency: `ConditionPathExists=/etc/inferno.conf` | 🟠 High | Easy (<2h) | Low | None |
 | 35 | RT/Reliability | journald Log Size Limit | 🟠 High | Easy (<2h) | Low | None |
 | 36 | RT/Reliability | `LimitMEMLOCK=infinity` for RT Services | 🟠 High | Easy (<2h) | Low | None |
@@ -56,7 +56,8 @@ All 57 items sorted by importance (Critical → High → Medium → Low), then b
 | 15 | Upgrade | Version Sentinel Comparison in `inferno-configure.sh` | 🟠 High | Medium (half-day) | Medium | BUG-01 |
 | 17 | Upgrade | Auto-Rollback on Failed Boot | ✅ Implemented | Medium (half-day) | Medium | BUG-01 |
 | 23 | First-boot | `systemd-sysusers` and `tmpfiles.d` for User and Directory Setup | 🟠 High | Medium (half-day) | Medium | None |
-| 38 | RT/Reliability | NIC Link-Down Recovery | 🟠 High | Medium (half-day) | Low | Item 10 |
+| 57 | Security | Cockpit First-Login Password Prompt | 🟠 High | Medium (half-day) | Low | None |
+| 38 | RT/Reliability | NIC Link-Down Recovery | 🟡 Medium | Medium (half-day) | Low | Items 8, 9 |
 | 3 | Install | Boot Timeout = 1s | 🟡 Medium | Easy (<2h) | Low | Item 1 |
 | 13 | Hardware | CPU Frequency Scaling: Performance Governor | 🟡 Medium | Easy (<2h) | Low | None |
 | 14 | Hardware | `probe-node.sh` Output to `/var/log/inferno-probe.log` | 🟡 Medium | Easy (<2h) | Low | Items 8, 12 |
@@ -64,23 +65,23 @@ All 57 items sorted by importance (Critical → High → Medium → Low), then b
 | 22 | First-boot | Butane YAML for Ignition | 🟡 Medium | Easy (<2h) | Low | None |
 | 44 | Build | Generate `BUILD_DATE` and `GIT_SHA` Build-Args | 🟡 Medium | Easy (<2h) | Low | Item 43 |
 | 46 | Build | Parallel ISO Branding + Tarball Export | 🟡 Medium | Easy (<2h) | Medium | None |
-| 49 | Operations | mDNS Alias `inferno.local` | 🟡 Medium | Easy (<2h) | Medium | None |
-| 10 | Hardware | Predictable NIC Naming via udev (`inferno0`) | 🟡 Medium | Medium (half-day) | High | Items 8, 9 |
-| 19 | Upgrade | Delta / Layer-Based Upgrades via Local OCI Registry | 🟡 Medium | Medium (half-day) | Low | BUG-01 |
-| 24 | First-boot | Eliminate the Reboot at End of `inferno-configure.sh` | 🟡 Medium | Medium (half-day) | Medium | Item 11 |
-| 32 | Security | Cockpit TLS: Custom Certificate | 🟡 Medium | Medium (half-day) | Low | None |
+| 49 | Operations | mDNS Alias `inferno.local` | ❌ Rejected | Easy (<2h) | Medium | None |
+| 10 | Hardware | Predictable NIC Naming via udev (`inferno0`) | ❌ Rejected | Medium (half-day) | High | Items 8, 9 |
+| 19 | Upgrade | Delta / Layer-Based Upgrades via Local OCI Registry | ✅ Implemented | Medium (half-day) | Low | BUG-01 |
+| 24 | First-boot | Eliminate the Reboot at End of `inferno-configure.sh` | ⏸ Deferred | Medium (half-day) | Medium | Item 11 |
+| 32 | Security | Cockpit TLS: Custom Certificate | ⏸ Deferred | Medium (half-day) | Low | None |
 | 52 | Operations | Cockpit: One-Click Rollback Button | ✅ Implemented | Medium (half-day) | Medium | Items 50, 51 |
 | 53 | Operations | Cockpit: Mode Switcher (Spotify ↔ AUX) | ✅ Implemented | Medium (half-day) | Medium | None |
 | 55 | Operations | Cockpit: PTP Clock Status | ✅ Implemented | Medium (half-day) | Low | None |
-| 56 | Operations | Cockpit: Certificate Management | 🟡 Medium | Medium (half-day) | Medium | None |
-| 5 | Install | PXE / Netboot Image | 🟡 Medium | Hard (multi-day) | Medium | Items 1, 2 |
-| 29 | Security | Image Signing with cosign/sigstore | 🟡 Medium | Hard (multi-day) | Low | None |
-| 37 | RT/Reliability | IRQ Affinity / CPU Isolation | 🟡 Medium | Hard (multi-day) | Medium | None |
+| 56 | Operations | Cockpit: Certificate Management | ⏸ Deferred | Medium (half-day) | Medium | None |
+| 5 | Install | PXE / Netboot Image | ❌ Rejected | Hard (multi-day) | Medium | Items 1, 2 |
+| 29 | Security | Image Signing with cosign/sigstore | ⏸ Deferred | Hard (multi-day) | Low | None |
+| 37 | RT/Reliability | IRQ Affinity / CPU Isolation | ⏸ Deferred | Hard (multi-day) | Medium | None |
 | 20 | Upgrade | Upgrade History in Cockpit | ✅ Implemented | Easy (<2h) | Low | BUG-01 |
 | 25 | First-boot | `INFERNO_NIC_OVERRIDE` in Ignition/Kickstart | 🟢 Low | Easy (<2h) | Low | Item 9 |
 | 30 | Security | OCI Labels for Version Tracking | 🟢 Low | Easy (<2h) | Low | None |
 | 4 | Install | GRUB / Boot Screen Branding via BIB | 🟢 Low | Medium (half-day) | Low | Item 1 |
-| 41 | Build | Multi-Stage Containerfile | 🟢 Low | Medium (half-day) | Low | None |
+| 41 | Build | Multi-Stage Containerfile | ❌ Rejected | Medium (half-day) | Low | None |
 | 18 | Upgrade | Upload Resume / Chunked Upload | ✅ Implemented | Hard (multi-day) | Medium | BUG-01 |
 
 ## Where to Start
@@ -172,11 +173,11 @@ Items 47–56 → (none, each independent; some enhanced by Items 12, 30)
 
 | ID | Title | Importance | Difficulty | Risk | Prerequisites |
 |---|---|---|---|---|---|
-| 1 | Add Kickstart to BIB `config.toml` | 🔴 Critical | Easy | Low | None |
-| 2 | Dynamic disk selection in Kickstart | 🟠 High | Easy | Medium | 1 |
-| 3 | Boot timeout = 1s | 🟡 Medium | Easy | Low | 1 |
+| 1 | Add Kickstart to BIB `config.toml` | 🟡 Medium | Easy | Low | None |
+| 2 | Dynamic disk selection in Kickstart | ❌ Rejected | Easy | Medium | 1 |
+| 3 | Boot timeout = 3s | 🟡 Medium | Easy | Low | 1 |
 | 4 | GRUB / boot screen branding via BIB | 🟢 Low | Medium | Low | 1 |
-| 5 | PXE / netboot image | 🟡 Medium | Hard | Medium | 1, 2 |
+| 5 | PXE / netboot image | ❌ Rejected | Hard | Medium | 1, 2 |
 | 6 | `multi-user.target` as default | 🟠 High | Easy | Low | None |
 | 7 | Kickstart `%pre` disk detection script | 🟠 High | Medium | Medium | 1 |
 
@@ -184,11 +185,13 @@ Items 47–56 → (none, each independent; some enhanced by Items 12, 30)
 
 #### Item 1 — Add Kickstart to BIB `config.toml`
 
-**Importance:** 🔴 Critical
+**Importance:** 🟡 Medium
 **Impact:** Eliminates all interactive Anaconda prompts; enables fully unattended install from a single ISO boot
 **Difficulty:** Easy
 **Risk:** Low
 **Prerequisites:** None
+
+> **Implementation note:** Priority demoted from Critical to Medium — already fully unattended via BIB. Risk of Fedora wiping wrong disk on multi-disk hardware. Implement Item 7 (`%pre` disk detection script) before this. No manual install interaction is currently required.
 
 ##### What is it?
 
@@ -234,7 +237,9 @@ Key decisions: `rootpw --lock` disables root login; `reboot --eject` prevents re
 
 #### Item 2 — Dynamic Disk Selection in Kickstart
 
-**Importance:** 🟠 High
+> **❌ REJECTED** — Superseded by Item 7 — Item 7 does the same thing properly via `%pre` detection.
+
+**Importance:** ❌ Rejected
 **Impact:** Makes the installer hardware-agnostic — works on SATA, NVMe, and virtio disks without modification
 **Difficulty:** Easy
 **Risk:** Medium
@@ -263,13 +268,15 @@ Do **not** add `--drives=sda`. Anaconda selects the first eligible disk.
 
 ---
 
-#### Item 3 — Boot Timeout = 1s
+#### Item 3 — Boot Timeout = 3s
 
-**Importance:** 🟡 Medium
-**Impact:** Reduces install time by 4 seconds; eliminates the GRUB pause on headless hardware
+**Importance:** �� Medium
+**Impact:** Reduces install time by 2 seconds; eliminates the GRUB pause on headless hardware
 **Difficulty:** Easy
 **Risk:** Low
 **Prerequisites:** 1
+
+> **Implementation note:** Timeout = **3s** (not 1s as previously written). This preserves a usable rescue window while still being fast for headless appliances.
 
 ##### What is it?
 
@@ -277,7 +284,7 @@ Fedora's default GRUB timeout is 5 seconds. For a headless appliance install whe
 
 ##### Why implement?
 
-On a machine with no monitor, the 5-second pause is invisible but still burns time. Setting to 1s (not 0 — that removes all ability to interrupt for rescue mode) is the correct appliance default.
+On a machine with no monitor, the 5-second pause is invisible but still burns time. Setting to 3s (not 0 — that removes all ability to interrupt for rescue mode, and not 1s which is too short for reliable rescue) is the correct appliance default.
 
 ##### Why NOT implement (or defer)?
 
@@ -285,7 +292,7 @@ No meaningful reason to defer. One-line addition to the kickstart.
 
 ##### Implementation notes
 
-Add to kickstart in `build/config.toml`: `bootloader --timeout=1 --location=mbr`
+Add to kickstart in `build/config.toml`: `bootloader --timeout=3 --location=mbr`
 
 ---
 
@@ -296,6 +303,8 @@ Add to kickstart in `build/config.toml`: `bootloader --timeout=1 --location=mbr`
 **Difficulty:** Medium
 **Risk:** Low
 **Prerequisites:** 1
+
+> **Implementation note:** Conditional — only implement if BIB supports the required branding elements natively. No workarounds or hybrid approaches; if BIB cannot do it cleanly, leave the post-build `inject-iso-branding.sh` script as-is.
 
 ##### What is it?
 
@@ -317,7 +326,9 @@ Track [BIB release notes](https://github.com/osbuild/bootc-image-builder) for na
 
 #### Item 5 — PXE / Netboot Image
 
-**Importance:** 🟡 Medium
+> **❌ REJECTED** — Infrastructure overhead not worth it for this deployment model.
+
+**Importance:** ❌ Rejected
 **Impact:** Enables zero-touch network install — no USB stick required; supports multi-node rollout
 **Difficulty:** Hard
 **Risk:** Medium
@@ -436,9 +447,9 @@ The `%include` line must appear **before** the `%pre` block in the kickstart —
 |----|-------|-----------|-----------|------|---------------|
 | 8 | NIC carrier check | 🔴 Critical | Easy | Low | None |
 | 9 | Multiple NIC support / INFERNO_NIC_OVERRIDE | 🟠 High | Easy | Low | 8 |
-| 10 | Predictable NIC naming via udev (`inferno0`) | 🟡 Medium | Medium | High | 8, 9 |
-| 11 | snd-aloop index: dynamic at first-boot | 🟠 High | Easy | Medium | None |
-| 12 | Hardware PTP auto-reporting | 🟠 High | Easy | Low | 8 |
+| 10 | Predictable NIC naming via udev (`inferno0`) | ❌ Rejected | Medium | High | 8, 9 |
+| 11 | snd-aloop index: bump to 10 in modprobe.d | 🟠 High | Easy | Medium | None |
+| 12 | Hardware PTP auto-reporting | 🔴 Critical | Easy | Low | 8 |
 | 13 | CPU frequency scaling: performance governor | 🟡 Medium | Easy | Low | None |
 | 14 | `probe-node.sh` output to `/var/log/inferno-probe.log` | 🟡 Medium | Easy | Low | 8, 12 |
 
@@ -451,6 +462,8 @@ The `%include` line must appear **before** the `%pre` block in the kickstart —
 **Difficulty:** Easy  
 **Risk:** Low  
 **Prerequisites:** None  
+
+> **Implementation note:** Must handle carrier gracefully — wait and retry if no carrier is detected; do not crash or silently pick a dead NIC. Log a clear warning if the selected NIC has no carrier at configure time.
 
 ##### What is it?
 
@@ -506,6 +519,8 @@ Log a warning if the chosen NIC has no carrier — the node may be uncabled and 
 **Risk:** Low  
 **Prerequisites:** 8  
 
+> **Implementation note:** Must account for NIC configuration in both `cockpit-inferno` UI and `cockpit-networkmanager`. `INFERNO_NIC_OVERRIDE` is a provisioning-time mechanism only (set via Ignition before first boot); Cockpit is the post-boot mechanism for changing NIC selection. Keep these two paths separate and clearly documented.
+
 ##### What is it?
 
 Even after implementing the carrier check (item 8), a machine with two active wired NICs will always pick the one that sorts first alphabetically. There is currently no mechanism to override this choice without deleting `/etc/inferno.conf` and relying on luck that the other NIC comes first — which it won't, because the order is deterministic.
@@ -550,7 +565,9 @@ Write `INFERNO_NIC_OVERRIDE=` (empty) into the generated `/etc/inferno.conf` as 
 
 #### Item 10 — Predictable NIC Naming via udev (`inferno0`)
 
-**Importance:** 🟡 Medium  
+> **❌ REJECTED** — NICs managed by Cockpit; udev rename would interfere with NetworkManager and the Cockpit network UI.
+
+**Importance:** ❌ Rejected  
 **Impact:** Gives all scripts a stable, hardware-independent Dante NIC name  
 **Difficulty:** Medium  
 **Risk:** High  
@@ -601,7 +618,7 @@ Change all `%%INFERNO_NIC%%` substitutions in templates to the literal `inferno0
 
 ---
 
-#### Item 11 — snd-aloop Index: Dynamic at First-Boot
+#### Item 11 — snd-aloop Index: Bump to 10
 
 **Importance:** 🟠 High  
 **Impact:** Eliminates ALSA card index conflict on machines with ≥5 physical sound cards  
@@ -609,11 +626,13 @@ Change all `%%INFERNO_NIC%%` substitutions in templates to the literal `inferno0
 **Risk:** Medium  
 **Prerequisites:** None  
 
+> **Implementation note:** NOT dynamic detection. Simply bump the hardcoded index from `5` to `10` in `/etc/modprobe.d/snd-aloop.conf` in the image. This is a static change in the Containerfile — no first-boot detection logic required.
+
 ##### What is it?
 
 The kernel module `snd-aloop` is loaded with `index=5` hardcoded in `/etc/modprobe.d/snd-aloop.conf` (baked into the bootc image). ALSA assigns card indices sequentially; if a machine already has physical cards at indices 0–5, `snd-aloop` fails to load. The Inferno ALSA plugin then has no loopback device to open, and audio stops working silently.
 
-The fix: at first boot, `inferno-configure.sh` reads `/proc/asound/cards`, finds the highest existing card index, and writes `index=<max+1>` to `/etc/modprobe.d/snd-aloop.conf`. Since `/etc/` is the mutable overlay on Fedora bootc, this write is persistent and survives reboots (but not OS image updates that replace the base layer — see implementation notes).
+The fix: bump the hardcoded index from `5` to `10` in `/etc/modprobe.d/snd-aloop.conf`. Index 10 is safely above the typical maximum on any x86 hardware. Since `/etc/` is the mutable overlay on Fedora bootc, this change in the image will propagate on upgrade.
 
 ##### Why implement?
 
@@ -652,11 +671,13 @@ Propagate `ALOOP_INDEX` into `/etc/inferno.conf` and the `asoundrc` template sub
 
 #### Item 12 — Hardware PTP Auto-Reporting
 
-**Importance:** 🟠 High  
+**Importance:** 🔴 Critical  
 **Impact:** Operators know at first boot whether they have ~100ns hardware PTP or ~500µs software PTP jitter  
 **Difficulty:** Easy  
 **Risk:** Low  
 **Prerequisites:** 8  
+
+> **Implementation note:** Priority elevated to Critical. Auto-detect HW PTP capability on NIC at firstboot; report result to logs and surface in Cockpit. This information is essential for diagnosing audio sync issues in the field.
 
 ##### What is it?
 
@@ -856,7 +877,7 @@ Ensure `/var/log/` exists and is writable at configure time (it always is on Fed
 |---|---|---|---|---|---|
 | 22 | Butane YAML for Ignition | 🟡 Medium | Easy | Low | None |
 | 23 | `systemd-sysusers` and `tmpfiles.d` for user/directory setup | 🟠 High | Medium | Medium | None |
-| 24 | Eliminate reboot at end of `inferno-configure.sh` | 🟡 Medium | Medium | Medium | Item 11 |
+| 24 | Eliminate reboot at end of `inferno-configure.sh` | ⏸ Deferred | Medium | Medium | Item 11 |
 | 25 | `INFERNO_NIC_OVERRIDE` in Ignition/kickstart | 🟢 Low | Easy | Low | Item 9 |
 
 ---
@@ -868,6 +889,8 @@ Ensure `/var/log/` exists and is writable at configure time (it always is on Fed
 **Difficulty:** Easy  
 **Risk:** Low  
 **Prerequisites:** None  
+
+> **Implementation note:** Staged approach — (1) write `config.bu` equivalent to current `config.ign`, (2) verify compiled output matches existing JSON byte-for-byte, (3) switch build to use compiled output, (4) remove raw JSON only after VM-verified. Do not switch to Butane in a single step.
 
 ##### What is it?
 
@@ -971,6 +994,8 @@ The only trade-off is adding `butane` as a build dependency. `butane` is a singl
 **Risk:** Medium  
 **Prerequisites:** None  
 
+> **Implementation note:** Staged approach — (1) add `sysusers`/`tmpfiles` declarations alongside existing `RUN` commands, (2) verify parity on test VM (correct groups, linger, home dirs), (3) remove old `RUN` commands only after verified. Must not break core user audio group membership or linger setup.
+
 ##### What is it?
 
 The `core` user is currently created in the Containerfile by running `useradd`, `chpasswd`, and directly writing `/etc/group` with `sed`. This works, but it is fragile:
@@ -1050,7 +1075,9 @@ Additionally, the password hash for `core` must be set somewhere. `sysusers.d` d
 
 #### Item 24 — Eliminate the Reboot at End of `inferno-configure.sh`
 
-**Importance:** 🟡 Medium  
+> **⏸ DEFERRED** — Reboot is a safe catch-all; revisit once other firstboot changes are stable.
+
+**Importance:** ⏸ Deferred  
 **Impact:** First deployment completes 1–2 minutes faster; no unnecessary hardware POST cycle  
 **Difficulty:** Medium  
 **Risk:** Medium  
@@ -1223,7 +1250,7 @@ On standard single-NIC hardware (the primary target), this adds no value — aut
 | 16 | Pre-upgrade version check in `apply-update.sh` | ✅ Implemented | Easy (<2h) | Low | BUG-01 |
 | 17 | Auto-rollback on failed boot | ✅ Implemented | Medium (half-day) | Medium | BUG-01, 15 |
 | 18 | Upload resume / chunked upload | ✅ Implemented | Hard (multi-day) | Medium | BUG-01 |
-| 19 | Delta / layer-based upgrades via local OCI registry | 🟡 Medium | Medium (half-day) | Low | BUG-01 |
+| 19 | Delta / layer-based upgrades via local OCI registry | ✅ Implemented | Medium (half-day) | Low | BUG-01 |
 | 20 | Upgrade history in Cockpit | ✅ Implemented | Easy (<2h) | Low | BUG-01 |
 
 ---
@@ -1235,6 +1262,8 @@ On standard single-NIC hardware (the primary target), this adds no value — aut
 **Difficulty:** Medium (half-day)  
 **Risk:** Medium  
 **Prerequisites:** BUG-01  
+
+> **Implementation note:** Must be scaffolded in stages — (1) detect firstboot vs upgrade cleanly, (2) write sentinel on firstboot completion, (3) build migration hook system before any migration logic, (4) test each stage independently. No monolithic rewrite.
 
 ##### What is it?
 
@@ -1278,38 +1307,7 @@ The medium risk rating is real. If `inferno-configure.sh` re-runs and contains a
 
 #### Item 19 — Delta / Layer-Based Upgrades via Local OCI Registry
 
-**Importance:** 🟡 Medium  
-**Impact:** Incremental upgrades shrink from ~1.9 GB to 50–200 MB for typical changes  
-**Difficulty:** Medium (half-day)  
-**Risk:** Low  
-**Prerequisites:** BUG-01  
-
-##### What is it?
-
-Every `.iotupdate` bundle is a full OCI image export (~1.9 GB) regardless of how small the change was. This is because `skopeo copy oci-archive → containers-storage` loads all layers. If a local OCI registry (Gitea Container Registry — already in use in this project) is accessible from the node, `bootc upgrade` fetches only the changed layers, reducing a typical incremental upgrade to 50–200 MB.
-
-The `.iotupdate` bundle path remains as the air-gapped fallback. For LAN-connected nodes, a `bootc upgrade` triggered by a Cockpit button (or a systemd timer) replaces the manual bundle workflow.
-
-##### Why implement?
-
-The bandwidth reduction is ~90% for incremental changes. On a 1 Gbps LAN this matters less, but for nodes on slow links or for operators running many nodes simultaneously, it is significant. More importantly, it removes the build-export-bundle-upload manual ceremony for routine updates. `bootc upgrade` is the intended steady-state upgrade mechanism for bootc images — the bundle path was always meant for air-gapped scenarios.
-
-##### Why NOT implement (or defer)?
-
-This requires network connectivity from the node to the Gitea registry. Nodes in fully air-gapped environments cannot use this path at all. The risk is low because `bootc upgrade` is a first-class supported operation and Gitea's OCI registry is already proven in this project. The `.iotupdate` bundle path is preserved as-is for air-gapped fallback — no existing functionality is removed.
-
-##### Implementation notes
-
-1. The node's `/etc/containers/registries.conf` (or `/usr/lib/...` equivalent baked into the image) must include the Gitea registry as a trusted source.
-2. In `Containerfile`, set the `FROM` base and final image reference to use the Gitea registry FQDN so `bootc` knows where to pull from:
-   ```dockerfile
-   # bootc reads the image reference from its own metadata
-   LABEL org.opencontainers.image.source="https://gitea.lan/legopc/inferno-appliance"
-   ```
-3. Add a Cockpit page button "Check for updates" that runs `bootc upgrade --dry-run` and displays available version, then a "Apply" button that runs `bootc upgrade && systemctl reboot`.
-4. Wire item 17 (auto-rollback) to handle the reboot after `bootc upgrade` the same as after `bootc switch`.
-5. For the build pipeline, `build/build-release.sh` should push the image to the Gitea registry (`podman push`) in addition to exporting the OCI tar for the bundle.
-
+> **✅ IMPLEMENTED** — Already implemented in `cockpit-iot-updater` `apply-update.sh` — `bundle_type=delta` path using bsdiff/bspatch. Discovered resolved April 2026. Full detail archived in [archived/IMPROVEMENT_ROADMAP_DONE.md](archived/IMPROVEMENT_ROADMAP_DONE.md).
 ---
 
 ---
@@ -1321,12 +1319,13 @@ This requires network connectivity from the node to the Gitea registry. Nodes in
 | ID | Title | Importance | Difficulty | Risk | Prerequisites |
 |----|-------|-----------|------------|------|---------------|
 | 26 | Default password policy | 🔴 Critical | Easy | Low | None |
-| 27 | SSH: disable password authentication | 🟠 High | Easy | Medium | 26 |
-| 28 | Firewalld: configure in Containerfile | 🟠 High | Easy | Low | None |
-| 29 | Image signing with cosign/sigstore | 🟡 Medium | Hard | Low | None |
+| 27 | SSH: disable password authentication | ❌ Rejected | Easy | Medium | 26 |
+| 28 | Firewalld: configure in Containerfile | ❌ Rejected | Easy | Low | None |
+| 29 | Image signing with cosign/sigstore | ⏸ Deferred | Hard | Low | None |
 | 30 | OCI labels for version tracking | 🟢 Low | Easy | Low | None |
 | 31 | SELinux: `restorecon` after custom file copies | 🔴 Critical | Easy | Low | None |
-| 32 | Cockpit TLS: custom certificate | 🟡 Medium | Medium | Low | None |
+| 32 | Cockpit TLS: custom certificate | ⏸ Deferred | Medium | Low | None |
+| 57 | Cockpit: first-login password prompt | 🟠 High | Medium (half-day) | Low | None |
 
 ---
 
@@ -1386,7 +1385,9 @@ Locking the password entirely (`passwd --lock`) breaks console recovery on a hea
 
 #### Item 27 — SSH: Disable Password Authentication
 
-**Importance:** 🟠 High  
+> **❌ REJECTED** — Superseded by Item 57 (Cockpit first-login password prompt), which achieves the same security goal without blocking SSH access for operators who haven't pre-provisioned keys.
+
+**Importance:** ❌ Rejected  
 **Impact:** Eliminates brute-force and credential-stuffing risk over SSH  
 **Difficulty:** Easy  
 **Risk:** Medium  
@@ -1420,9 +1421,31 @@ Defer if the target deployment environment has no reliable mechanism to inject S
 
 ---
 
+#### Item 57 — Cockpit First-Login Password Prompt
+
+| Field | Value |
+|---|---|
+| **Category** | Security |
+| **Importance** | 🟠 High |
+| **Difficulty** | Medium (half-day) |
+| **Risk** | Low |
+| **Prerequisites** | None |
+
+**Problem:** The appliance ships with a known default credential (`core / inferno123`). Without enforcement, operators may leave this unchanged, exposing the appliance to unauthorized access.
+
+**Solution:** On first login to the Cockpit web UI, detect that the default credential is still in use and show a prominent prompt to change the password. Implemented in `cockpit-inferno` UI.
+
+**Why now:** Replaces the rejected Item 27 approach (disabling SSH password auth). A first-login prompt ensures operators change the default credential without blocking SSH access for those who haven't pre-provisioned keys.
+
+**Why not:** Requires coordination between cockpit-inferno and the appliance image. If Cockpit is bypassed, password is never prompted.
+
+---
+
 #### Item 28 — Firewalld: Configure in the Containerfile
 
-**Importance:** 🟠 High  
+> **❌ REJECTED** — Maintenance burden outweighs benefit; Fedora default zone is sufficient for this deployment model.
+
+**Importance:** ❌ Rejected  
 **Impact:** Enforces a minimal-exposure port policy on every deployed node from day one  
 **Difficulty:** Easy  
 **Risk:** Low  
@@ -1472,7 +1495,9 @@ firewall-cmd --list-all --zone=home
 
 #### Item 29 — Image Signing with cosign/sigstore
 
-**Importance:** 🟡 Medium  
+> **⏸ DEFERRED** — Closed deployment, low tamper risk; revisit when security posture requires it.
+
+**Importance:** ⏸ Deferred  
 **Impact:** Prevents tampered or malicious images from being applied via `bootc switch` or the Cockpit update UI  
 **Difficulty:** Hard  
 **Risk:** Low  
@@ -1638,7 +1663,9 @@ ausearch -m avc -ts recent | grep inferno
 
 #### Item 32 — Cockpit TLS: Custom Certificate
 
-**Importance:** 🟡 Medium  
+> **⏸ DEFERRED** — Self-signed is fine for now; revisit together with Item 56 (Cockpit certificate management UI).
+
+**Importance:** ⏸ Deferred  
 **Impact:** Eliminates the browser security warning on every Cockpit session  
 **Difficulty:** Medium  
 **Risk:** Low  
@@ -1707,8 +1734,8 @@ If LAN CA setup is too complex, at minimum regenerate the self-signed cert with 
 | 34 | Service dependency: `ConditionPathExists=/etc/inferno.conf` | 🟠 High | Easy (<2h) | Low | None |
 | 35 | journald log size limit | 🟠 High | Easy (<2h) | Low | None |
 | 36 | `LimitMEMLOCK=infinity` for RT services | 🟠 High | Easy (<2h) | Low | None |
-| 37 | IRQ affinity / CPU isolation | 🟡 Medium | Hard (multi-day) | Medium | None |
-| 38 | NIC link-down recovery | 🟠 High | Medium (half-day) | Low | Item 10 (predictable NIC naming) |
+| 37 | IRQ affinity / CPU isolation | ⏸ Deferred | Hard (multi-day) | Medium | None |
+| 38 | NIC link-down recovery | 🟡 Medium | Medium (half-day) | Low | Items 8, 9 |
 | 39 | Boot: mask unnecessary Fedora services | 🟠 High | Easy (<2h) | Low | None |
 
 ---
@@ -1720,6 +1747,8 @@ If LAN CA setup is too complex, at minimum regenerate the self-signed cert with 
 **Difficulty:** Easy (<2h)  
 **Risk:** Low  
 **Prerequisites:** None  
+
+> **Implementation note:** Auto-detect `/dev/watchdog` presence at firstboot; enable `RuntimeWatchdogSec` only if a hardware watchdog is present, skip gracefully if not. Do not hard-fail on hardware that lacks a watchdog device.
 
 ##### What is it?
 
@@ -1837,13 +1866,15 @@ Bake both unit files into the `Containerfile` and `systemctl enable inferno-conf
 **Risk:** Low  
 **Prerequisites:** None  
 
+> **Implementation note:** Set `SystemMaxUse=512M` (not 200M as previously written). Confirmed: `SystemMaxUse` is not set in the current image or in the `fedora-bootc:43` base — this will be a net new setting.
+
 ##### What is it?
 
 systemd-journald's default behaviour on a system with persistent storage (`/var/log/journal/` exists) is to use up to 10% of the filesystem or 4 GB, whichever is smaller. On a Fedora bootc node with a 32 GB disk and persistent `/var/`, this permits up to 3.2 GB of journal accumulation. A headless appliance that runs continuously for months — and has verbose services like librespot and Inferno logging at debug level — will fill this quota and start discarding old logs silently. Worse, if the quota is not set and the journal grows into filesystem space needed for OTA bundles, upgrades fail.
 
 ##### Why implement?
 
-A 500 MB journal cap is generous for diagnostic purposes while protecting the ~3 GB of headroom needed for OTA bundle staging. `MaxRetentionSec=30day` ensures old logs are purged regardless of size. For an appliance that is not monitored in real time, 30 days of history is more than enough for post-incident debugging. This is a one-time, zero-maintenance fix.
+A 512 MB journal cap is generous for diagnostic purposes while protecting the ~3 GB of headroom needed for OTA bundle staging. `MaxRetentionSec=30day` ensures old logs are purged regardless of size. For an appliance that is not monitored in real time, 30 days of history is more than enough for post-incident debugging. This is a one-time, zero-maintenance fix.
 
 ##### Why NOT implement (or defer)?
 
@@ -1855,7 +1886,7 @@ In `Containerfile`:
 
 ```dockerfile
 RUN mkdir -p /etc/systemd/journald.conf.d && \
-    printf '[Journal]\nSystemMaxUse=500M\nSystemKeepFree=100M\nMaxRetentionSec=30day\n' \
+    printf '[Journal]\nSystemMaxUse=512M\nSystemKeepFree=100M\nMaxRetentionSec=30day\n' \
     > /etc/systemd/journald.conf.d/inferno.conf
 ```
 
@@ -1864,7 +1895,7 @@ Verify on a running node:
 ```bash
 journalctl --disk-usage
 # Force immediate vacuum to test:
-journalctl --vacuum-size=500M --vacuum-time=30d
+journalctl --vacuum-size=512M --vacuum-time=30d
 ```
 
 `SystemKeepFree=100M` is a hard floor — journald will delete old entries to keep at least 100 MB free regardless of `SystemMaxUse`. This is the safety net for a nearly-full disk.
@@ -1924,7 +1955,9 @@ While editing the unit files, also add `LimitRTPRIO=95` and `LimitNICE=-20` if n
 
 #### Item 37 — IRQ Affinity / CPU Isolation
 
-**Importance:** 🟡 Medium  
+> **⏸ DEFERRED** — Risky without knowing the CPU topology of all target hardware; `isolcpus` assumptions could degrade performance on unknown core counts. Revisit with measured jitter data.
+
+**Importance:** ⏸ Deferred  
 **Impact:** PTP timestamp jitter drops from ~200µs to ~50µs; Dante clock stability improves proportionally  
 **Difficulty:** Hard (multi-day)  
 **Risk:** Medium  
@@ -2008,11 +2041,13 @@ Target: max latency < 200µs. If seeing > 500µs consistently, isolation is not 
 
 #### Item 38 — NIC Link-Down Recovery
 
-**Importance:** 🟠 High  
+**Importance:** 🟡 Medium  
 **Impact:** Audio resumes within seconds of cable re-plug instead of requiring 30–60 seconds of failed restarts  
 **Difficulty:** Medium (half-day)  
 **Risk:** Low  
-**Prerequisites:** Item 10 (predictable NIC naming)  
+**Prerequisites:** Items 8, 9  
+
+> **Implementation note:** Priority demoted to Medium. Depends on Items 8 (NIC carrier check) and 9 (multi-NIC support) — implement those first. The `BindsTo=` device unit approach requires stable NIC naming, but Items 8/9 are sufficient prerequisites (Item 10 udev rename is rejected).
 
 ##### What is it?
 
@@ -2036,7 +2071,7 @@ Network interruptions in a venue are common — someone trips over a cable, a sw
 
 ##### Why NOT implement (or defer)?
 
-Defer `BindsTo=sys-subsystem-net-devices-<NIC>.device` until item 10 (predictable NIC naming) is complete — using a non-deterministic interface name in a `BindsTo=` directive makes the unit unloadable on hardware where the name changes. The `After=network-online.target` and `ExecStartPre` carrier check have no dependencies and should be implemented immediately.
+Defer `BindsTo=sys-subsystem-net-devices-<NIC>.device` until Items 8 and 9 are complete and the NIC name is reliably known at boot time. The `After=network-online.target` and `ExecStartPre` carrier check have no dependencies and should be implemented immediately.
 
 ##### Implementation notes
 
@@ -2073,6 +2108,8 @@ systemctl status sys-subsystem-net-devices-enp1s0.device
 **Difficulty:** Easy (<2h)  
 **Risk:** Low  
 **Prerequisites:** None  
+
+> **Implementation note:** Carefully curated list only. **DO NOT mask `NetworkManager-wait-online`** — `statime`/PTP depends on network being available. Safe to mask: `plymouth`, `sssd`, `ModemManager`, `bluetooth`, `cups`, `dnf-makecache.timer`. Ensure `statime-inferno.service` has `After=network-online.target`.
 
 ##### What is it?
 
@@ -2139,7 +2176,7 @@ systemd-analyze blame | head -20
 | ID | Title | Importance | Difficulty | Risk | Prerequisites |
 |---|---|---|---|---|---|
 | 40 | Pin base image digest | 🟠 High | Easy (<2h) | Low | None |
-| 41 | Multi-stage Containerfile | 🟢 Low | Medium (half-day) | Low | None |
+| 41 | Multi-stage Containerfile | ❌ Rejected | Medium (half-day) | Low | None |
 | 42 | Reorder Containerfile layers for cache efficiency | 🟠 High | Easy (<2h) | Low | None |
 | 43 | Pass `--build-arg VERSION=$VERSION` | 🟠 High | Easy (<2h) | Low | None |
 | 44 | Generate `BUILD_DATE` and `GIT_SHA` build-args | 🟡 Medium | Easy (<2h) | Low | 43 |
@@ -2207,7 +2244,9 @@ Do not defer unless the build cadence is so frequent and irregular that digest r
 
 #### Item 41 — Multi-Stage Containerfile
 
-**Importance:** 🟢 Low  
+> **❌ REJECTED** — Existing cleanup is sufficient; low gain for bootc images. Maintenance burden of multi-stage builds outweighs benefit.
+
+**Importance:** ❌ Rejected  
 **Impact:** Build tools and branding asset generators are excluded from the final runtime image  
 **Difficulty:** Medium (half-day)  
 **Risk:** Low  
@@ -2265,6 +2304,8 @@ More importantly, multi-stage builds add Containerfile complexity that can confu
 **Difficulty:** Easy (<2h)  
 **Risk:** Low  
 **Prerequisites:** None  
+
+> **Implementation note:** Must be tested after reorder — verify that the DNF layer cache is actually preserved after script/template changes. Do a before/after rebuild-time comparison to confirm the speedup is real.
 
 ##### What is it?
 
@@ -2600,14 +2641,14 @@ Key points:
 |---|---|---|---|---|---|
 | 47 | Cockpit: surface node identity | ✅ Implemented | Easy (<2h) | Low | None |
 | 48 | Health HTTP endpoint | 🟠 High | Easy (<2h) | Low | None |
-| 49 | mDNS alias `inferno.local` | 🟡 Medium | Easy (<2h) | Medium | None |
+| 49 | mDNS alias `inferno.local` | ❌ Rejected | Easy (<2h) | Medium | None |
 | 50 | Upgrade audit log with rollback events | ✅ Implemented | Easy (<2h) | Low | 17 |
 | 51 | Cockpit: `bootc status` panel | ✅ Implemented | Easy (<2h) | Low | None |
 | 52 | Cockpit: one-click rollback button | ✅ Implemented | Medium (half-day) | Medium | 50, 51 |
 | 53 | Cockpit: mode switcher (Spotify ↔ AUX) | ✅ Implemented | Medium (half-day) | Medium | None |
 | 54 | Cockpit: Dante device status | ✅ Implemented | Easy (<2h) | Low | 47 |
 | 55 | Cockpit: PTP clock status | ✅ Implemented | Medium (half-day) | Low | None |
-| 56 | Cockpit: certificate management | 🟡 Medium | Medium (half-day) | Medium | None |
+| 56 | Cockpit: certificate management | ⏸ Deferred | Medium (half-day) | Medium | None |
 
 ---
 
@@ -2717,7 +2758,9 @@ If the environment requires HTTPS-only monitoring, this endpoint would need TLS 
 
 #### Item 49 — mDNS Alias `inferno.local`
 
-**Importance:** 🟡 Medium  
+> **❌ REJECTED** — Dante is inherently multi-node; a static `inferno.local` alias would cause mDNS conflicts when multiple Inferno appliances are on the same LAN.
+
+**Importance:** ❌ Rejected  
 **Impact:** Provides a stable, bookmark-able hostname — no MAC lookup required  
 **Difficulty:** Easy (<2h)  
 **Risk:** Medium  
@@ -2790,7 +2833,9 @@ Defer for multi-appliance LAN environments. For single-appliance studio installs
 
 #### Item 56 — Cockpit: Certificate Management
 
-**Importance:** 🟡 Medium  
+> **⏸ DEFERRED** — Deferred together with Item 32 (Cockpit TLS custom certificate). Implement both together when TLS certificate management is prioritised.
+
+**Importance:** ⏸ Deferred  
 **Impact:** Eliminates browser TLS warnings without requiring SSH or scp  
 **Difficulty:** Medium (half-day)  
 **Risk:** Medium  

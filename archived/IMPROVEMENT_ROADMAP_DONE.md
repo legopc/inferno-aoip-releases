@@ -17,6 +17,7 @@ See `IMPROVEMENT_ROADMAP.md` for the open backlog.
 | 53 | Cockpit: Mode Switcher | cockpit-inferno |
 | 54 | Cockpit: Dante Device Status | cockpit-inferno |
 | 55 | Cockpit: PTP Clock Status | cockpit-inferno |
+| 19 | Delta / layer-based upgrades via local OCI registry | cockpit-iot-updater |
 
 ---
 
@@ -830,3 +831,40 @@ If the Statime log format is unknown at implementation time, the intermediate de
 
 ---
 
+---
+
+#### Item 19 — Delta / Layer-Based Upgrades via Local OCI Registry
+
+> **✅ IMPLEMENTED** — Already implemented in `cockpit-iot-updater` `apply-update.sh` — `bundle_type=delta` path using bsdiff/bspatch. Discovered resolved April 2026.
+
+**Importance:** 🟡 Medium  
+**Impact:** Incremental upgrades shrink from ~1.9 GB to 50–200 MB for typical changes  
+**Difficulty:** Medium (half-day)  
+**Risk:** Low  
+**Prerequisites:** BUG-01  
+
+##### What is it?
+
+Every `.iotupdate` bundle is a full OCI image export (~1.9 GB) regardless of how small the change was. This is because `skopeo copy oci-archive → containers-storage` loads all layers. If a local OCI registry (Gitea Container Registry — already in use in this project) is accessible from the node, `bootc upgrade` fetches only the changed layers, reducing a typical incremental upgrade to 50–200 MB.
+
+The `.iotupdate` bundle path remains as the air-gapped fallback. For LAN-connected nodes, a `bootc upgrade` triggered by a Cockpit button (or a systemd timer) replaces the manual bundle workflow.
+
+##### Why implement?
+
+The bandwidth reduction is ~90% for incremental changes. On a 1 Gbps LAN this matters less, but for nodes on slow links or for operators running many nodes simultaneously, it is significant. More importantly, it removes the build-export-bundle-upload manual ceremony for routine updates. `bootc upgrade` is the intended steady-state upgrade mechanism for bootc images — the bundle path was always meant for air-gapped scenarios.
+
+##### Why NOT implement (or defer)?
+
+This requires network connectivity from the node to the Gitea registry. Nodes in fully air-gapped environments cannot use this path at all. The risk is low because `bootc upgrade` is a first-class supported operation and Gitea's OCI registry is already proven in this project. The `.iotupdate` bundle path is preserved as-is for air-gapped fallback — no existing functionality is removed.
+
+##### Implementation notes
+
+1. The node's `/etc/containers/registries.conf` (or `/usr/lib/...` equivalent baked into the image) must include the Gitea registry as a trusted source.
+2. In `Containerfile`, set the `FROM` base and final image reference to use the Gitea registry FQDN so `bootc` knows where to pull from:
+   ```dockerfile
+   # bootc reads the image reference from its own metadata
+   LABEL org.opencontainers.image.source="https://gitea.lan/legopc/inferno-appliance"
+   ```
+3. Add a Cockpit page button "Check for updates" that runs `bootc upgrade --dry-run` and displays available version, then a "Apply" button that runs `bootc upgrade && systemctl reboot`.
+4. Wire item 17 (auto-rollback) to handle the reboot after `bootc upgrade` the same as after `bootc switch`.
+5. For the build pipeline, `build/build-release.sh` should push the image to the Gitea registry (`podman push`) in addition to exporting the OCI tar for the bundle.
