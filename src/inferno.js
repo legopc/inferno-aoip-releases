@@ -185,6 +185,11 @@ async function loadConfig() {
     updateModeFlow();
     // F-2: snapshot form values so diff modal knows what changed
     _savedConfSnapshot = buildFormSnapshot();
+
+    // Ensure iradio-bridge is stopped if we're not in iradio mode
+    if (currentMode !== "iradio") {
+        spUser("systemctl --user stop iradio-bridge 2>/dev/null; true").catch(function() {});
+    }
 }
 
 function markDirty() {
@@ -541,7 +546,7 @@ function deriveDeviceId(baseId, offset) {
 // ── Internet Radio (iradio-bridge) ALSA setup ──────────────────────────────────
 // Mirrors ensureAuxSetup but writes pcm.inferno_iradio_N blocks (slots 1–4)
 // and a systemd user service unit for iradio-bridge.
-const IRADIO_BRIDGE_BIN   = "/usr/local/bin/iradio-bridge";
+const IRADIO_BRIDGE_BIN   = "/var/home/core/bin/iradio-bridge";
 const IRADIO_CONFIG_DIR   = "/var/home/core/.config/iradio";
 const IRADIO_CONFIG_PATH  = "/var/home/core/.config/iradio/config.toml";
 const IRADIO_SVC_PATH     = "/var/home/core/.config/systemd/user/iradio-bridge.service";
@@ -621,9 +626,8 @@ async function ensureIradioSetup(danteName) {
             "Type=simple\n" +
             "ExecStart=" + IRADIO_BRIDGE_BIN + " --config " + IRADIO_CONFIG_PATH + "\n" +
             "Restart=on-failure\nRestartSec=5\n" +
-            "Environment=RUST_LOG=info\n\n" +
-            "[Install]\n" +
-            "WantedBy=default.target\n";
+            "Environment=RUST_LOG=info\n";
+        // No [Install]/WantedBy — cockpit-inferno manages start/stop explicitly
         await cockpit.file(IRADIO_SVC_PATH).replace(unit);
     }
 
