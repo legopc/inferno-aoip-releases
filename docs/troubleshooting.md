@@ -8,7 +8,7 @@
 ## Quick Reference
 
 ```bash
-# SSH into node (pw: inferno123)
+# SSH into node (default pw: inferno123 — expires on first login, you will be prompted to set a new one)
 ssh core@<node-ip>
 
 # Check all failed units

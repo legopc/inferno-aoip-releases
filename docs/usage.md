@@ -1,5 +1,34 @@
 # Usage Guide
 
+## First Login
+
+After a fresh install the `core` user password is set to `inferno123` but is **expired**. You must change it before you can access the node.
+
+### Via SSH (console or terminal)
+
+```bash
+ssh core@<node-ip>
+# You will immediately be prompted:
+# WARNING: Your password has expired.
+# New password:
+# Retype new password:
+```
+
+Enter `inferno123` as the current password when asked, then set a new one. SSH login completes after the password is changed.
+
+### Via Cockpit
+
+Browse to `https://<node-ip>:9090` and log in with `core` / `inferno123`. Cockpit will present a password change prompt before proceeding to the dashboard.
+
+### Via physical console
+
+Same as SSH — you will be prompted to change the password immediately on first login.
+
+> **Note:** Until the password is changed, no login method will work. This is intentional — it prevents nodes from being permanently accessible with a publicly known credential.
+
+---
+
+
 Access the Inferno panel via Cockpit at `https://<node-ip>:9090` → **Inferno AoIP** in the left sidebar.
 
 The UI is organised into four tabs. **Config** is the default.

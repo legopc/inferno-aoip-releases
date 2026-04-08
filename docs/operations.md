@@ -37,17 +37,17 @@ ssh -i ~/.ssh/inferno_proxmox root@10.10.1.202   # PRX-02
 |------|----|------|-------|
 | dante-doos | 192.168.1.25 | legopc | **Production** — Dante RX → Analog Out, Arch Linux, RTL8111 |
 | 800G2-1 (EliteDesk-01) | 192.168.1.43 | legopc | **Production TX** — Arch Linux, Intel I219-LM, HW PTP ~100ns |
-| 800G3-1 | 192.168.1.46 | core | **Inferno v8 installed** — MAC `18:60:24:24:aa:a8`, NIC `eno1` e1000e, HDA Intel PCH (physical card at index 0, snd-aloop at index 5), Dante TX: `Inferno-24AAA8`, SSH: `core@192.168.1.46` (pw: inferno123) |
+| 800G3-1 | 192.168.1.46 | core | **Inferno v8 installed** — MAC `18:60:24:24:aa:a8`, NIC `eno1` e1000e, HDA Intel PCH (physical card at index 0, snd-aloop at index 5), Dante TX: `Inferno-24AAA8`, SSH: `core@192.168.1.46` (pw: inferno123 — expires on first login, must be changed) |
 | EliteDesk-02 | 192.168.1.47 | legopc | Arch Linux (pre-install), MAC `18:60:24:24:aa:a8`, NIC `eno1` e1000e, 224GB SSD, i5-6500T — **BIOS must be set to UEFI before ISO install** |
-| T470s | 192.168.1.45 | legopc | Bluetooth bridge node, pw: `312858` |
+| T470s | 192.168.1.45 | legopc | Bluetooth bridge node, pw: 312858 |
 
 **SSH (all physical nodes):**
 ```bash
 ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.25   # dante-doos
 ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.43   # EliteDesk-01 (800G2-1)
-ssh -i ~/.ssh/inferno_proxmox core@192.168.1.46   # 800G3-1 (Inferno-24AAA8, pw: inferno123)
+ssh -i ~/.ssh/inferno_proxmox core@192.168.1.46   # 800G3-1 (Inferno-24AAA8, pw: inferno123 — expires on first login)
 ssh -i ~/.ssh/inferno_proxmox legopc@192.168.1.47   # EliteDesk-02 (pre-install)
-ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # T470s (pw: 312858)
+ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # T470s (pw: (redacted — use SSH key)312858)
 ```
 
 ### Proxmox VMs — Inferno Test
@@ -58,8 +58,8 @@ ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # T470s (pw: 312858)
 | 106 | COPILOT-NIXOS-TEST-01 | PRX-02 | 10.10.1.74 | NixOS 24.11 live ISO |
 | 109 | COPILOT-FEDORA-IOT-TEST-02 | PRX-01 | 10.10.1.78 | Fedora IoT 42 — OS only |
 | 110 | COPILOT-FEDORA-IOT-TEST-03 | PRX-01 | 10.10.1.79 | Fedora IoT 42 — Inferno stack |
-| 111 | inferno-eea64f | PRX-01 | 10.10.1.97 (MAC: BC:24:11:EE:A6:4F) | Inferno Appliance bootc image v5 — verified working. Dante TX: `Inferno-EEA64F`. SSH: `core@10.10.1.97` via PRX-01 jump (pw: inferno123) |
-| 112 | COPILOT-BUILD-01 | PRX-02 | 10.10.1.98 | **Dedicated build VM** — 10 vCPU, 24GB RAM, 150GB disk, Ubuntu 24.04. SSH: `copilot@10.10.1.98` (pw: `buildserver`). Key auth added by provision script. |
+| 111 | inferno-eea64f | PRX-01 | 10.10.1.97 (MAC: BC:24:11:EE:A6:4F) | Inferno Appliance bootc image v5 — verified working. Dante TX: `Inferno-EEA64F`. SSH: `core@10.10.1.97` via PRX-01 jump (pw: inferno123 — expires on first login, must be changed) |
+| 112 | COPILOT-BUILD-01 | PRX-02 | 10.10.1.98 | **Dedicated build VM** — 10 vCPU, 24GB RAM, 150GB disk, Ubuntu 24.04. SSH: `copilot@10.10.1.98` (pw: (redacted — use SSH key)`(redacted)`). Key auth added by provision script. |
 
 ### Proxmox VMs — Production (do not touch)
 
@@ -78,12 +78,12 @@ ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # T470s (pw: 312858)
 
 | Resource | Username | Password / Key |
 |----------|----------|----------------|
-| Proxmox root SSH | `root` | key: `~/.ssh/inferno_proxmox` / pw: `Schnitzel-king1` |
-| COPILOT-BUILD-01 (10.10.1.98) | `copilot` | `buildserver` (key auth added by provision script) |
-| Inferno `core` user (VMs/physical) | `core` | `inferno123` |
+| Proxmox root SSH | `root` | key: `~/.ssh/inferno_proxmox` / pw: (redacted — use SSH key)`(redacted)` |
+| COPILOT-BUILD-01 (10.10.1.98) | `copilot` | `(redacted)` (key auth added by provision script) |
+| Inferno `core` user (VMs/physical) | `core` | `inferno123` (expires on first login — must be changed) |
 | LUKS (Fedora IoT VMs) | — | `inferno123` |
 | EliteDesk-01 / T470s | `legopc` | `312858` |
-| All other nodes | `legopc` | `inferno123` |
+| All other nodes | `legopc` | `inferno123` (expires on first login) |
 | Proxmox API token | `root@pam!api_user` | `c8e5c26d-da78-4e38-aa9e-c7a08b363e14` |
 | GitHub account | `legopc` | PAT in `~/copilot_projects/key` (scopes: repo, workflow) |
 
@@ -98,9 +98,9 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILI+T7Koyd+yPIskHka+byxPdg/oQ4Zr7LEoWKI8G/6d
 
 | Interface | URL | Credentials |
 |-----------|-----|-------------|
-| Proxmox Cockpit (PRX-01) | `https://10.10.1.201:9090` | `core` / `inferno123` |
-| Proxmox Cockpit (PRX-02) | `https://10.10.1.202:9090` | `core` / `inferno123` |
-| Inferno Cockpit (node) | `https://<node-ip>:9090` | `core` / `inferno123` |
+| Proxmox Cockpit (PRX-01) | `https://10.10.1.201:9090` | `core` / `inferno123` (expires on first login) |
+| Proxmox Cockpit (PRX-02) | `https://10.10.1.202:9090` | `core` / `inferno123` (expires on first login) |
+| Inferno Cockpit (node) |  |  /  (expires on first login) |
 | Proxmox UI | `https://10.10.1.201:8006` | API token or root |
 | FortiGate | `https://10.10.1.1` | — |
 
@@ -193,7 +193,7 @@ The control-plane subscription succeeds but no audio RTP packets are ever sent, 
 **Immediate fix:**
 ```bash
 # SSH to T470s and restart the Dante TX service
-ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # pw: 312858
+ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # pw: (redacted — use SSH key)312858
 systemctl --user restart inferno-bt-loop
 ```
 Then re-attempt the subscription in Dante Controller. The service reinitializes cleanly with a fresh ring buffer.
@@ -215,7 +215,7 @@ ERROR flows_tx] tx lag of 115702 samples detected, or media clock jumped, dropou
 
 **Immediate fix:** Restart bt-loop manually:
 ```bash
-ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # pw: 312858
+ssh -o StrictHostKeyChecking=no legopc@192.168.1.45  # pw: (redacted — use SSH key)312858
 systemctl --user restart inferno-bt-loop
 ```
 
