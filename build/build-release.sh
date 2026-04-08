@@ -49,7 +49,7 @@ echo ""
 echo "── [1/5] Pulling latest code ──"
 cd "${BUILD_DIR}/inferno-aoip-releases"
 git pull
-git submodule update --init --recursive
+git submodule update --init --recursive --remote
 
 BRANDING_DIR="${BUILD_DIR}/inferno-aoip-releases/branding"
 
