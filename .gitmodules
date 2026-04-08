@@ -7,6 +7,3 @@
 [submodule "iot-updater"]
 	path = iot-updater
 	url = https://github.com/legopc/cockpit-iot-updater
-[submodule "inferno-iradio"]
-	path = inferno-iradio
-	url = https://github.com/legopc/inferno-iradio.git

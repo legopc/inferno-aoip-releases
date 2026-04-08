@@ -43,16 +43,13 @@ jobs:
             pkg-config \
             git
 
-      # ── Checkout this repo with ALL submodules (single source of truth) ────
-      # inferno-iradio, cockpit-inferno, iot-updater, branding are all
-      # submodules — the pinned commit here is what gets built, no ambiguity.
-      - name: Checkout inferno-aoip-releases (with submodules)
+      # ── Checkout this repo (for templates/ and scripts/) ─────────────────
+      - name: Checkout inferno-aoip-releases (templates)
         uses: actions/checkout@v4
         with:
           path: releases-repo
-          submodules: recursive
 
-      # ── Clone external source repos (not managed as submodules) ──────────
+      # ── Clone external source repos (always latest HEAD) ─────────────────
       - name: Clone inferno from GitLab
         run: git clone --recurse-submodules https://gitlab.com/lumifaza/inferno.git
 
@@ -69,6 +66,12 @@ jobs:
         with:
           repository: librespot-org/librespot
           path: librespot
+
+      - name: Clone iradio-bridge
+        uses: actions/checkout@v4
+        with:
+          repository: legopc/inferno-iradio
+          path: inferno-iradio
 
       # ── Build ALSA plugin (.so) ───────────────────────────────────────────
       - name: Build inferno ALSA plugin
@@ -93,9 +96,9 @@ jobs:
             --features "alsa-backend with-libmdns rustls-tls-webpki-roots"
           ls -lh target/release/librespot
 
-      # ── Build iradio-bridge (from submodule — pinned commit) ─────────────
+      # ── Build iradio-bridge ───────────────────────────────────────────────
       - name: Build iradio-bridge
-        working-directory: releases-repo/inferno-iradio
+        working-directory: inferno-iradio
         run: |
           cargo build --release -p iradio-bridge
           ls -lh target/release/iradio-bridge
@@ -112,7 +115,7 @@ jobs:
           INFERNO_SHA=$(git -C inferno rev-parse --short HEAD)
           STATIME_SHA=$(git -C statime rev-parse --short HEAD)
           LIBRESPOT_SHA=$(git -C librespot rev-parse --short HEAD)
-          IRADIO_SHA=$(git -C releases-repo/inferno-iradio rev-parse --short HEAD)
+          IRADIO_SHA=$(git -C inferno-iradio rev-parse --short HEAD)
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "date=${DATE}" >> "$GITHUB_OUTPUT"
           echo "inferno_sha=${INFERNO_SHA}" >> "$GITHUB_OUTPUT"
@@ -129,7 +132,7 @@ jobs:
           cp inferno/target/release/libasound_module_pcm_inferno.so ${STAGE}/lib/
           cp statime/target/release/statime        ${STAGE}/bin/
           cp librespot/target/release/librespot    ${STAGE}/bin/
-          cp releases-repo/inferno-iradio/target/release/iradio-bridge ${STAGE}/bin/
+          cp inferno-iradio/target/release/iradio-bridge ${STAGE}/bin/
           strip ${STAGE}/bin/statime ${STAGE}/bin/librespot ${STAGE}/bin/iradio-bridge \
                 ${STAGE}/lib/libasound_module_pcm_inferno.so
 
