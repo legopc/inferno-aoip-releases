@@ -13,6 +13,20 @@
 #   fedora-bootc:43 = standard Fedora 43 with bootc support (atomic updates)
 #   Uses dnf for packages (no rpm-ostree parsec/dbus-parsec dependency)
 #   Result is a bootc-managed system — atomic updates via 'bootc upgrade'
+#
+# Layer order (cache-optimised — most stable layers first):
+#   1. FROM (pinned SHA)
+#   2. Packages (expensive, rarely changes)
+#   3. Directory structure (stable)
+#   4. Static system config: snd-aloop, journald, RT kargs (stable)
+#   5. Service wiring: systemctl enable/mask/set-default (stable)
+#   6. Core user (stable)
+#   ── cache bust boundary — content that changes per release ──
+#   7. Download release binaries (changes each CI release)
+#   8. COPY templates, branding, cockpit page, systemd units, scripts
+#   9. COPY iot-updater submodule
+#  10. SELinux relabel (always after all COPY layers)
+#  11. OCI labels (always last — contains per-build values)
 
 FROM registry.fedoraproject.org/fedora-bootc:43@sha256:30ef5d8b43866e2764b54821dc5c48f33ba154b9bc3799730c9ae8ca9e2e3f69
 
@@ -56,6 +70,71 @@ RUN mkdir -p \
     /usr/local/lib/inferno \
     /etc/inferno/systemd/user \
     /etc/alsa/conf.d
+
+# ── snd-aloop kernel module (pinned to card 10 — avoids card number conflicts) ─
+RUN echo "options snd-aloop index=10" > /etc/modprobe.d/snd-aloop.conf && \
+    echo "snd-aloop" > /etc/modules-load.d/snd-aloop.conf
+
+# ── journald log size cap ─────────────────────────────────────────────────────
+# Prevent logs from filling the disk on headless nodes (default: unlimited).
+RUN mkdir -p /etc/systemd/journald.conf.d && \
+    printf '[Journal]\nSystemMaxUse=512M\n' \
+      > /etc/systemd/journald.conf.d/inferno.conf
+
+# ── RT scheduling tuning ──────────────────────────────────────────────────────
+# The Fedora 43 kernel uses CONFIG_PREEMPT_DYNAMIC. Its default runtime mode is
+# 'lazy'; preempt=full switches to full kernel preemption (all code paths
+# preemptible, equivalent to compiling with CONFIG_PREEMPT=y). threadirqs moves
+# threaded IRQ handlers out of hard-IRQ context. Both reduce worst-case
+# scheduling jitter — directly improving PTP clock stability in statime.
+# No packages added; no COPR; reversed trivially by bootc rollback.
+# The @realtime group limits (rtprio 99, memlock unlimited) raise the ceiling
+# for processes that explicitly request RT scheduling. Written manually rather
+# than via the realtime-setup rpm to avoid a systemd-sysusers conflict caused
+# by that rpm's %post writing /etc/gshadow without a matching /etc/group entry.
+RUN mkdir -p /usr/lib/bootc/kargs.d /usr/lib/sysusers.d /etc/security/limits.d && \
+    echo 'kargs = ["preempt=full", "threadirqs", "cpufreq.default_governor=performance"]' \
+      > /usr/lib/bootc/kargs.d/99-rt.toml && \
+    echo 'g realtime 71' \
+      > /usr/lib/sysusers.d/realtime-setup.conf && \
+    printf '@realtime - rtprio 99\n@realtime - memlock unlimited\n' \
+      > /etc/security/limits.d/realtime.conf
+
+# ── Enable system services ─────────────────────────────────────────────────────
+RUN systemctl enable \
+    sshd \
+    cockpit.socket \
+    avahi-daemon \
+    statime-inferno \
+    inferno-configure \
+    inferno-health-check
+
+# ── Mask conflicting time sync services (PTP manages the clock) ───────────────
+RUN systemctl mask systemd-timesyncd chronyd ntpd
+
+# ── Default target (fedora-bootc:43 defaults to graphical — force headless) ───
+RUN systemctl set-default multi-user.target
+
+# ── core user ─────────────────────────────────────────────────────────────────
+# Login: core / inferno123  (console, SSH, Cockpit web UI at https://node:9090)
+RUN mkdir -p /var/home && \
+    useradd -m -d /var/home/core -G wheel -s /bin/bash core && \
+    echo "core:inferno123" | chpasswd && \
+    echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd && \
+    # Add core to audio group so user services can open /dev/snd/* (crw-rw---- root:audio).
+    # On Fedora bootc, the audio group (GID 63) lives in /usr/lib/group (immutable system layer).
+    # groupadd sees it via NSS and refuses with "already exists", so usermod never writes
+    # membership to /etc/group. The deployed node then has no audio entry in /etc/group,
+    # causing inferno-bridge and librespot to fail with "No such device" on /dev/snd/*.
+    # Fix: write directly to /etc/group, bypassing groupadd entirely.
+    sed -i '/^audio:/d' /etc/group && echo 'audio:x:63:core' >> /etc/group && \
+    # Pre-enable lingering so systemd starts the core user session from the very first boot.
+    # Without this, loginctl enable-linger (called in inferno-configure.sh) creates the
+    # lingering session for the first time on boot 2 — at that point the audio group is not
+    # yet effective in the new session, causing inferno-bridge to fail (ALSA permission denied).
+    # Pre-creating the linger file means the session already exists by the time configure runs,
+    # so boot 3 (the first normal boot) starts the session with correct group membership.
+    mkdir -p /var/lib/systemd/linger && touch /var/lib/systemd/linger/core
 
 # ── Download release binaries (built nightly by CI) ───────────────────────────
 # Tarball contains: bin/statime, bin/librespot, bin/iradio-bridge,
@@ -109,35 +188,6 @@ COPY templates/systemd/user/inferno-aux-tx.service      /etc/inferno/systemd/use
 COPY templates/systemd/user/inferno-aux-rx.service      /etc/inferno/systemd/user/
 COPY templates/systemd/user/inferno-aux-keepalive.service /etc/inferno/systemd/user/
 
-# ── snd-aloop kernel module (pinned to card 10 — avoids card number conflicts) ─
-RUN echo "options snd-aloop index=10" > /etc/modprobe.d/snd-aloop.conf && \
-    echo "snd-aloop" > /etc/modules-load.d/snd-aloop.conf
-
-# ── journald log size cap ─────────────────────────────────────────────────────
-# Prevent logs from filling the disk on headless nodes (default: unlimited).
-RUN mkdir -p /etc/systemd/journald.conf.d && \
-    printf '[Journal]\nSystemMaxUse=512M\n' \
-      > /etc/systemd/journald.conf.d/inferno.conf
-
-# ── RT scheduling tuning ──────────────────────────────────────────────────────
-# The Fedora 43 kernel uses CONFIG_PREEMPT_DYNAMIC. Its default runtime mode is
-# 'lazy'; preempt=full switches to full kernel preemption (all code paths
-# preemptible, equivalent to compiling with CONFIG_PREEMPT=y). threadirqs moves
-# threaded IRQ handlers out of hard-IRQ context. Both reduce worst-case
-# scheduling jitter — directly improving PTP clock stability in statime.
-# No packages added; no COPR; reversed trivially by bootc rollback.
-# The @realtime group limits (rtprio 99, memlock unlimited) raise the ceiling
-# for processes that explicitly request RT scheduling. Written manually rather
-# than via the realtime-setup rpm to avoid a systemd-sysusers conflict caused
-# by that rpm's %post writing /etc/gshadow without a matching /etc/group entry.
-RUN mkdir -p /usr/lib/bootc/kargs.d /usr/lib/sysusers.d /etc/security/limits.d && \
-    echo 'kargs = ["preempt=full", "threadirqs", "cpufreq.default_governor=performance"]' \
-      > /usr/lib/bootc/kargs.d/99-rt.toml && \
-    echo 'g realtime 71' \
-      > /usr/lib/sysusers.d/realtime-setup.conf && \
-    printf '@realtime - rtprio 99\n@realtime - memlock unlimited\n' \
-      > /etc/security/limits.d/realtime.conf
-
 # ── First-boot configuration service ──────────────────────────────────────────
 # Detects NIC/MAC, derives DEVICE_ID, substitutes placeholders,
 # sets up core user environment. Runs once (gated on /etc/inferno.conf absent).
@@ -157,42 +207,6 @@ RUN chmod +x /usr/local/sbin/inferno-health-check.sh
 COPY scripts/bench/ /usr/local/sbin/inferno-bench/
 RUN chmod +x /usr/local/sbin/inferno-bench/*.sh && \
     ln -s /usr/local/sbin/inferno-bench/inferno-bench.sh /usr/local/bin/inferno-bench
-
-# ── Enable system services ─────────────────────────────────────────────────────
-RUN systemctl enable \
-    sshd \
-    cockpit.socket \
-    avahi-daemon \
-    statime-inferno \
-    inferno-configure \
-    inferno-health-check
-
-# ── Mask conflicting time sync services (PTP manages the clock) ───────────────
-RUN systemctl mask systemd-timesyncd chronyd ntpd
-
-# ── Default target (fedora-bootc:43 defaults to graphical — force headless) ───
-RUN systemctl set-default multi-user.target
-
-# ── core user ─────────────────────────────────────────────────────────────────
-# Login: core / inferno123  (console, SSH, Cockpit web UI at https://node:9090)
-RUN mkdir -p /var/home && \
-    useradd -m -d /var/home/core -G wheel -s /bin/bash core && \
-    echo "core:inferno123" | chpasswd && \
-    echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd && \
-    # Add core to audio group so user services can open /dev/snd/* (crw-rw---- root:audio).
-    # On Fedora bootc, the audio group (GID 63) lives in /usr/lib/group (immutable system layer).
-    # groupadd sees it via NSS and refuses with "already exists", so usermod never writes
-    # membership to /etc/group. The deployed node then has no audio entry in /etc/group,
-    # causing inferno-bridge and librespot to fail with "No such device" on /dev/snd/*.
-    # Fix: write directly to /etc/group, bypassing groupadd entirely.
-    sed -i '/^audio:/d' /etc/group && echo 'audio:x:63:core' >> /etc/group && \
-    # Pre-enable lingering so systemd starts the core user session from the very first boot.
-    # Without this, loginctl enable-linger (called in inferno-configure.sh) creates the
-    # lingering session for the first time on boot 2 — at that point the audio group is not
-    # yet effective in the new session, causing inferno-bridge to fail (ALSA permission denied).
-    # Pre-creating the linger file means the session already exists by the time configure runs,
-    # so boot 3 (the first normal boot) starts the session with correct group membership.
-    mkdir -p /var/lib/systemd/linger && touch /var/lib/systemd/linger/core
 
 # ── Cockpit IoT Updater — baked in (v9+) ──────────────────────────────────────
 # Provides the web UI for delivering OCI update bundles (~2 GB) via Cockpit.
