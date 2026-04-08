@@ -2,7 +2,7 @@
 
 > **Document type:** Engineering review and improvement backlog  
 > **Scope:** Fedora bootc appliance (installer, first-boot, runtime, upgrade, build pipeline, operations)  
-> **Total items:** 58 (1 bug fix + 57 improvements) — 26 resolved, 7 rejected, 5 deferred, 20 active  
+> **Total items:** 58 (1 bug fix + 57 improvements) — 30 resolved, 7 rejected, 5 deferred, 16 active  
 > **Generated:** April 2026  
 
 > Resolved items archived in [archived/IMPROVEMENT_ROADMAP_DONE.md](archived/IMPROVEMENT_ROADMAP_DONE.md)
@@ -31,7 +31,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 8 | Hardware | NIC Carrier Check | 🔴 Critical | Easy (<2h) | Low | None |
 | 26 | Security | Default Password Policy | 🔴 Critical | Easy (<2h) | Low | None |
 | 31 | Security | SELinux: `restorecon` After Custom File Copies | ✅ Implemented | Easy (<2h) | Low | None |
-| 33 | RT/Reliability | Hardware Watchdog | 🔴 Critical | Easy (<2h) | Low | None |
+| 33 | RT/Reliability | Hardware Watchdog | ✅ Implemented| Easy (<2h) | Low | None |
 | 45 | Build | Clean Up `output-vN/` Directories After Build | ✅ Implemented| Easy (<2h) | Low | None |
 | 2 | Install | Dynamic Disk Selection in Kickstart | ❌ Rejected | Easy (<2h) | Medium | Item 1 |
 | 6 | Install | `multi-user.target` as Default | ✅ Implemented | Easy (<2h) | Low | None |
@@ -40,10 +40,10 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 12 | Hardware | Hardware PTP Auto-Reporting | 🔴 Critical | Easy (<2h) | Low | Item 8 |
 | 27 | Security | SSH: Disable Password Authentication | ❌ Rejected | Easy (<2h) | Medium | Item 26 |
 | 28 | Security | Firewalld: Configure in the Containerfile | ❌ Rejected | Easy (<2h) | Low | None |
-| 34 | RT/Reliability | Service Dependency: `ConditionPathExists=/etc/inferno.conf` | 🟠 High | Easy (<2h) | Low | None |
+| 34 | RT/Reliability | Service Dependency: `ConditionPathExists=/etc/inferno.conf` | ✅ Implemented| Easy (<2h) | Low | None |
 | 35 | RT/Reliability | journald Log Size Limit | ✅ Implemented | Easy (<2h) | Low | None |
-| 36 | RT/Reliability | `LimitMEMLOCK=infinity` for RT Services | 🟠 High | Easy (<2h) | Low | None |
-| 39 | RT/Reliability | Boot: Mask Unnecessary Fedora Services | 🟠 High | Easy (<2h) | Low | None |
+| 36 | RT/Reliability | `LimitMEMLOCK=infinity` for RT Services | ✅ Implemented| Easy (<2h) | Low | None |
+| 39 | RT/Reliability | Boot: Mask Unnecessary Fedora Services | ✅ Implemented| Easy (<2h) | Low | None |
 | 40 | Build | Pin Base Image Digest | ✅ Implemented | Easy (<2h) | Low | None |
 | 42 | Build | Reorder Containerfile Layers for Cache Efficiency | ✅ Implemented| Easy (<2h) | Low | None |
 | 43 | Build | Pass `--build-arg VERSION=$VERSION` | ✅ Implemented| Easy (<2h) | Low | None |
@@ -1332,7 +1332,9 @@ ausearch -m avc -ts recent | grep inferno
 
 ---
 
-#### Item 33 — Hardware Watchdog
+#### Item 33 —
+
+> ✅ **Implemented** — Sprint 3, commit `f1a02bf` (`inferno-aoip-releases`) Hardware Watchdog
 
 **Importance:** 🔴 Critical  
 **Impact:** A kernel freeze or deadlock reboots the appliance automatically instead of leaving it silently dead  
@@ -1387,7 +1389,9 @@ If `/dev/watchdog0` exists but the module is not auto-loaded, add `iTCO_wdt` or 
 
 ---
 
-#### Item 34 — Service Dependency: `ConditionPathExists=/etc/inferno.conf`
+#### Item 34 —
+
+> ✅ **Implemented** — Sprint 3, commit `f1a02bf` (`inferno-aoip-releases`) Service Dependency: `ConditionPathExists=/etc/inferno.conf`
 
 **Importance:** 🟠 High  
 **Impact:** Services no longer start with unsubstituted `%%PLACEHOLDER%%` values if first-boot configuration has not yet completed  
@@ -1496,7 +1500,9 @@ journalctl --vacuum-size=512M --vacuum-time=30d
 
 ---
 
-#### Item 36 — `LimitMEMLOCK=infinity` for RT Services
+#### Item 36 —
+
+> ✅ **Implemented** — Sprint 3, commit `f1a02bf` (`inferno-aoip-releases`) `LimitMEMLOCK=infinity` for RT Services
 
 **Importance:** 🟠 High  
 **Impact:** Inferno and Statime can lock their memory pages, preventing page faults that cause audio glitches under load  
@@ -1613,7 +1619,9 @@ systemctl status sys-subsystem-net-devices-enp1s0.device
 
 ---
 
-#### Item 39 — Boot: Mask Unnecessary Fedora Services
+#### Item 39 —
+
+> ✅ **Implemented** — Sprint 3, commit `f1a02bf` (`inferno-aoip-releases`) Boot: Mask Unnecessary Fedora Services
 
 **Importance:** 🟠 High  
 **Impact:** Boot time drops by 15–45 seconds; resource contention during audio startup is eliminated  
