@@ -630,7 +630,8 @@ async function ensureIradioSetup(danteName) {
     return needsAlsa;
 }
 
-
+async function ensureAuxSetup(cardIn, cardIn2, cardOut, cardOut2, txCh, rxCh, danteName) {
+    var asoundText = await cockpit.file(ASOUNDRC).read() || "";
     var needsAlsa  = !asoundText.includes("pcm.inferno_aux_tx");
 
     var bindIpMatch    = asoundText.match(/BIND_IP\s+(\S+)/);
