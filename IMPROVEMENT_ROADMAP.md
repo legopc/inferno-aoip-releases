@@ -2,7 +2,7 @@
 
 > **Document type:** Engineering review and improvement backlog  
 > **Scope:** Fedora bootc appliance (installer, first-boot, runtime, upgrade, build pipeline, operations)  
-> **Total items:** 100 (7 bug fixes + 93 improvements) — 30 resolved, 7 rejected, 5 deferred, 58 active  
+> **Total items:** 115 (7 bug fixes + 108 improvements) — 30 resolved, 7 rejected, 5 deferred, 73 active  
 > **Generated:** April 2026  
 
 > Resolved items archived in [archived/IMPROVEMENT_ROADMAP_DONE.md](archived/IMPROVEMENT_ROADMAP_DONE.md)
@@ -125,6 +125,21 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 94 | First-boot | librespot Cache Size Limit | 🟢 Low | Easy (<2h) | Low | None |
 | 95 | Operations | Cockpit Configuration Export/Import | 🟡 Medium | Medium (half-day) | Low | None |
 | 96 | Operations | Cockpit In-App Help / Troubleshooting Runbook | 🟡 Medium | Medium (half-day) | Low | None |
+| 97 | RT / Reliability | Disable RT Throttling (`sched_rt_runtime_us=-1`) | 🟠 High | Easy | Low | None |
+| 98 | RT / Reliability | RT CPU Isolation (`isolcpus` + `nohz_full` + `rcu_nocbs`) | 🟠 High | Medium | Medium | 97, 108 |
+| 99 | RT / Reliability | NIC Interrupt Pinning Away from RT CPUs | 🟡 Medium | Medium | Medium | 98 |
+| 100 | Hardware Detection | Hardware PTP Timestamping Enforcement | 🔴 Critical | Easy | Low | None |
+| 101 | Network / Dante | PTP `priority1 = 255` Slave-Only Enforcement | 🟡 Medium | Easy | Low | None |
+| 102 | Network / Dante | IGMP Multicast Group Membership for Dante | 🟡 Medium | Easy | Low | None |
+| 103 | RT / Reliability | NIC TX Queue and Ring Buffer Tuning | 🟡 Medium | Easy | Low | None |
+| 104 | Upgrades | bootc Switch Rollback via `FailureAction=` | 🟠 High | Easy | Low | None |
+| 105 | Security | Cockpit CSP Hardening (Remove `unsafe-inline`) | 🟠 High | Easy | Low | None |
+| 106 | Security | `statime-inferno.service` Capability Sandboxing | 🟠 High | Easy | Medium | None |
+| 107 | RT / Reliability | `WatchdogSec=` for Critical Audio Services | 🟠 High | Medium | Low | None |
+| 108 | Build Pipeline | `/usr/lib/bootc/kargs.d/` for Declarative Kernel Args | 🟡 Medium | Easy | Low | None |
+| 109 | Security | Bundle Manifest `valid_from` Anti-Replay | 🟡 Medium | Medium | Low | 63 |
+| 110 | Security | SELinux Policy Module for `inferno_aoip` | 🟡 Medium | Hard | Medium | BUG-05, 59, 106 |
+| 111 | Developer Experience | `cockpit.transport.wait()` for Plugin Init | 🟡 Medium | Easy | Low | None |
 
 ## Where to Start
 
@@ -152,6 +167,12 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 8. **Item 59 — `restorecon` for User Home Dir** — same fix as BUG-05, confirmed path in `inferno-configure.sh`; one-liner after `chown -R core:core`.
 9. **Item 62 — Restrict `sudo` to Specific Commands** — High+Easy: scope NOPASSWD sudo grant from `ALL` to a specific whitelist; eliminates the broadest attack vector if Cockpit is compromised.
 10. **Item 63 — Enable OTA Bundle Signature Enforcement by Default** — High+Easy: flip one env var default from `0` to `1`; signature infrastructure already exists.
+11. **Item 97 — Disable RT Throttling (`sched_rt_runtime_us=-1`)** — High+Easy: one sysctl file prevents kernel from preempting statime for 50ms/s; single highest-leverage RT tuning available.
+12. **Item 100 — Hardware PTP Timestamping Enforcement** — Critical+Easy: verify HW timestamps are active at configure time; silent SW fallback is the leading cause of poor PTP accuracy.
+13. **Item 101 — PTP `priority1 = 255`** — Medium+Easy: one-line change prevents Inferno from accidentally becoming PTP grandmaster on a quiet network.
+14. **Item 104 — bootc Rollback via `FailureAction=`** — High+Easy: closes the gap where hard-lock before multi-user.target leaves no rollback path.
+15. **Item 105 — Cockpit CSP `unsafe-inline` removal** — High+Easy: eliminates CSS injection XSS vector in Cockpit plugins.
+16. **Item 106 — statime Capability Sandboxing** — High+Easy: strip 35+ unnecessary Linux capabilities from PTP daemon.
 
 ### Recommended Sequencing
 
@@ -3903,6 +3924,492 @@ Cockpit reads `/var/lib/inferno/monitor-status.json` and renders the PTP card wi
 
 ---
 
+## RT / Reliability — Web Research Additions (Session 2)
+
+### Summary Table
+
+| # | Title | Importance | Difficulty | Risk | Prerequisites |
+|---|-------|------------|------------|------|---------------|
+| 97 | Disable RT Throttling (`sched_rt_runtime_us=-1`) | 🟠 High | Easy | Low | None |
+| 98 | RT CPU Isolation (`isolcpus` + `nohz_full` + `rcu_nocbs`) | 🟠 High | Medium | Medium | 97 |
+| 99 | NIC Interrupt Pinning Away from RT CPUs | 🟡 Medium | Medium | Medium | 98 |
+| 100 | Hardware PTP Timestamping Enforcement | 🔴 Critical | Easy | Low | None |
+| 101 | PTP `priority1 = 255` Slave-Only Enforcement | 🟡 Medium | Easy | Low | None |
+| 102 | IGMP Multicast Group Membership for Dante | 🟡 Medium | Easy | Low | None |
+| 103 | NIC TX Queue and Ring Buffer Tuning | 🟡 Medium | Easy | Low | None |
+| 104 | bootc Switch Rollback via `FailureAction=` | 🟠 High | Easy | Low | None |
+| 105 | Cockpit CSP Hardening (Remove `unsafe-inline`) | 🟠 High | Easy | Low | None |
+| 106 | `statime-inferno.service` Capability Sandboxing | 🟠 High | Easy | Medium | None |
+| 107 | `WatchdogSec=` for Critical Audio Services | 🟠 High | Medium | Low | None |
+| 108 | `/usr/lib/bootc/kargs.d/` for All Kernel Args | 🟡 Medium | Easy | Low | None |
+| 109 | Bundle Manifest `valid_from` Anti-Replay | 🟡 Medium | Medium | Low | 63 |
+| 110 | SELinux Policy Module for `inferno_aoip` | 🟡 Medium | Hard | Medium | BUG-05, 59 |
+| 111 | `cockpit.transport.wait()` for Plugin Init | 🟡 Medium | Easy | Low | None |
+
+---
+
+#### Item 97 — Disable RT Throttling (`sched_rt_runtime_us=-1`)
+
+**Importance:** 🟠 High  
+**Impact:** Prevents kernel from preempting SCHED_FIFO statime — eliminates 50ms/s forced pauses that cause PTP jitter spikes  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+Linux's default `sched_rt_runtime_us=950000` throttles SCHED_FIFO processes to 95% of CPU to prevent starvation. statime runs at FIFO priority 80; under default settings it can be involuntarily preempted for 50ms every second — catastrophic for IEEE 1588 PTP synchronisation. Setting this to `-1` disables throttling entirely for RT processes.
+
+##### Why implement?
+PTP synchronisation requires sub-millisecond timing consistency. The 50ms preemption window under default throttling is 50× larger than acceptable PTP jitter. Combined with PREEMPT_DYNAMIC/full, disabling RT throttling is the single highest-leverage software tuning available without a PREEMPT_RT kernel.
+
+##### Why NOT implement (or defer)?
+A runaway SCHED_FIFO process with `sched_rt_runtime_us=-1` can starve all non-RT workloads completely. Only safe because inferno services are well-understood and not susceptible to infinite loops.
+
+##### Implementation notes
+Add to `Containerfile`:
+```dockerfile
+RUN echo 'kernel.sched_rt_runtime_us = -1' > /etc/sysctl.d/99-rt-audio.conf && \
+    echo 'kernel.sched_rt_period_us = 1000000' >> /etc/sysctl.d/99-rt-audio.conf && \
+    echo 'net.core.rmem_max = 16777216' >> /etc/sysctl.d/99-rt-audio.conf && \
+    echo 'net.core.wmem_max = 16777216' >> /etc/sysctl.d/99-rt-audio.conf && \
+    echo 'net.core.netdev_max_backlog = 300000' >> /etc/sysctl.d/99-rt-audio.conf
+```
+The `rmem_max`/`wmem_max` additions prevent UDP audio receive buffer drops at the NIC ring. Already partially addressed by existing Item 36 (`LimitMEMLOCK`) but this is the kernel-level complement.
+
+---
+
+#### Item 98 — RT CPU Isolation (`isolcpus` + `nohz_full` + `rcu_nocbs`)
+
+**Importance:** 🟠 High  
+**Impact:** Reduces PTP jitter by an order of magnitude by dedicating 1-2 cores exclusively to RT workloads  
+**Difficulty:** Medium  
+**Risk:** Medium  
+**Prerequisites:** Item 97, Item 108
+
+##### What is it?
+Even with `preempt=full` and `threadirqs`, kernel ticks (`HZ=250`) and RCU callbacks still interrupt all CPUs including ones running RT tasks. `isolcpus` removes specified CPUs from the scheduler's general pool; `nohz_full` makes those CPUs tickless; `rcu_nocbs` offloads RCU callbacks. The HP EliteDesk Mini has 4–8 cores — dedicating cores 2-3 to RT tasks is practical.
+
+##### Why implement?
+With CPU isolation, cyclictest P99 latency on Fedora drops from ~200µs to ~20µs. For PTP, this means consistently sub-100µs offset rather than occasional 500µs spikes under load.
+
+##### Why NOT implement (or defer)?
+Requires knowing the CPU topology of all target hardware. A 2-core system would leave 0 cores for non-RT work. Needs dynamic detection of core count in `inferno-configure.sh`. Previously deferred as Item 37 for this reason — now that EliteDesk is established target hardware, risk is lower.
+
+##### Implementation notes
+```toml
+# /usr/lib/bootc/kargs.d/99-rt-isolation.toml (Item 108 prerequisite)
+kargs = [
+  "isolcpus=nohz,domain,managed_irq:2-3",
+  "nohz_full=2-3",
+  "rcu_nocbs=2-3",
+  "rcu_nocb_poll"
+]
+```
+Add CPU count check to `inferno-configure.sh`: only write this kargs file if `nproc >= 4`. Pin statime to isolated CPUs via `ExecStart=/usr/bin/taskset -c 2-3 /usr/bin/statime ...` in unit file.
+
+---
+
+#### Item 99 — NIC Interrupt Pinning Away from RT CPUs
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents NIC IRQ handler from running on RT-isolated CPUs during PTP timestamp exchanges  
+**Difficulty:** Medium  
+**Risk:** Medium  
+**Prerequisites:** Item 98
+
+##### What is it?
+`threadirqs` makes IRQs run as kernel threads (good), but `irqbalance` migrates them freely — including onto RT-isolated CPUs. A NIC interrupt landing on CPU 2 during a PTP hardware timestamp exchange introduces unbounded jitter. The fix is to mask `irqbalance` and manually pin NIC IRQs to non-isolated CPUs.
+
+##### Why implement?
+Even with `isolcpus`, unmanaged IRQ migration can breach isolation boundaries. IRQ pinning is the standard complement to CPU isolation in RT audio workloads.
+
+##### Why NOT implement (or defer)?
+Manual IRQ pinning via `/proc/irq/*/smp_affinity` is fragile across driver updates and reboots. NetworkManager restarting the interface can reset IRQ assignments. Requires careful implementation.
+
+##### Implementation notes
+```bash
+# inferno-configure.sh — after NIC detection, if CPU isolation is active
+if [ "$(nproc)" -ge 4 ]; then
+  systemctl mask irqbalance 2>/dev/null || true
+  for irq in $(ls /sys/class/net/"$INFERNO_NIC"/device/msi_irqs/ 2>/dev/null); do
+    echo "3" > /proc/irq/$irq/smp_affinity  # CPUs 0-1 only (bitmask 0x3)
+  done
+fi
+```
+Add a `NetworkManager` dispatcher script to re-apply on interface up events.
+
+---
+
+#### Item 100 — Hardware PTP Timestamping Enforcement
+
+**Importance:** 🔴 Critical  
+**Impact:** Guarantees sub-microsecond PTP precision on supporting NICs; provides clear diagnostic when hardware timestamping is unavailable  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+`inferno-configure.sh` detects hardware PTP capability (Item 12) but `inferno-ptpv1.toml` uses `hardware-clock = "auto"` — silently falling back to software timestamps if hardware timestamps fail. Software PTP timestamps have 10-100× worse accuracy. There's no log entry or health status to indicate which mode is active.
+
+##### Why implement?
+On NICs that support hardware timestamping (Intel i210, i219, I225 — all common in EliteDesk hardware), software fallback represents a massive quality regression with zero operator visibility. Inferno nodes that silently fall back to SW timestamps will have noticeably worse Dante audio quality but no obvious cause.
+
+##### Why NOT implement (or defer)?
+Some deployment NICs genuinely don't support hardware timestamping. Hard-failing would block deployment on those nodes. Must warn clearly but not block.
+
+##### Implementation notes
+```bash
+# inferno-configure.sh — extend existing HW_PTP detection block
+if [ "${HW_PTP_AVAILABLE:-no}" = "yes" ]; then
+    PTP_DEV=$(ls /sys/class/net/"$INFERNO_NIC"/device/ptp/ 2>/dev/null | head -1)
+    if test -c "/dev/${PTP_DEV:-ptpX}"; then
+        echo "HW_PTP_DEVICE=/dev/$PTP_DEV" >> /etc/inferno.conf
+        ethtool -T "$INFERNO_NIC" 2>/dev/null | grep -q "hardware-transmit" && \
+            echo "✓ Hardware PTP timestamps confirmed on $INFERNO_NIC" || \
+            echo "WARNING: NIC reports PTP support but hardware-transmit not listed"
+    else
+        echo "WARNING: HW PTP claimed but /dev/$PTP_DEV not accessible — using SW timestamps"
+    fi
+fi
+```
+Surface `HW_PTP_DEVICE` value in Cockpit Services tab PTP card.
+
+---
+
+#### Item 101 — PTP `priority1 = 255` Slave-Only Enforcement
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents Inferno from accidentally winning PTP grandmaster election on a network with no other Dante master  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+`templates/inferno-ptpv1.toml` uses `priority1 = 251`. IEEE 1588 BMCA: `priority1 = 255` means "never become master" — the device explicitly refuses grandmaster election. At 251, if no other Dante device is visible, Inferno could win the BMCA election and become grandmaster with its unsynchronised free-running clock, causing every other Dante device to slew to an incorrect time reference.
+
+##### Why implement?
+Inferno is a Dante endpoint/bridge, not a grandmaster clock. It should never be selected as PTP master. A professional install that loses its Dante grandmaster clock should not silently fall back to Inferno's local clock — it should log a fault.
+
+##### Why NOT implement (or defer)?
+In a standalone single-node test setup, `priority1=255` means the node never has a master. statime should handle this gracefully (not crash), but behaviour should be verified.
+
+##### Implementation notes
+One-line change in `templates/inferno-ptpv1.toml`:
+```toml
+priority1 = 255   # slave-only: never win BMCA grandmaster election
+priority2 = 255   # belt-and-suspenders
+```
+Verify statime handles no-master condition gracefully before deploying.
+
+---
+
+#### Item 102 — IGMP Multicast Group Membership for Dante
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents Dante control traffic drops on managed switches with IGMP snooping enabled  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+Dante control uses multicast groups `224.0.0.107` and `224.0.1.129`. On managed switches with IGMP snooping, the switch only forwards multicast frames to ports that have explicitly joined the group. NetworkManager reconfiguring the interface (e.g. DHCP renewal) can silently drop multicast group memberships, causing Dante discovery to stop working until the next restart.
+
+##### Why implement?
+Dante "no devices" issues on managed-switch environments are often caused by dropped IGMP memberships. This is a low-effort fix that prevents an entire class of discovery failures in professional AV installs.
+
+##### Why NOT implement (or defer)?
+On unmanaged switches (the majority of home/small installs), IGMP snooping is not active and this change has no effect. Low risk.
+
+##### Implementation notes
+```bash
+# inferno-configure.sh — after NIC detection
+ip addr add 224.0.0.107 dev "$INFERNO_NIC" autojoin 2>/dev/null || true
+ip addr add 224.0.1.129 dev "$INFERNO_NIC" autojoin 2>/dev/null || true
+```
+Add NetworkManager dispatcher to re-join on interface-up events:
+```bash
+# /etc/NetworkManager/dispatcher.d/50-inferno-multicast
+#!/bin/bash
+[ "$1" = "$(cat /etc/inferno.conf | grep INFERNO_NIC | cut -d= -f2)" ] || exit 0
+[ "$2" = "up" ] || exit 0
+ip addr add 224.0.0.107 dev "$1" autojoin 2>/dev/null || true
+ip addr add 224.0.1.129 dev "$1" autojoin 2>/dev/null || true
+```
+
+---
+
+#### Item 103 — NIC TX Queue and Ring Buffer Tuning
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents audio UDP packet drops during multichannel Dante streaming bursts  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+Default Linux NIC transmit queue length is 1000 packets. Multi-channel Dante sends many simultaneous UDP audio frames per millisecond; a burst from the ALSA plugin can overflow the queue and silently drop packets. Ring buffer defaults (typically 256 descriptors RX/TX) are also undersized for Dante traffic patterns. Ethtool coalescing defaults optimise for throughput, not latency.
+
+##### Why implement?
+Simple ethtool/ip tuning with no kernel changes. Directly addresses the root cause of intermittent audio glitches under load that aren't explained by PTP jitter.
+
+##### Why NOT implement (or defer)?
+`ethtool` is not currently in the Containerfile dependencies — needs to be added. Coalescing changes (`rx-usecs 50`) reduce throughput-optimised coalescing and slightly increase CPU IRQ rate.
+
+##### Implementation notes
+```bash
+# inferno-configure.sh — after NIC detection
+ip link set dev "$INFERNO_NIC" txqueuelen 10000
+ethtool -G "$INFERNO_NIC" rx 4096 tx 4096 2>/dev/null || true
+ethtool -C "$INFERNO_NIC" rx-usecs 50 tx-usecs 50 2>/dev/null || true
+```
+Add `ethtool` to `Containerfile` dnf install line. Add `|| true` to all ethtool calls — some NICs don't support all parameters.
+
+---
+
+#### Item 104 — bootc Switch Rollback via `FailureAction=`
+
+**Importance:** 🟠 High  
+**Impact:** Automatic rollback to previous image if updated image hard-locks before reaching multi-user.target  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+`inferno-health-check.service` correctly calls `bootc rollback` after 120s, but this only works if the system reaches `multi-user.target`. If a bad kernel argument or early-boot systemd unit causes a hard lock, the health check never runs. A `FailureAction=` on the health check unit combined with a watchdog service covers the gap.
+
+##### Why implement?
+Applied OTA updates are the highest-risk operation on a production appliance. The existing 120s health check is good but incomplete — it doesn't cover boot-time panics or hard locks from bad kernel args.
+
+##### Why NOT implement (or defer)?
+Adds complexity to the boot sequence. `FailureAction=` only fires if the health check service itself fails, not if the system hangs. Full coverage requires a bootloader-level boot counter (systemd-boot `BootCount`).
+
+##### Implementation notes
+Add to `inferno-health-check.service`:
+```ini
+[Unit]
+OnFailure=inferno-rollback-reboot.service
+```
+Create `inferno-rollback-reboot.service`:
+```ini
+[Unit]
+Description=Inferno Emergency Rollback
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bootc rollback
+ExecStartPost=/usr/bin/systemctl reboot
+```
+Longer term: use `bootc switch --apply` in `apply-update.sh` to enable systemd-boot `BootCount` tracking.
+
+---
+
+#### Item 105 — Cockpit CSP Hardening (Remove `unsafe-inline`)
+
+**Importance:** 🟠 High  
+**Impact:** Eliminates CSS/script injection vector in IoT Updater and Cockpit Inferno plugins  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+`cockpit-iot-updater/manifest.json` Content-Security-Policy includes `style-src 'self' 'unsafe-inline'`. This allows any injected CSS to execute, which is a meaningful XSS vector given the plugin's `connect-src http://127.0.0.1:8088` grants access to the update sidecar. The `cockpit-inferno` manifest should also be audited for similar issues.
+
+##### Why implement?
+Cockpit plugins run in a privileged browser context with access to systemd, journal, and SSH. An XSS in either plugin could silently trigger OTA updates, execute arbitrary systemctl commands, or exfiltrate SSH keys.
+
+##### Why NOT implement (or defer)?
+Removing `unsafe-inline` requires auditing all inline `<style>` blocks and moving them to linked CSS. The iot-updater UI uses some dynamic inline styles for progress bars — these must be refactored.
+
+##### Implementation notes
+```json
+// cockpit-iot-updater/manifest.json
+"content-security-policy": "default-src 'self'; connect-src 'self' http://127.0.0.1:8088; img-src 'self' data:; style-src 'self'; script-src 'self'"
+```
+Audit `index.html` and `updater.js` for inline `style=` attributes and `<style>` blocks. Move to `updater.css`. For `cockpit-inferno`, audit `src/index.html` for inline scripts and styles.
+
+---
+
+#### Item 106 — `statime-inferno.service` Capability Sandboxing
+
+**Importance:** 🟠 High  
+**Impact:** Limits blast radius if statime process is exploited — strips 35+ unnecessary Linux capabilities  
+**Difficulty:** Easy  
+**Risk:** Medium  
+**Prerequisites:** None
+
+##### What is it?
+`statime-inferno.service` runs as root with no `CapabilityBoundingSet` — effectively full root. statime only needs three capabilities: `CAP_SYS_TIME` (adjust hardware clock), `CAP_NET_RAW` (raw PTP sockets), `CAP_NET_BIND_SERVICE` (bind to port 319/320). All others can be stripped.
+
+##### Why implement?
+PTP daemon is network-facing (binds to ports 319/320, receives arbitrary UDP packets). A memory corruption bug in statime with full root capabilities is a complete system compromise. With capability bounding, the same bug is contained.
+
+##### Why NOT implement (or defer)?
+Risk: `ProtectSystem=` and `PrivateTmp=` can break statime's access to `/etc/statime-inferno.toml` or the PHC device if paths aren't whitelisted. Requires testing each restriction carefully.
+
+##### Implementation notes
+```ini
+# templates/systemd/system/statime-inferno.service — [Service] section additions
+CapabilityBoundingSet=CAP_SYS_TIME CAP_NET_RAW CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_SYS_TIME CAP_NET_RAW CAP_NET_BIND_SERVICE
+NoNewPrivileges=no
+ProtectHome=true
+PrivateTmp=yes
+# Do NOT add ProtectSystem=strict — statime reads /etc/statime-inferno.toml
+# Do NOT add PrivateDevices=yes — statime needs /dev/ptp0
+```
+Test with `systemd-analyze security statime-inferno` before and after.
+
+---
+
+#### Item 107 — `WatchdogSec=` for Critical Audio Services
+
+**Importance:** 🟠 High  
+**Impact:** Detects hung (non-exiting) service states and forces restart — catches zombie alsaloop processes  
+**Difficulty:** Medium  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+`inferno-bridge.service`, `inferno-keepalive.service`, and `librespot.service` use `Restart=always` but have no watchdog. If `alsaloop` enters a hung state without exiting (e.g. waiting indefinitely for an ALSA buffer), systemd never detects the failure and never restarts the service. Audio stops silently.
+
+##### Why implement?
+`Restart=always` only handles clean exits and crashes. A hung process looks "running" to systemd. The watchdog (`WatchdogSec=`) forces a restart if the service doesn't periodically `sd_notify(WATCHDOG=1)`. Catches an entire class of silent audio failures.
+
+##### Why NOT implement (or defer)?
+Requires a wrapper script around `alsaloop` to send watchdog pings — the `alsaloop` binary itself doesn't support `sd_notify`. Adds a thin shell script wrapper layer.
+
+##### Implementation notes
+```bash
+#!/bin/bash
+# /usr/local/sbin/inferno-bridge-watchdog.sh
+systemd-notify --ready
+(while true; do systemd-notify WATCHDOG=1; sleep 10; done) &
+exec /usr/bin/alsaloop "$@"
+```
+```ini
+# inferno-bridge.service additions
+ExecStart=/usr/local/sbin/inferno-bridge-watchdog.sh [original args]
+WatchdogSec=30
+NotifyAccess=all
+Type=notify
+```
+For `librespot`, pass `--enable-audio-locking` flag and add `WatchdogSec=60` directly (librespot supports sd_notify).
+
+---
+
+#### Item 108 — `/usr/lib/bootc/kargs.d/` for Declarative Kernel Args
+
+**Importance:** 🟡 Medium  
+**Impact:** Kernel args version-controlled in the image, portable across build tools, no BIB config dependency  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+Kernel arguments currently live in BIB's `config.toml` (`kargs` array). bootc natively supports `/usr/lib/bootc/kargs.d/*.toml` files baked into the image, which are applied at install time by the bootloader. This makes kernel args part of the container image (version-controlled, auditable) rather than a build-tool concern.
+
+##### Why implement?
+BIB config.toml is external to the container image — it must be kept in sync with the Containerfile. Moving kargs into the image means the exact kernel arguments used are visible by inspecting the container, and they're applied consistently regardless of which build tool is used.
+
+##### Why NOT implement (or defer)?
+Requires bootc ≥ 0.1.13 (available on Fedora 43). Some kargs (e.g. installer-specific args) may still need to live in BIB config.
+
+##### Implementation notes
+```toml
+# Bake into Containerfile via COPY or RUN:
+# /usr/lib/bootc/kargs.d/01-inferno-rt.toml
+kargs = [
+  "preempt=full",
+  "threadirqs",
+  "intel_pstate=disable",
+  "pcie_aspm=off",
+  "mitigations=off"
+]
+```
+Remove equivalent entries from `build/bib-config.toml`. Leaves BIB config.toml for installer-only args.
+
+---
+
+#### Item 109 — Bundle Manifest `valid_from` Anti-Replay Timestamp
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents replay attacks that roll back nodes to known-vulnerable firmware versions  
+**Difficulty:** Medium  
+**Risk:** Low  
+**Prerequisites:** Item 63 (signing enforcement)
+
+##### What is it?
+IoT Updater bundle `version.json` manifest contains `version`, `sha256`, and signature — but no time-bounded validity window. An attacker who captures a valid signed bundle can re-serve it indefinitely to downgrade a node to a vulnerable version. A `valid_from` / `valid_until` field in the manifest, checked in `apply-update.sh`, closes this window.
+
+##### Why implement?
+Downgrade attacks are a real threat model for appliances with known CVEs in older firmware. Bundle signing (Item 63) prevents unsigned bundles, but doesn't prevent replay of legitimately-signed old bundles.
+
+##### Why NOT implement (or defer)?
+Requires all existing bundles to be re-signed with timestamps. Nodes with incorrect system time would reject valid bundles. Must handle clock skew gracefully.
+
+##### Implementation notes
+Add to `version.json` schema:
+```json
+{
+  "version": "24",
+  "valid_from": "2026-04-01T00:00:00Z",
+  "valid_until": "2027-04-01T00:00:00Z",
+  "sha256": "...",
+  "signature": "..."
+}
+```
+In `apply-update.sh`, after signature verify: parse `valid_from`/`valid_until`, compare to `$(date -u +%s)`. Reject with clear error if outside window. Adjust `make-oci-bundle.sh` to auto-populate fields.
+
+---
+
+#### Item 110 — SELinux Policy Module for `inferno_aoip`
+
+**Importance:** 🟡 Medium  
+**Impact:** Proper MAC confinement for all inferno processes — moves beyond relying on inherited unconfined contexts  
+**Difficulty:** Hard  
+**Risk:** Medium  
+**Prerequisites:** BUG-05, Item 59, Item 106
+
+##### What is it?
+All inferno user services currently inherit generic SELinux contexts (`unconfined_t` or `init_t` depending on how they're launched). A custom `inferno_aoip` policy module would confine them to only the files, capabilities, and network operations they actually need — providing defence-in-depth beyond capability sandboxing.
+
+##### Why implement?
+Fedora 43 ships with SELinux enforcing by default. Custom policy closes the gap between "running in enforcing mode" and "actually confined" — the current state has SELinux enforcing but inferno processes running as unconfined, giving a false sense of security.
+
+##### Why NOT implement (or defer)?
+Writing a correct SELinux policy is complex and time-consuming. Overly tight policy will break statime (raw sockets), ALSA (device access), or inferno-bridge. Requires a dedicated testing cycle. Defer until after RT stabilisation items (97-99) are stable.
+
+##### Implementation notes
+Collect AVC denials from a running node: `ausearch -m avc -ts recent | audit2allow -M inferno_aoip`. Build as permissive module first. Test with `semodule -i inferno_aoip.pp`. Promote to enforcing after validation sprint. Add `checkmodule` / `semodule_package` tooling to build pipeline.
+
+---
+
+#### Item 111 — `cockpit.transport.wait()` for Plugin Initialisation
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents intermittent "transport not ready" errors when Cockpit loads the inferno plugin  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+`cockpit-inferno` `init()` runs immediately on `DOMContentLoaded`. Cockpit's official best practices recommend wrapping all init code in `cockpit.transport.wait()` to ensure the Cockpit transport channel is established before making `cockpit.spawn()` or `cockpit.file()` calls. Without this, slow Cockpit connections can result in silent init failures where the plugin loads but shows stale/empty data.
+
+##### Why implement?
+Intermittent "plugin shows nothing on first load, refresh fixes it" reports are almost always caused by this race condition. One-line fix with no downside.
+
+##### Why NOT implement (or defer)?
+No reason to defer. Low-risk, high-confidence improvement.
+
+##### Implementation notes
+```javascript
+// cockpit-inferno/src/inferno.js — wrap top-level init call
+document.addEventListener('DOMContentLoaded', function() {
+  cockpit.transport.wait(function() {
+    init();
+  });
+});
+```
+Apply same pattern to `cockpit-iot-updater/src/index.js` if it has the same pattern.
 
 ---
 
