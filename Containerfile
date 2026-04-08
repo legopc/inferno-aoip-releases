@@ -58,7 +58,8 @@ RUN mkdir -p \
     /etc/alsa/conf.d
 
 # ── Download release binaries (built nightly by CI) ───────────────────────────
-# Tarball contains: bin/statime, bin/librespot, lib/libasound_module_pcm_inferno.so
+# Tarball contains: bin/statime, bin/librespot, bin/iradio-bridge,
+#                   lib/libasound_module_pcm_inferno.so
 ARG RELEASES_URL=https://github.com/legopc/inferno-aoip-releases/releases/latest/download
 RUN TARBALL=inferno-aoip.tar.gz && \
     curl -fsSL "${RELEASES_URL}/${TARBALL}" -o "/tmp/${TARBALL}" && \
@@ -67,8 +68,9 @@ RUN TARBALL=inferno-aoip.tar.gz && \
     tar -xzf "/tmp/${TARBALL}" -C /tmp/ && \
     cp /tmp/inferno-aoip/bin/statime              /usr/local/bin/ && \
     cp /tmp/inferno-aoip/bin/librespot            /usr/local/bin/ && \
+    cp /tmp/inferno-aoip/bin/iradio-bridge        /usr/local/bin/ && \
     cp /tmp/inferno-aoip/lib/libasound_module_pcm_inferno.so /usr/lib64/alsa-lib/ && \
-    chmod +x /usr/local/bin/statime /usr/local/bin/librespot && \
+    chmod +x /usr/local/bin/statime /usr/local/bin/librespot /usr/local/bin/iradio-bridge && \
     rm -rf /tmp/inferno-aoip /tmp/${TARBALL} /tmp/${TARBALL}.sha256 && \
     ln -s /usr/bin/alsaloop /usr/local/bin/Virgil-Appliance
 

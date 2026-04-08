@@ -561,7 +561,7 @@ function deriveDeviceId(baseId, offset) {
 // ── Internet Radio (iradio-bridge) ALSA setup ──────────────────────────────────
 // Mirrors ensureAuxSetup but writes pcm.inferno_iradio_N blocks (slots 1–4)
 // and a systemd user service unit for iradio-bridge.
-const IRADIO_BRIDGE_BIN   = "/var/home/core/bin/iradio-bridge";
+const IRADIO_BRIDGE_BIN   = "/usr/local/bin/iradio-bridge";
 const IRADIO_CONFIG_DIR   = "/var/home/core/.config/iradio";
 const IRADIO_CONFIG_PATH  = "/var/home/core/.config/iradio/config.toml";
 const IRADIO_SVC_PATH     = "/var/home/core/.config/systemd/user/iradio-bridge.service";

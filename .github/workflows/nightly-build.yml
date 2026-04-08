@@ -61,6 +61,12 @@ jobs:
           repository: librespot-org/librespot
           path: librespot
 
+      - name: Clone iradio-bridge
+        uses: actions/checkout@v4
+        with:
+          repository: legopc/inferno-iradio
+          path: inferno-iradio
+
       # ── Checkout this repo (for templates/ and scripts/) ─────────────────
       - name: Checkout inferno-aoip-releases (templates)
         uses: actions/checkout@v4
@@ -90,6 +96,13 @@ jobs:
             --features "alsa-backend with-libmdns rustls-tls-webpki-roots"
           ls -lh target/release/librespot
 
+      # ── Build iradio-bridge ───────────────────────────────────────────────
+      - name: Build iradio-bridge
+        working-directory: inferno-iradio
+        run: |
+          cargo build --release -p iradio-bridge
+          ls -lh target/release/iradio-bridge
+
       # ── Assemble tarball ──────────────────────────────────────────────────
       - name: Compute release metadata
         id: meta
@@ -102,11 +115,13 @@ jobs:
           INFERNO_SHA=$(git -C inferno rev-parse --short HEAD)
           STATIME_SHA=$(git -C statime rev-parse --short HEAD)
           LIBRESPOT_SHA=$(git -C librespot rev-parse --short HEAD)
+          IRADIO_SHA=$(git -C inferno-iradio rev-parse --short HEAD)
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "date=${DATE}" >> "$GITHUB_OUTPUT"
           echo "inferno_sha=${INFERNO_SHA}" >> "$GITHUB_OUTPUT"
           echo "statime_sha=${STATIME_SHA}" >> "$GITHUB_OUTPUT"
           echo "librespot_sha=${LIBRESPOT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "iradio_sha=${IRADIO_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Assemble release tarball
         run: |
@@ -115,9 +130,11 @@ jobs:
 
           # Binaries
           cp inferno/target/release/libasound_module_pcm_inferno.so ${STAGE}/lib/
-          cp statime/target/release/statime   ${STAGE}/bin/
-          cp librespot/target/release/librespot ${STAGE}/bin/
-          strip ${STAGE}/bin/statime ${STAGE}/bin/librespot ${STAGE}/lib/libasound_module_pcm_inferno.so
+          cp statime/target/release/statime        ${STAGE}/bin/
+          cp librespot/target/release/librespot    ${STAGE}/bin/
+          cp inferno-iradio/target/release/iradio-bridge ${STAGE}/bin/
+          strip ${STAGE}/bin/statime ${STAGE}/bin/librespot ${STAGE}/bin/iradio-bridge \
+                ${STAGE}/lib/libasound_module_pcm_inferno.so
 
           # Templates and scripts from this repo
           cp -r releases-repo/templates/. ${STAGE}/templates/
@@ -129,6 +146,7 @@ jobs:
           inferno=${{ steps.meta.outputs.inferno_sha }}
           statime=${{ steps.meta.outputs.statime_sha }}
           librespot=${{ steps.meta.outputs.librespot_sha }}
+          iradio_bridge=${{ steps.meta.outputs.iradio_sha }}
           EOF
 
           tar -czf inferno-aoip.tar.gz ${STAGE}/
@@ -149,6 +167,7 @@ jobs:
             | `libasound_module_pcm_inferno.so` | lumifaza/inferno@${{ steps.meta.outputs.inferno_sha }} |
             | `statime` | teodly/statime@${{ steps.meta.outputs.statime_sha }} (inferno-dev) |
             | `librespot` | librespot-org/librespot@${{ steps.meta.outputs.librespot_sha }} |
+            | `iradio-bridge` | legopc/inferno-iradio@${{ steps.meta.outputs.iradio_sha }} |
 
             **Target platform:** x86_64-unknown-linux-gnu (glibc ≥ 2.39, Fedora IoT 43+)
 
