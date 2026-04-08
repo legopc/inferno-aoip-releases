@@ -58,7 +58,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 23 | First-boot | `systemd-sysusers` and `tmpfiles.d` for User and Directory Setup | 🟠 High | Medium (half-day) | Medium | None |
 | 57 | Security | Cockpit First-Login Password Prompt | 🟠 High | Medium (half-day) | Low | None |
 | 38 | RT/Reliability | NIC Link-Down Recovery | 🟡 Medium | Medium (half-day) | Low | Items 8, 9 |
-| 3 | Install | Boot Timeout = 1s | 🟡 Medium | Easy (<2h) | Low | Item 1 |
+| 3 | Install | Boot Timeout = 3s | 🟡 Medium | Easy (<2h) | Low | Item 1 |
 | 13 | Hardware | CPU Frequency Scaling: Performance Governor | 🟡 Medium | Easy (<2h) | Low | None |
 | 14 | Hardware | `probe-node.sh` Output to `/var/log/inferno-probe.log` | 🟡 Medium | Easy (<2h) | Low | Items 8, 12 |
 | 16 | Upgrade | Pre-Upgrade Version Check in `apply-update.sh` | ✅ Implemented | Easy (<2h) | Low | BUG-01 |
@@ -320,7 +320,7 @@ Defer if BIB's installer customisation API doesn't support all the branding elem
 
 ##### Implementation notes
 
-Track [BIB release notes](https://github.com/osbuild/bootc-image-builder) for native GRUB theme support. For now, the kickstart `bootloader --timeout=1` (Item 3) covers the most important functional aspect of "appliance boot behaviour."
+Track [BIB release notes](https://github.com/osbuild/bootc-image-builder) for native GRUB theme support. For now, the kickstart `bootloader --timeout=3` (Item 3) covers the most important functional aspect of "appliance boot behaviour."
 
 ---
 
