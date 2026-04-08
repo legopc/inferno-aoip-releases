@@ -186,6 +186,21 @@ async function loadConfig() {
     // F-2: snapshot form values so diff modal knows what changed
     _savedConfSnapshot = buildFormSnapshot();
 
+    // Populate iradio channel count from saved config.toml if present
+    if ($("cfg-iradio-channels")) {
+        cockpit.file(IRADIO_CONFIG_PATH).read().then(function(toml) {
+            if (!toml) return;
+            var m = toml.match(/max_players\s*=\s*(\d+)/);
+            if (m) {
+                var n = m[1];
+                var sel = $("cfg-iradio-channels");
+                for (var i = 0; i < sel.options.length; i++) {
+                    if (sel.options[i].value === n) { sel.selectedIndex = i; break; }
+                }
+            }
+        }).catch(function() {});
+    }
+
     // Ensure iradio-bridge is stopped if we're not in iradio mode
     if (currentMode !== "iradio") {
         spUser("systemctl --user stop iradio-bridge 2>/dev/null; true").catch(function() {});
@@ -550,13 +565,12 @@ const IRADIO_BRIDGE_BIN   = "/var/home/core/bin/iradio-bridge";
 const IRADIO_CONFIG_DIR   = "/var/home/core/.config/iradio";
 const IRADIO_CONFIG_PATH  = "/var/home/core/.config/iradio/config.toml";
 const IRADIO_SVC_PATH     = "/var/home/core/.config/systemd/user/iradio-bridge.service";
-const IRADIO_MAX_SLOTS    = 4;
 const IRADIO_ALT_PORT_BASE= 6100;
 const IRADIO_PID_BASE     = 10; // slots 1..4 → PIDs 10..13
 
-async function ensureIradioSetup(danteName) {
+async function ensureIradioSetup(danteName, numChannels) {
+    numChannels = numChannels || 2; // default 2 stereo pairs
     var asoundText = await cockpit.file(ASOUNDRC).read() || "";
-    var needsAlsa  = !asoundText.includes("pcm.inferno_iradio_1");
 
     var bindIpMatch   = asoundText.match(/BIND_IP\s+(\S+)/);
     var deviceIdMatch = asoundText.match(/DEVICE_ID\s+([0-9a-f]+)/i);
@@ -568,53 +582,51 @@ async function ensureIradioSetup(danteName) {
     var clockPath  = clockMatch    ? clockMatch[1]     : "/tmp/ptp-usrvclock";
     var pluginPath = pluginMatch   ? pluginMatch[1]    : "/usr/lib64/alsa-lib/libasound_module_pcm_inferno.so";
 
-    if (needsAlsa) {
-        var blocks = "\n";
-        for (var slot = 1; slot <= IRADIO_MAX_SLOTS; slot++) {
-            var pid     = IRADIO_PID_BASE + (slot - 1);
-            var altPort = IRADIO_ALT_PORT_BASE + (slot - 1) * 20;
-            var devId   = deriveDeviceId(baseId, IRADIO_PID_BASE + (slot - 1));
-            var name    = (danteName || "Inferno") + "-ir" + slot;
-            blocks +=
-                "# iradio-bridge Dante TX slot " + slot + "\n" +
-                "pcm.inferno_iradio_" + slot + " {\n" +
-                "    type inferno\n" +
-                "    lib \"" + pluginPath + "\"\n" +
-                "    NAME \"" + name + "\"\n" +
-                "    BIND_IP " + bindIp + "\n" +
-                "    SAMPLE_RATE 48000\n" +
-                "    PROCESS_ID " + pid + "\n" +
-                "    ALT_PORT " + altPort + "\n" +
-                "    RX_CHANNELS 0\n" +
-                "    TX_CHANNELS 2\n" +
-                "    TX_LATENCY_NS 10000000\n" +
-                "    RX_LATENCY_NS 10000000\n" +
-                "    CLOCK_PATH " + clockPath + "\n" +
-                "    DEVICE_ID " + devId + "\n" +
-                "    hint { show off description \"Inferno iradio slot " + slot + " TX\" }\n" +
-                "}\n\n";
-        }
-        await cockpit.file(ASOUNDRC).replace(asoundText.trimEnd() + "\n" + blocks);
+    // Always regenerate iradio ALSA blocks so channel count changes take effect.
+    // Strip old iradio blocks then append fresh ones.
+    var stripped = asoundText.replace(/\n?# iradio-bridge Dante TX slot \d+[\s\S]*?^\}\n?/gm, "").trimEnd();
+    var blocks = "\n";
+    for (var slot = 1; slot <= numChannels; slot++) {
+        var pid     = IRADIO_PID_BASE + (slot - 1);
+        var altPort = IRADIO_ALT_PORT_BASE + (slot - 1) * 20;
+        var devId   = deriveDeviceId(baseId, IRADIO_PID_BASE + (slot - 1));
+        var name    = (danteName || "Inferno") + "-ir" + slot;
+        blocks +=
+            "# iradio-bridge Dante TX slot " + slot + "\n" +
+            "pcm.inferno_iradio_" + slot + " {\n" +
+            "    type inferno\n" +
+            "    lib \"" + pluginPath + "\"\n" +
+            "    NAME \"" + name + "\"\n" +
+            "    BIND_IP " + bindIp + "\n" +
+            "    SAMPLE_RATE 48000\n" +
+            "    PROCESS_ID " + pid + "\n" +
+            "    ALT_PORT " + altPort + "\n" +
+            "    RX_CHANNELS 0\n" +
+            "    TX_CHANNELS 2\n" +
+            "    TX_LATENCY_NS 10000000\n" +
+            "    RX_LATENCY_NS 10000000\n" +
+            "    CLOCK_PATH " + clockPath + "\n" +
+            "    DEVICE_ID " + devId + "\n" +
+            "    hint { show off description \"Inferno iradio slot " + slot + " TX\" }\n" +
+            "}\n\n";
     }
+    await cockpit.file(ASOUNDRC).replace(stripped + "\n" + blocks);
 
-    // Write config directory + config.toml
+    // Always write config directory + config.toml (update max_players each time)
     await spUser("mkdir -p " + IRADIO_CONFIG_DIR);
-    var cfgExists = await cockpit.file(IRADIO_CONFIG_PATH).read().catch(function() { return null; });
-    if (!cfgExists) {
-        var toml =
-            "# iradio-bridge configuration — auto-generated by cockpit-inferno\n" +
-            "port = 8765\n" +
-            "max_players = 4\n" +
-            "favourites_path = \"/var/home/core/.local/share/iradio/favourites.json\"\n\n" +
-            "[auth]\nenabled = false\nusername = \"\"\npassword = \"\"\n\n" +
-            "[alsa]\nsetup_alsa = false\n" +
-            "asoundrc_path = \"/var/home/core/.asoundrc\"\n" +
-            "sample_rate = 48000\nbuffer_frames = 4096\n\n" +
-            "[radiobrowser]\napi_url = \"\"\nrequest_timeout_secs = 10\n";
-        await cockpit.file(IRADIO_CONFIG_PATH).replace(toml);
-    }
+    var toml =
+        "# iradio-bridge configuration — auto-generated by cockpit-inferno\n" +
+        "port = 8765\n" +
+        "max_players = " + numChannels + "\n" +
+        "favourites_path = \"/var/home/core/.local/share/iradio/favourites.json\"\n\n" +
+        "[auth]\nenabled = false\nusername = \"\"\npassword = \"\"\n\n" +
+        "[alsa]\nsetup_alsa = false\n" +
+        "asoundrc_path = \"/var/home/core/.asoundrc\"\n" +
+        "sample_rate = 48000\nbuffer_frames = 4096\n\n" +
+        "[radiobrowser]\napi_url = \"\"\nrequest_timeout_secs = 10\n";
+    await cockpit.file(IRADIO_CONFIG_PATH).replace(toml);
 
-    // Write systemd user service unit
+    // Write systemd user service unit (only once — it doesn't change)
     var unitExists = await cockpit.file(IRADIO_SVC_PATH).read().catch(function() { return null; });
     if (!unitExists) {
         var unit =
@@ -630,8 +642,6 @@ async function ensureIradioSetup(danteName) {
         // No [Install]/WantedBy — cockpit-inferno manages start/stop explicitly
         await cockpit.file(IRADIO_SVC_PATH).replace(unit);
     }
-
-    return needsAlsa;
 }
 
 async function ensureAuxSetup(cardIn, cardIn2, cardOut, cardOut2, txCh, rxCh, danteName) {
@@ -868,7 +878,8 @@ async function saveConfig() {
 
         // For iradio mode: ensure iradio-bridge is installed and configured
         if (newMode === "iradio") {
-            await ensureIradioSetup(newDanteName);
+            var numCh = parseInt($("cfg-iradio-channels") ? $("cfg-iradio-channels").value : "2", 10) || 2;
+            await ensureIradioSetup(newDanteName, numCh);
             await spUser("systemctl --user daemon-reload");
         }
 

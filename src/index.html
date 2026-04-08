@@ -208,7 +208,7 @@
             <div class="form-row hidden" id="field-iradio">
               <label class="row-label">Internet Radio</label>
               <div class="info-block">
-                <p class="text-muted" style="margin:0">
+                <p class="text-muted" style="margin:0 0 10px">
                   iradio-bridge streams internet radio stations to Dante TX channels.<br>
                   Manage stations and players at:
                   <a id="iradio-ui-link" href="#" target="_blank"
@@ -216,6 +216,14 @@
                     http://&lt;node-ip&gt;:8765
                   </a>
                 </p>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <label for="cfg-iradio-channels" style="font-size:13px;color:#151515">Dante TX channels:</label>
+                  <select class="form-select" id="cfg-iradio-channels" style="width:auto">
+                    <option value="1">1 stereo pair (2 channels)</option>
+                    <option value="2" selected>2 stereo pairs (4 channels)</option>
+                    <option value="4">4 stereo pairs (8 channels)</option>
+                  </select>
+                </div>
               </div>
             </div>
 
