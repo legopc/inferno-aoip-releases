@@ -219,12 +219,17 @@ if [ -x /usr/local/sbin/probe-node.sh ]; then
     bash /usr/local/sbin/probe-node.sh > /var/log/inferno-probe.log 2>&1 || true
 fi
 
+# ── Item 15: Read image version ───────────────────────────────────────────────
+INFERNO_VERSION=$(cat /etc/inferno-version 2>/dev/null || echo "unknown")
+echo "Version: ${INFERNO_VERSION}"
+
 # ── Write /etc/inferno.conf (sentinel — prevents re-run) ──────────────────────
 cat > /etc/inferno.conf <<EOF
 # Inferno AoIP node configuration
 # Written by inferno-configure.sh on $(date -Iseconds)
 # To reconfigure: rm /etc/inferno.conf && reboot
 
+INFERNO_VERSION=${INFERNO_VERSION}
 INFERNO_MODE=spotify
 INFERNO_NAME=${INFERNO_NAME}
 INFERNO_NIC=${INFERNO_NIC}
@@ -235,6 +240,10 @@ INFERNO_DEVICE_ID_RX=${INFERNO_DEVICE_ID_RX}
 INFERNO_AUDIO_CARD=${INFERNO_AUDIO_CARD}
 INFERNO_HW_PTP=${INFERNO_HW_PTP}
 EOF
+
+# ── Item 15: Write /var/lib/inferno/version sentinel ─────────────────────────
+mkdir -p /var/lib/inferno
+echo "${INFERNO_VERSION}" > /var/lib/inferno/version
 
 echo "=== Inferno AoIP configuration complete ==="
 echo "    Name:      ${INFERNO_NAME}"

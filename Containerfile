@@ -71,6 +71,15 @@ RUN mkdir -p \
     /etc/inferno/systemd/user \
     /etc/alsa/conf.d
 
+# ── Item 23 Stage 1: sysusers.d + tmpfiles.d (alongside existing RUN commands) ─
+# Declarative definitions so systemd can recreate user/dirs after stateless bootc upgrades.
+# The existing useradd/mkdir RUN commands remain authoritative until Stage 2.
+RUN mkdir -p /usr/lib/sysusers.d /usr/lib/tmpfiles.d && \
+    printf 'u core 1000 "Inferno Core" /var/home/core /bin/bash\nm core wheel\nm core audio\n' \
+        > /usr/lib/sysusers.d/inferno.conf && \
+    printf 'd /var/lib/inferno     0755 core core -\nd /var/lib/iot-updater 0755 root root -\n' \
+        > /usr/lib/tmpfiles.d/inferno.conf
+
 # ── snd-aloop kernel module (pinned to card 10 — avoids card number conflicts) ─
 RUN echo "options snd-aloop index=10" > /etc/modprobe.d/snd-aloop.conf && \
     echo "snd-aloop" > /etc/modules-load.d/snd-aloop.conf
@@ -244,3 +253,9 @@ LABEL org.opencontainers.image.title="Inferno AoIP Appliance" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${GIT_SHA}" \
       org.opencontainers.image.source="https://github.com/legopc/inferno-aoip-releases"
+
+# ── Item 15: Version sentinel ─────────────────────────────────────────────────
+# Bake image version into /etc/inferno-version so inferno-configure.sh can write
+# it to /etc/inferno.conf and /var/lib/inferno/version at firstboot.
+# Placed after LABEL so this layer only busts when VERSION changes.
+RUN echo "${VERSION}" > /etc/inferno-version
