@@ -2,7 +2,7 @@
 
 > **Document type:** Engineering review and improvement backlog  
 > **Scope:** Fedora bootc appliance (installer, first-boot, runtime, upgrade, build pipeline, operations)  
-> **Total items:** 58 (1 bug fix + 57 improvements) — 20 resolved, 7 rejected, 5 deferred, 26 active  
+> **Total items:** 58 (1 bug fix + 57 improvements) — 26 resolved, 7 rejected, 5 deferred, 20 active  
 > **Generated:** April 2026  
 
 > Resolved items archived in [archived/IMPROVEMENT_ROADMAP_DONE.md](archived/IMPROVEMENT_ROADMAP_DONE.md)
@@ -32,7 +32,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 26 | Security | Default Password Policy | 🔴 Critical | Easy (<2h) | Low | None |
 | 31 | Security | SELinux: `restorecon` After Custom File Copies | ✅ Implemented | Easy (<2h) | Low | None |
 | 33 | RT/Reliability | Hardware Watchdog | 🔴 Critical | Easy (<2h) | Low | None |
-| 45 | Build | Clean Up `output-vN/` Directories After Build | 🔴 Critical | Easy (<2h) | Low | None |
+| 45 | Build | Clean Up `output-vN/` Directories After Build | ✅ Implemented| Easy (<2h) | Low | None |
 | 2 | Install | Dynamic Disk Selection in Kickstart | ❌ Rejected | Easy (<2h) | Medium | Item 1 |
 | 6 | Install | `multi-user.target` as Default | ✅ Implemented | Easy (<2h) | Low | None |
 | 9 | Hardware | Multiple NIC Support / INFERNO_NIC_OVERRIDE | 🟠 High | Easy (<2h) | Low | Item 8 |
@@ -45,8 +45,8 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 36 | RT/Reliability | `LimitMEMLOCK=infinity` for RT Services | 🟠 High | Easy (<2h) | Low | None |
 | 39 | RT/Reliability | Boot: Mask Unnecessary Fedora Services | 🟠 High | Easy (<2h) | Low | None |
 | 40 | Build | Pin Base Image Digest | ✅ Implemented | Easy (<2h) | Low | None |
-| 42 | Build | Reorder Containerfile Layers for Cache Efficiency | 🟠 High | Easy (<2h) | Low | None |
-| 43 | Build | Pass `--build-arg VERSION=$VERSION` | 🟠 High | Easy (<2h) | Low | None |
+| 42 | Build | Reorder Containerfile Layers for Cache Efficiency | ✅ Implemented| Easy (<2h) | Low | None |
+| 43 | Build | Pass `--build-arg VERSION=$VERSION` | ✅ Implemented| Easy (<2h) | Low | None |
 | 47 | Operations | Cockpit: Surface Node Identity | ✅ Implemented | Easy (<2h) | Low | None |
 | 48 | Operations | Health HTTP Endpoint | ✅ Implemented | Easy (<2h) | Low | None |
 | 50 | Operations | Upgrade Audit Log with Rollback Events | ✅ Implemented | Easy (<2h) | Low | Item 17 |
@@ -63,8 +63,8 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 14 | Hardware | `probe-node.sh` Output to `/var/log/inferno-probe.log` | 🟡 Medium | Easy (<2h) | Low | Items 8, 12 |
 | 16 | Upgrade | Pre-Upgrade Version Check in `apply-update.sh` | ✅ Implemented | Easy (<2h) | Low | BUG-01 |
 | 22 | First-boot | Butane YAML for Ignition | 🟡 Medium | Easy (<2h) | Low | None |
-| 44 | Build | Generate `BUILD_DATE` and `GIT_SHA` Build-Args | 🟡 Medium | Easy (<2h) | Low | Item 43 |
-| 46 | Build | Parallel ISO Branding + Tarball Export | 🟡 Medium | Easy (<2h) | Medium | None |
+| 44 | Build | Generate `BUILD_DATE` and `GIT_SHA` Build-Args | ✅ Implemented| Easy (<2h) | Low | Item 43 |
+| 46 | Build | Parallel ISO Branding + Tarball Export | ✅ Implemented| Easy (<2h) | Medium | None |
 | 49 | Operations | mDNS Alias `inferno.local` | ❌ Rejected | Easy (<2h) | Medium | None |
 | 10 | Hardware | Predictable NIC Naming via udev (`inferno0`) | ❌ Rejected | Medium (half-day) | High | Items 8, 9 |
 | 19 | Upgrade | Delta / Layer-Based Upgrades via Local OCI Registry | ✅ Implemented | Medium (half-day) | Low | BUG-01 |
@@ -79,7 +79,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 37 | RT/Reliability | IRQ Affinity / CPU Isolation | ⏸ Deferred | Hard (multi-day) | Medium | None |
 | 20 | Upgrade | Upgrade History in Cockpit | ✅ Implemented | Easy (<2h) | Low | BUG-01 |
 | 25 | First-boot | `INFERNO_NIC_OVERRIDE` in Ignition/Kickstart | 🟢 Low | Easy (<2h) | Low | Item 9 |
-| 30 | Security | OCI Labels for Version Tracking | 🟢 Low | Easy (<2h) | Low | None |
+| 30 | Security | OCI Labels for Version Tracking | ✅ Implemented| Easy (<2h) | Low | None |
 | 4 | Install | GRUB / Boot Screen Branding via BIB | 🟢 Low | Medium (half-day) | Low | Item 1 |
 | 41 | Build | Multi-Stage Containerfile | ❌ Rejected | Medium (half-day) | Low | None |
 | 18 | Upgrade | Upload Resume / Chunked Upload | ✅ Implemented | Hard (multi-day) | Medium | BUG-01 |
@@ -1203,7 +1203,9 @@ Locking the password entirely (`passwd --lock`) breaks console recovery on a hea
 
 ---
 
-#### Item 30 — OCI Labels for Version Tracking
+#### Item 30 —
+
+> ✅ **Implemented** — Sprint 2, commit `01da8f3` (`inferno-aoip-releases`) OCI Labels for Version Tracking
 
 **Importance:** 🟢 Low  
 **Impact:** Makes `bootc status` and `podman inspect` show meaningful version, build date, and git SHA  
@@ -1754,7 +1756,9 @@ Do not defer unless the build cadence is so frequent and irregular that digest r
 
 ---
 
-#### Item 42 — Reorder Containerfile Layers for Cache Efficiency
+#### Item 42 —
+
+> ✅ **Implemented** — Sprint 2, commit `034c76c` (`inferno-aoip-releases`) Reorder Containerfile Layers for Cache Efficiency
 
 **Importance:** 🟠 High  
 **Impact:** Stable DNF, config, and service-unit layers are cached on every rebuild; only the binary download layer is invalidated when nightly binaries change  
@@ -1816,7 +1820,9 @@ Verify that build times drop after reordering by comparing rebuild time (without
 
 ---
 
-#### Item 43 — Pass `--build-arg VERSION=$VERSION`
+#### Item 43 —
+
+> ✅ **Implemented** — Sprint 2, commit `01da8f3` (`inferno-aoip-releases`) Pass `--build-arg VERSION=$VERSION`
 
 **Importance:** 🟠 High  
 **Impact:** The image version is baked into every layer, enabling version-aware first-boot scripts, `bootc status` metadata, and accurate log output  
@@ -1900,7 +1906,9 @@ podman build --build-arg-check ...
 
 ---
 
-#### Item 44 — Generate `BUILD_DATE` and `GIT_SHA` Build-Args
+#### Item 44 —
+
+> ✅ **Implemented** — Sprint 2, commit `01da8f3` (`inferno-aoip-releases`) Generate `BUILD_DATE` and `GIT_SHA` Build-Args
 
 **Importance:** 🟡 Medium  
 **Impact:** `bootc status` and `podman inspect` show meaningful provenance metadata; debugging "which exact commit built this image" becomes trivial  
@@ -1962,7 +1970,9 @@ Without them, you know only the version tag. With them, you can `git show a1b2c3
 
 ---
 
-#### Item 45 — Clean Up `output-vN/` Directories After Build
+#### Item 45 —
+
+> ✅ **Implemented** — Sprint 2, commit `01da8f3` (`inferno-aoip-releases`) Clean Up `output-vN/` Directories After Build
 
 **Importance:** 🔴 Critical  
 **Impact:** Build VM disk does not fill up; the 150 GB ceiling is not reached after ~75 builds  
@@ -2016,7 +2026,9 @@ AVAIL_GB=$(df -BG /opt/inferno-build | awk 'NR==2 {gsub("G","",$4); print $4}')
 
 ---
 
-#### Item 46 — Parallel ISO Branding + Tarball Export
+#### Item 46 —
+
+> ✅ **Implemented** — Sprint 2, commit `01da8f3` (`inferno-aoip-releases`) Parallel ISO Branding + Tarball Export
 
 **Importance:** 🟡 Medium  
 **Impact:** Total build time reduced by 5–10 minutes by running two independent post-build steps concurrently  
