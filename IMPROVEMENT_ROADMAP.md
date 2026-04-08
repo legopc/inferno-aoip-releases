@@ -53,10 +53,10 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 51 | Operations | Cockpit: `bootc status` Panel | ✅ Implemented | Easy (<2h) | Low | None |
 | 54 | Operations | Cockpit: Dante Device Status | ✅ Implemented | Easy (<2h) | Low | Item 47 |
 | 7 | Install | Kickstart `%pre` Disk Detection Script | 🟠 High | Medium (half-day) | Medium | Item 1 |
-| 15 | Upgrade | Version Sentinel Comparison in `inferno-configure.sh` | 🟠 High | Medium (half-day) | Medium | BUG-01 |
+| 15 | Upgrade | Version Sentinel Comparison in `inferno-configure.sh` | ✅ Implemented | Medium (half-day) | Medium | BUG-01 |
 | 17 | Upgrade | Auto-Rollback on Failed Boot | ✅ Implemented | Medium (half-day) | Medium | BUG-01 |
-| 23 | First-boot | `systemd-sysusers` and `tmpfiles.d` for User and Directory Setup | 🟠 High | Medium (half-day) | Medium | None |
-| 57 | Security | Cockpit First-Login Password Prompt | 🟠 High | Medium (half-day) | Low | None |
+| 23 | First-boot | `systemd-sysusers` and `tmpfiles.d` for User and Directory Setup | ✅ Implemented (Stage 1) | Medium (half-day) | Medium | None |
+| 57 | Security | Cockpit First-Login Password Prompt | ✅ Implemented | Medium (half-day) | Low | None |
 | 38 | RT/Reliability | NIC Link-Down Recovery | 🟡 Medium | Medium (half-day) | Low | Items 8, 9 |
 | 3 | Install | Boot Timeout = 3s | ✅ Implemented | Easy (<2h) | Low | Item 1 |
 | 13 | Hardware | CPU Frequency Scaling: Performance Governor | ✅ Implemented | Easy (<2h) | Low | None |
