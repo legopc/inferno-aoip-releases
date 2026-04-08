@@ -164,6 +164,12 @@ RUN systemctl enable \
 # ── Mask conflicting time sync services (PTP manages the clock) ───────────────
 RUN systemctl mask systemd-timesyncd chronyd ntpd
 
+# ── Mask bootc auto-update service ───────────────────────────────────────────
+# The image is distributed via tar/OCI load, not a registry. bootc upgrade
+# tries localhost/inferno-appliance:<tag> → connection refused every boot.
+# Updates are handled by the Cockpit IoT Updater instead.
+RUN systemctl mask bootc-fetch-apply-updates.service bootc-fetch-apply-updates.timer
+
 # ── core user ─────────────────────────────────────────────────────────────────
 # Login: core / inferno123  (console, SSH, Cockpit web UI at https://node:9090)
 RUN mkdir -p /var/home && \

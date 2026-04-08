@@ -22,22 +22,16 @@ This appliance is named **Virgil** after the Roman poet who guides Dante through
 
 ---
 
-### 🔴 `bootc-fetch-apply-updates.service` fails to start
+### ~~🔴 `bootc-fetch-apply-updates.service` fails to start~~
 
-**Status:** Fails on boot. Not yet fixed.
+**Status:** ✅ **RESOLVED** — April 2026 (v17+). The service and its timer are now masked in the Containerfile at image build time. No manual workaround needed on new installs.
 
-The `bootc-fetch-apply-updates` systemd service (part of the upstream bootc package) fails to start on this appliance. This service is responsible for automatic background OTA updates from a container registry. It is not used by the Inferno upgrade workflow (which uses the Cockpit IoT Updater instead), but the failure generates journal errors that can be confusing.
+**Root cause:** `bootc upgrade` tries to reach `localhost/inferno-appliance:<tag>` — a local registry that doesn't exist on running nodes. The image is distributed via tar/OCI load, not a registry. Updates are handled by the Cockpit IoT Updater instead.
 
-**Symptom:** `systemctl status bootc-fetch-apply-updates.service` shows a failed state. Journal shows errors related to missing registry credentials or unresolvable image reference.
-
-**Why it fails:** The appliance image is built locally (not pushed to a public registry). `bootc` cannot find the image reference at any known registry URL. The service has no meaningful target to fetch from.
-
-**Workaround:** Mask the service to suppress the errors — it is not needed:
+**Existing nodes (pre-v17):** Run once to silence the errors:
 ```bash
 sudo systemctl mask bootc-fetch-apply-updates.service bootc-fetch-apply-updates.timer
 ```
-
-**Note:** This does **not** affect upgrades. Use the Cockpit IoT Updater (BUG-01 is resolved — works as of v14+) or the SSH tar pipe method above.
 
 ---
 
