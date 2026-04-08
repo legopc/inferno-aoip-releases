@@ -10,3 +10,8 @@
 # (not --vga serial0) so Anaconda can render its TUI.
 #
 # See: https://github.com/osbuild/bootc-image-builder#-configuration-file
+
+# Boot timeout for the installer (seconds).
+# 0 = wait forever (default); 3 = auto-proceed after 3 s on headless nodes.
+[customizations.installer]
+  timeout = 3

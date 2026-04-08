@@ -14,7 +14,7 @@
 #   Uses dnf for packages (no rpm-ostree parsec/dbus-parsec dependency)
 #   Result is a bootc-managed system — atomic updates via 'bootc upgrade'
 
-FROM registry.fedoraproject.org/fedora-bootc:43
+FROM registry.fedoraproject.org/fedora-bootc:43@sha256:30ef5d8b43866e2764b54821dc5c48f33ba154b9bc3799730c9ae8ca9e2e3f69
 
 # ── Packages ──────────────────────────────────────────────────────────────────
 RUN dnf install -y --setopt=install_weak_deps=False \
@@ -109,9 +109,15 @@ COPY templates/systemd/user/inferno-aux-tx.service      /etc/inferno/systemd/use
 COPY templates/systemd/user/inferno-aux-rx.service      /etc/inferno/systemd/user/
 COPY templates/systemd/user/inferno-aux-keepalive.service /etc/inferno/systemd/user/
 
-# ── snd-aloop kernel module (pinned to card 5 — avoids card number conflicts) ─
-RUN echo "options snd-aloop index=5" > /etc/modprobe.d/snd-aloop.conf && \
+# ── snd-aloop kernel module (pinned to card 10 — avoids card number conflicts) ─
+RUN echo "options snd-aloop index=10" > /etc/modprobe.d/snd-aloop.conf && \
     echo "snd-aloop" > /etc/modules-load.d/snd-aloop.conf
+
+# ── journald log size cap ─────────────────────────────────────────────────────
+# Prevent logs from filling the disk on headless nodes (default: unlimited).
+RUN mkdir -p /etc/systemd/journald.conf.d && \
+    printf '[Journal]\nSystemMaxUse=512M\n' \
+      > /etc/systemd/journald.conf.d/inferno.conf
 
 # ── RT scheduling tuning ──────────────────────────────────────────────────────
 # The Fedora 43 kernel uses CONFIG_PREEMPT_DYNAMIC. Its default runtime mode is
@@ -125,7 +131,7 @@ RUN echo "options snd-aloop index=5" > /etc/modprobe.d/snd-aloop.conf && \
 # than via the realtime-setup rpm to avoid a systemd-sysusers conflict caused
 # by that rpm's %post writing /etc/gshadow without a matching /etc/group entry.
 RUN mkdir -p /usr/lib/bootc/kargs.d /usr/lib/sysusers.d /etc/security/limits.d && \
-    echo 'kargs = ["preempt=full", "threadirqs"]' \
+    echo 'kargs = ["preempt=full", "threadirqs", "cpufreq.default_governor=performance"]' \
       > /usr/lib/bootc/kargs.d/99-rt.toml && \
     echo 'g realtime 71' \
       > /usr/lib/sysusers.d/realtime-setup.conf && \
@@ -164,11 +170,8 @@ RUN systemctl enable \
 # ── Mask conflicting time sync services (PTP manages the clock) ───────────────
 RUN systemctl mask systemd-timesyncd chronyd ntpd
 
-# ── Mask bootc auto-update service ───────────────────────────────────────────
-# The image is distributed via tar/OCI load, not a registry. bootc upgrade
-# tries localhost/inferno-appliance:<tag> → connection refused every boot.
-# Updates are handled by the Cockpit IoT Updater instead.
-RUN systemctl mask bootc-fetch-apply-updates.service bootc-fetch-apply-updates.timer
+# ── Default target (fedora-bootc:43 defaults to graphical — force headless) ───
+RUN systemctl set-default multi-user.target
 
 # ── core user ─────────────────────────────────────────────────────────────────
 # Login: core / inferno123  (console, SSH, Cockpit web UI at https://node:9090)
@@ -202,3 +205,8 @@ COPY iot-updater/systemd/iot-updater.service /etc/systemd/system/iot-updater.ser
 COPY iot-updater/systemd/iot-update.service  /etc/systemd/system/iot-update.service
 RUN chmod +x /var/lib/iot-updater/apply-update.sh && \
     systemctl enable iot-updater
+
+# ── SELinux context fix ───────────────────────────────────────────────────────
+# Relabel all files after COPY layers to ensure correct SELinux contexts.
+# Errors are non-fatal (|| true) in case restorecon is not available in buildroot.
+RUN restorecon -R / 2>/dev/null || true
