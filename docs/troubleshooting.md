@@ -8,7 +8,7 @@
 ## Quick Reference
 
 ```bash
-# SSH into node (default pw: inferno123 — expires on first login, you will be prompted to set a new one)
+# SSH into node — password expires on first login, change it via Cockpit first (https://<node-ip>:9090)
 ssh core@<node-ip>
 
 # Check all failed units
