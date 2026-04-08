@@ -47,7 +47,7 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     # Avahi / mDNS (Dante discovery)
     avahi avahi-tools nss-mdns \
     # Required for inferno-configure.sh
-    curl \
+    curl ethtool \
     # SSH server
     openssh-server \
     # Required by IoT Updater apply-update.sh (OCI image import)
@@ -207,6 +207,10 @@ RUN chmod +x /usr/local/sbin/inferno-configure.sh
 COPY scripts/inferno-health-check.sh /usr/local/sbin/inferno-health-check.sh
 COPY templates/systemd/system/inferno-health-check.service /etc/systemd/system/inferno-health-check.service
 RUN chmod +x /usr/local/sbin/inferno-health-check.sh
+
+# ── Hardware probe script (Item 14 — invoked by inferno-configure.sh at firstboot) ──
+COPY scripts/probe-node.sh /usr/local/sbin/probe-node.sh
+RUN chmod +x /usr/local/sbin/probe-node.sh
 
 # ── Benchmark suite ───────────────────────────────────────────────────────────
 COPY scripts/bench/ /usr/local/sbin/inferno-bench/

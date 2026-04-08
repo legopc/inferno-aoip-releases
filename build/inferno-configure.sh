@@ -20,16 +20,48 @@ exec > >(tee -a /var/log/inferno-configure.log) 2>&1
 echo "=== Inferno AoIP first-boot configuration: $(date -Iseconds) ==="
 
 # ── Detect NIC ─────────────────────────────────────────────────────────────────
-# Exclude: loopback, Docker/container bridges, WiFi (wl*), virtual bridges (virbr).
-# Dante requires wired Ethernet — WiFi cannot be the Dante interface.
-INFERNO_NIC=$(ip -o link show | awk '$2 != "lo:" && $2 !~ /^(docker|br-|veth|tun|tap|wl|virbr)/ {print $2; exit}' | tr -d ':')
-if [ -z "${INFERNO_NIC}" ]; then
-    echo "ERROR: Could not detect a wired NIC. Available interfaces:"
-    ip -o link show | awk '{print "  " $2, $9}' | tr -d ':'
-    echo "Falling back to first non-loopback interface..."
-    INFERNO_NIC=$(ip -o link show | awk '$2 != "lo:" {print $2; exit}' | tr -d ':')
+# Item 9: Allow override via INFERNO_NIC_OVERRIDE env var or /etc/inferno/nic-override file.
+# Cockpit (or Ignition at provision time) can write /etc/inferno/nic-override to force a
+# specific NIC. Lines starting with '#' are treated as comments and ignored.
+INFERNO_NIC=""
+if [ -n "${INFERNO_NIC_OVERRIDE:-}" ]; then
+    INFERNO_NIC="${INFERNO_NIC_OVERRIDE}"
+    echo "NIC: ${INFERNO_NIC} (from INFERNO_NIC_OVERRIDE env)"
+elif [ -f /etc/inferno/nic-override ]; then
+    INFERNO_NIC=$(grep -v '^#' /etc/inferno/nic-override | tr -d '[:space:]' | head -1)
+    if [ -n "${INFERNO_NIC}" ]; then
+        echo "NIC: ${INFERNO_NIC} (from /etc/inferno/nic-override)"
+    else
+        echo "NIC override file present but empty — falling through to auto-detect"
+    fi
 fi
-echo "NIC: ${INFERNO_NIC}"
+
+# Auto-detect if not overridden: exclude loopback, Docker/container bridges,
+# WiFi (wl*), virtual bridges (virbr). Dante requires wired Ethernet.
+if [ -z "${INFERNO_NIC}" ]; then
+    INFERNO_NIC=$(ip -o link show | awk '$2 != "lo:" && $2 !~ /^(docker|br-|veth|tun|tap|wl|virbr)/ {print $2; exit}' | tr -d ':')
+    if [ -z "${INFERNO_NIC}" ]; then
+        echo "ERROR: Could not detect a wired NIC. Available interfaces:"
+        ip -o link show | awk '{print "  " $2, $9}' | tr -d ':'
+        echo "Falling back to first non-loopback interface..."
+        INFERNO_NIC=$(ip -o link show | awk '$2 != "lo:" {print $2; exit}' | tr -d ':')
+    fi
+    echo "NIC: ${INFERNO_NIC} (auto-detected)"
+fi
+
+# Item 8: Wait for NIC carrier (physical link-up) before polling for an IP address.
+# A NIC with no cable plugged in will never get an IP — detect early and warn gracefully.
+echo "Checking carrier on ${INFERNO_NIC}..."
+for i in $(seq 1 15); do
+    CARRIER=$(cat "/sys/class/net/${INFERNO_NIC}/carrier" 2>/dev/null || echo "0")
+    [ "${CARRIER}" = "1" ] && break
+    echo "  waiting for carrier on ${INFERNO_NIC} (${i}/15)..."
+    sleep 2
+done
+CARRIER=$(cat "/sys/class/net/${INFERNO_NIC}/carrier" 2>/dev/null || echo "0")
+if [ "${CARRIER}" != "1" ]; then
+    echo "WARNING: No carrier on ${INFERNO_NIC} after 30s — cable unplugged? Continuing anyway."
+fi
 
 # Wait for IPv4 address (may take a moment after link-up)
 for i in $(seq 1 30); do
@@ -44,6 +76,26 @@ if [ -z "${INFERNO_INTERFACE}" ]; then
     INFERNO_INTERFACE="0.0.0.0"
 fi
 echo "IP: ${INFERNO_INTERFACE}"
+
+# Item 12: HW PTP capability check — detect hardware timestamping support on the Dante NIC.
+# Hardware PTP yields ~100 ns offset; software-only yields ~500 µs (still fine for Dante).
+# Result logged for operator visibility and written to /etc/inferno.conf for Cockpit to read.
+INFERNO_HW_PTP="no"
+PTP_DEV=$(ls "/sys/class/net/${INFERNO_NIC}/device/ptp/" 2>/dev/null | head -1 || true)
+if [ -n "${PTP_DEV:-}" ] && [ -c "/dev/${PTP_DEV}" ]; then
+    INFERNO_HW_PTP="yes"
+    echo "HW PTP: hardware clock /dev/${PTP_DEV} on ${INFERNO_NIC} ✓  (~100 ns offset)"
+elif command -v ethtool &>/dev/null; then
+    HW_TS=$(ethtool -T "${INFERNO_NIC}" 2>/dev/null | grep -c "hardware-transmit" || true)
+    if [ "${HW_TS}" -gt 0 ]; then
+        INFERNO_HW_PTP="yes"
+        echo "HW PTP: ${INFERNO_NIC} supports hardware timestamping (ethtool) ✓  (~100 ns offset)"
+    else
+        echo "HW PTP: ${INFERNO_NIC} — software PTP only  (~500 µs offset, Dante works fine)"
+    fi
+else
+    echo "HW PTP: ethtool not available — assuming software PTP"
+fi
 
 # ── Derive identifiers from MAC ────────────────────────────────────────────────
 MAC=$(cat "/sys/class/net/${INFERNO_NIC}/address")
@@ -159,6 +211,14 @@ for svc in inferno-bridge inferno-keepalive librespot librespot-watchdog; do
         || echo "  WARNING: could not enable ${svc} — will try on next reboot"
 done
 
+# ── Item 14: Run hardware probe → /var/log/inferno-probe.log ──────────────────
+# Captures NIC, carrier, HW PTP, audio, storage, CPU for operator diagnostics.
+# (All configure output already captured in /var/log/inferno-configure.log above.)
+if [ -x /usr/local/sbin/probe-node.sh ]; then
+    echo "Running hardware probe → /var/log/inferno-probe.log ..."
+    bash /usr/local/sbin/probe-node.sh > /var/log/inferno-probe.log 2>&1 || true
+fi
+
 # ── Write /etc/inferno.conf (sentinel — prevents re-run) ──────────────────────
 cat > /etc/inferno.conf <<EOF
 # Inferno AoIP node configuration
@@ -173,6 +233,7 @@ INFERNO_DEVICE_ID=${INFERNO_DEVICE_ID}
 INFERNO_DEVICE_ID_TX=${INFERNO_DEVICE_ID_TX}
 INFERNO_DEVICE_ID_RX=${INFERNO_DEVICE_ID_RX}
 INFERNO_AUDIO_CARD=${INFERNO_AUDIO_CARD}
+INFERNO_HW_PTP=${INFERNO_HW_PTP}
 EOF
 
 echo "=== Inferno AoIP configuration complete ==="

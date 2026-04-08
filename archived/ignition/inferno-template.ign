@@ -46,6 +46,14 @@
         }
       },
       {
+        "path": "/etc/inferno/nic-override",
+        "mode": 420,
+        "overwrite": true,
+        "contents": {
+          "source": "data:,%23%20Inferno%20NIC%20override%20-%20provisioned%20by%20Ignition%20(Item%2025).%0A%23%20Set%20to%20the%20wired%20NIC%20name%20to%20force%20Dante%20to%20use%20that%20interface.%0A%23%20Leave%20all%20lines%20commented%20to%20use%20auto-detection%20in%20inferno-configure.sh.%0A%23%20enp3s0%0A"
+        }
+      },
+      {
         "path": "/usr/local/bin/inferno-postdeploy.sh",
         "mode": 493,
         "overwrite": true,
