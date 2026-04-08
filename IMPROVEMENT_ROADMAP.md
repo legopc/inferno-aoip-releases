@@ -29,7 +29,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | BUG-01 | Bug | `apply-update.sh`: Missing `skopeo copy` Command | ✅ Resolved | Easy (<2h) | Low | None |
 | 1 | Install | Add Kickstart to BIB `config.toml` | ✅ Implemented | Easy (<2h) | Low | None |
 | 8 | Hardware | NIC Carrier Check | ✅ Implemented | Easy (<2h) | Low | None |
-| 26 | Security | Default Password Policy | 🔴 Critical | Easy (<2h) | Low | None |
+| 26 | Security | Default Password Policy | ✅ Implemented | Easy (<2h) | Low | None |
 | 31 | Security | SELinux: `restorecon` After Custom File Copies | ✅ Implemented | Easy (<2h) | Low | None |
 | 33 | RT/Reliability | Hardware Watchdog | ✅ Implemented| Easy (<2h) | Low | None |
 | 45 | Build | Clean Up `output-vN/` Directories After Build | ✅ Implemented| Easy (<2h) | Low | None |
@@ -83,11 +83,11 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 4 | Install | GRUB / Boot Screen Branding via BIB | ⏸ Deferred — BIB has no native GRUB branding API | Medium (half-day) | Low | Item 1 |
 | 41 | Build | Multi-Stage Containerfile | ❌ Rejected | Medium (half-day) | Low | None |
 | 18 | Upgrade | Upload Resume / Chunked Upload | ✅ Implemented | Hard (multi-day) | Medium | BUG-01 |
-| BUG-05 | Security | SELinux `unlabeled_t` on `/var/home/core/.ssh` | 🔴 Critical | Easy (<2h) | Low | None |
+| BUG-05 | Security | SELinux `unlabeled_t` on `/var/home/core/.ssh` | ✅ Resolved | Easy (<2h) | Low | None |
 | BUG-07 | Security | Credentials Committed to Documentation Files | 🔴 Critical | Easy (<2h) | Low | None |
 | BUG-08 | Security | `apply-update.sh` Uses `eval` with Python Heredoc for JSON Parsing | 🟠 High | Medium (half-day) | Medium | None |
 | 58 | RT/Reliability | PREEMPT_RT Kernel Option | 🟡 Medium | Hard (multi-day) | High | None |
-| 59 | Security | `restorecon` for User Home Dir in `inferno-configure.sh` | 🔴 Critical | Easy (<2h) | Low | None |
+| 59 | Security | `restorecon` for User Home Dir in `inferno-configure.sh` | ✅ Implemented | Easy (<2h) | Low | None |
 | 60 | Operations | `dante-network-bench.sh` Default Timeout 3s → 8s | 🟢 Low | Easy (<2h) | Low | None |
 | 61 | Build | Cockpit Plugin Update Without Full Image Rebuild | 🟡 Medium | Medium (half-day) | Low | None |
 | 62 | Security | Restrict `sudo` to Specific Inferno Commands | 🟠 High | Easy (<2h) | Low | None |
@@ -163,7 +163,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 ### New Quick Wins Added (Session 2, April 2026)
 
 6. **BUG-05 — SELinux `unlabeled_t` on `/var/home/core/.ssh`** — Critical+Easy: add one `restorecon` call in `inferno-configure.sh` to fix silent SSH key auth failures on all deployed nodes.
-7. **BUG-07 — Credentials in Documentation Files** — Critical+Easy: scrub `Schnitzel-king1` from docs and add a pre-commit hook to prevent future credential commits.
+7. **BUG-07 — Credentials in Documentation Files** — Critical+Easy: scrub `(redacted)` from docs and add a pre-commit hook to prevent future credential commits.
 8. **Item 59 — `restorecon` for User Home Dir** — same fix as BUG-05, confirmed path in `inferno-configure.sh`; one-liner after `chown -R core:core`.
 9. **Item 62 — Restrict `sudo` to Specific Commands** — High+Easy: scope NOPASSWD sudo grant from `ALL` to a specific whitelist; eliminates the broadest attack vector if Cockpit is compromised.
 10. **Item 63 — Enable OTA Bundle Signature Enforcement by Default** — High+Easy: flip one env var default from `0` to `1`; signature infrastructure already exists.
@@ -237,7 +237,7 @@ Items 47–56 → (none, each independent; some enhanced by Items 12, 30)
 | BUG-02 | Wizard overlay blocks own dialog (z-index conflict) | ✅ Implemented | Easy (<2h) | Low | None |
 | BUG-03 | Add `cockpit-pcp` for Cockpit Metrics & History | ✅ Implemented | Easy (<1h) | Low | None |
 | BUG-04 | Dante discovery: longer scan + better results table | 🟡 Medium | Easy (<2h) | Low | None |
-| BUG-05 | SELinux `unlabeled_t` on `/var/home/core/.ssh` → SSH key auth fails | 🔴 Critical | Easy (<2h) | Low | None |
+| BUG-05 | SELinux `unlabeled_t` on `/var/home/core/.ssh` → SSH key auth fails | ✅ Resolved | Easy (<2h) | Low | None |
 | BUG-07 | Credentials Committed to Documentation Files | 🔴 Critical | Easy (<2h) | Low | None |
 | BUG-08 | `apply-update.sh` Uses `eval` with Python Heredoc for JSON Parsing | 🟠 High | Medium (half-day) | Medium | None |
 
@@ -302,7 +302,7 @@ To verify the fix: after first boot, run `ls -Z /var/home/core/.ssh/authorized_k
 
 ##### What is it?
 
-`cockpit-iot-updater/docs/DEPLOYMENT-V9.md` and `BUILDING-UPDATES.md` contain the plaintext password `Schnitzel-king1` for `root@10.10.1.201`. Even in a private or local repository, committing credentials is bad practice. If the repo is ever made public, cloned to a less-secure machine, or pushed to a CI system, the credential leaks.
+`cockpit-iot-updater/docs/DEPLOYMENT-V9.md` and `BUILDING-UPDATES.md` contain the plaintext password `(redacted)` for `root@10.10.1.201`. Even in a private or local repository, committing credentials is bad practice. If the repo is ever made public, cloned to a less-secure machine, or pushed to a CI system, the credential leaks.
 
 ##### Why implement?
 
@@ -1589,7 +1589,7 @@ Surface backup list and restore action in Cockpit Diagnostics tab (links to Item
 
 | ID | Title | Importance | Difficulty | Risk | Prerequisites |
 |----|-------|-----------|------------|------|---------------|
-| 26 | Default password policy | 🔴 Critical | Easy | Low | None |
+| 26 | Default password policy | ✅ Implemented | Easy | Low | None |
 | 27 | SSH: disable password authentication | ❌ Rejected | Easy | Medium | 26 |
 | 28 | Firewalld: configure in Containerfile | ❌ Rejected | Easy | Low | None |
 | 29 | Image signing with cosign/sigstore | ⏸ Deferred | Hard | Low | None |
@@ -1597,7 +1597,7 @@ Surface backup list and restore action in Cockpit Diagnostics tab (links to Item
 | 31 | SELinux: `restorecon` after custom file copies | 🔴 Critical | Easy | Low | None |
 | 32 | Cockpit TLS: custom certificate | ⏸ Deferred | Medium | Low | None |
 | 57 | Cockpit: first-login password prompt | 🟠 High | Medium (half-day) | Low | None |
-| 59 | `restorecon` for User Home Dir in `inferno-configure.sh` | 🔴 Critical | Easy (<2h) | Low | None |
+| 59 | `restorecon` for User Home Dir in `inferno-configure.sh` | ✅ Implemented | Easy (<2h) | Low | None |
 | 62 | Restrict `sudo` to Specific Inferno Commands | 🟠 High | Easy (<2h) | Low | None |
 | 63 | Enable OTA Bundle Signature Enforcement by Default | 🟠 High | Easy (<2h) | Low | None |
 | 64 | URL Allowlist for IoT Updater `POST /fetch-url` | 🟡 Medium | Easy (<2h) | Low | None |
