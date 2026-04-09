@@ -4424,3 +4424,36 @@ Apply same pattern to `cockpit-iot-updater/src/index.js` if it has the same patt
 | 32 | Cockpit TLS: Custom Certificate | 🟡 Medium | Self-signed fine for now; defer with Item 56 |
 | 37 | IRQ Affinity / CPU Isolation | 🟡 Medium | Risky without knowing CPU topology of all target hardware |
 | 56 | Cockpit: Certificate Management | 🟡 Medium | Defer with Item 32 |
+
+### Factory Reset / Provisioning Mode
+
+**Not yet tracked as roadmap items. Adding now.**
+
+#### FR-01 — Factory Reset Button in Cockpit
+**Importance:** 🟠 High  
+**Difficulty:** Medium  
+**Risk:** Low  
+
+A Cockpit action that resets the node to unconfigured state:
+- Clears  (removes sentinel, triggers reconfigure on next boot)
+- Wipes Inferno state: 
+- Resets hostname to  format
+- Clears Dante TX name from state
+- Reboots into unconfigured state — Cockpit first-login wizard fires again
+
+After reset the node should advertise  via mDNS instead of  so inferno-central can discover it as "awaiting provisioning".
+
+#### FR-02 — Provisioning Mode mDNS Advertisement  
+**Importance:** 🟠 High  
+**Difficulty:** Medium  
+**Risk:** Low  
+**Prerequisite:** FR-01  
+
+In unconfigured state (no ), the node advertises:
+-  (new service type, signals "ready to configure")
+- Payload: MAC address, hardware type, current firmware version
+
+inferno-central discovers this service type and lists the node as "awaiting provisioning". Operator can push a config remotely, node transitions to operational state and switches advertisement to .
+
+This is the zero-touch deployment model for fleet management.
+
