@@ -50,8 +50,13 @@ jobs:
           path: releases-repo
 
       # ── Clone external source repos (always latest HEAD) ─────────────────
-      - name: Clone inferno from GitLab
-        run: git clone --recurse-submodules https://gitlab.com/lumifaza/inferno.git
+      - name: Checkout legopc/inferno (dev branch — DC integration + latency patches)
+        uses: actions/checkout@v4
+        with:
+          repository: legopc/inferno
+          ref: dev
+          path: inferno
+          submodules: recursive
 
       - name: Clone statime (inferno-dev branch)
         uses: actions/checkout@v4
