@@ -1,0 +1,324 @@
+INFERNO-AOIP-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+    MODULE-IDENTITY, OBJECT-TYPE, Integer32, Gauge32, Counter32,
+    enterprises
+        FROM SNMPv2-SMI
+    DisplayString
+        FROM SNMPv2-TC
+    MODULE-COMPLIANCE, OBJECT-GROUP
+        FROM SNMPv2-CONF;
+
+--
+-- INFERNO-AOIP-MIB
+-- Internal use only — not registered with IANA.
+-- OID base: .1.3.6.1.4.1.65535.1 (IANA private-use arc)
+--
+
+infernoAoip MODULE-IDENTITY
+    LAST-UPDATED "202604100000Z"
+    ORGANIZATION "Inferno AoIP Project"
+    CONTACT-INFO "internal"
+    DESCRIPTION  "MIB for Inferno AoIP appliance health and state monitoring."
+    REVISION     "202604100000Z"
+    DESCRIPTION  "Initial version."
+    ::= { enterprises 65535 1 }
+
+-- ── Subtrees ────────────────────────────────────────────────────────────────
+
+infernoNode     OBJECT IDENTIFIER ::= { infernoAoip 1 }
+infernoServices OBJECT IDENTIFIER ::= { infernoAoip 2 }
+infernoDante    OBJECT IDENTIFIER ::= { infernoAoip 3 }
+infernoPtp      OBJECT IDENTIFIER ::= { infernoAoip 4 }
+infernoAudio    OBJECT IDENTIFIER ::= { infernoAoip 5 }
+infernoSpotify  OBJECT IDENTIFIER ::= { infernoAoip 6 }
+infernoIradio   OBJECT IDENTIFIER ::= { infernoAoip 7 }
+infernoSystem   OBJECT IDENTIFIER ::= { infernoAoip 8 }
+
+-- ── node(1) ─────────────────────────────────────────────────────────────────
+
+nodeHostname OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE (0..64))
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "System hostname."
+    ::= { infernoNode 1 }
+
+nodeRole OBJECT-TYPE
+    SYNTAX      INTEGER { virgil(1), patchbox(2), central(3) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Appliance role."
+    ::= { infernoNode 2 }
+
+nodeVersion OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE (0..64))
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Inferno software version or bootc image tag."
+    ::= { infernoNode 3 }
+
+nodeMode OBJECT-TYPE
+    SYNTAX      INTEGER { spotify(1), auxIn(2), auxOut(3), auxBidir(4), iradio(5), bluetooth(6) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Active appliance mode."
+    ::= { infernoNode 4 }
+
+nodeConfigured OBJECT-TYPE
+    SYNTAX      INTEGER { configured(1), unconfigured(0) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "1 if first-boot configuration has completed."
+    ::= { infernoNode 5 }
+
+-- ── services(2) ─────────────────────────────────────────────────────────────
+-- State values: up(1), down(2), degraded(3), notApplicable(4)
+-- notApplicable is returned when the service is not relevant to the current mode.
+
+svcInfernoAoip OBJECT-TYPE
+    SYNTAX      INTEGER { up(1), down(2), degraded(3), notApplicable(4) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "inferno-aoip core service state."
+    ::= { infernoServices 1 }
+
+svcStatime OBJECT-TYPE
+    SYNTAX      INTEGER { up(1), down(2), degraded(3), notApplicable(4) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "statime PTP daemon state."
+    ::= { infernoServices 2 }
+
+svcCockpit OBJECT-TYPE
+    SYNTAX      INTEGER { up(1), down(2), degraded(3), notApplicable(4) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Cockpit management UI state."
+    ::= { infernoServices 3 }
+
+svcLibrespot OBJECT-TYPE
+    SYNTAX      INTEGER { up(1), down(2), degraded(3), notApplicable(4) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "librespot Spotify Connect daemon. notApplicable unless nodeMode=spotify(1)."
+    ::= { infernoServices 4 }
+
+svcIradio OBJECT-TYPE
+    SYNTAX      INTEGER { up(1), down(2), degraded(3), notApplicable(4) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "inferno-iradio internet radio bridge. notApplicable unless nodeMode=iradio(5)."
+    ::= { infernoServices 5 }
+
+svcBluetooth OBJECT-TYPE
+    SYNTAX      INTEGER { up(1), down(2), degraded(3), notApplicable(4) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Bluetooth audio service. notApplicable unless nodeMode=bluetooth(6)."
+    ::= { infernoServices 6 }
+
+svcAuxIn OBJECT-TYPE
+    SYNTAX      INTEGER { up(1), down(2), degraded(3), notApplicable(4) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Aux input service. notApplicable unless nodeMode is auxIn/auxBidir."
+    ::= { infernoServices 7 }
+
+svcAuxOut OBJECT-TYPE
+    SYNTAX      INTEGER { up(1), down(2), degraded(3), notApplicable(4) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Aux output service. notApplicable unless nodeMode is auxOut/auxBidir."
+    ::= { infernoServices 8 }
+
+svcCockpitUpdater OBJECT-TYPE
+    SYNTAX      INTEGER { up(1), down(2), degraded(3), notApplicable(4) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "cockpit-iot-updater OTA service state."
+    ::= { infernoServices 9 }
+
+-- ── dante(3) ────────────────────────────────────────────────────────────────
+
+danteDeviceState OBJECT-TYPE
+    SYNTAX      INTEGER { online(1), offline(2), fault(3) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Dante device network state."
+    ::= { infernoDante 1 }
+
+danteRxStreams OBJECT-TYPE
+    SYNTAX      Gauge32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Number of active Dante receive flows."
+    ::= { infernoDante 2 }
+
+danteTxStreams OBJECT-TYPE
+    SYNTAX      Gauge32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Number of active Dante transmit flows."
+    ::= { infernoDante 3 }
+
+danteSubscribed OBJECT-TYPE
+    SYNTAX      INTEGER { allSubscribed(1), partial(2), none(3) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Dante subscription status across all configured routes."
+    ::= { infernoDante 4 }
+
+danteLatencyUs OBJECT-TYPE
+    SYNTAX      Gauge32
+    UNITS       "microseconds"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Configured Dante network latency in microseconds."
+    ::= { infernoDante 5 }
+
+-- ── ptp(4) ──────────────────────────────────────────────────────────────────
+
+ptpSyncStatus OBJECT-TYPE
+    SYNTAX      INTEGER { locked(1), acquiring(2), unlocked(3), fault(4) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "PTP synchronisation status."
+    ::= { infernoPtp 1 }
+
+ptpOffsetNs OBJECT-TYPE
+    SYNTAX      Integer32
+    UNITS       "nanoseconds"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "PTP offset from grandmaster in nanoseconds."
+    ::= { infernoPtp 2 }
+
+ptpClockRole OBJECT-TYPE
+    SYNTAX      INTEGER { master(1), slave(2), passive(3) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "PTP clock role of this node."
+    ::= { infernoPtp 3 }
+
+ptpGmIdentity OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE (0..32))
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Grandmaster clock identity (EUI-64 hex string)."
+    ::= { infernoPtp 4 }
+
+-- ── audio(5) ────────────────────────────────────────────────────────────────
+
+audioInputLevel OBJECT-TYPE
+    SYNTAX      Gauge32
+    UNITS       "0.01 dBFS (absolute)"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Peak input level. Encoded as abs(dBFS) * 100. -18dBFS = 1800."
+    ::= { infernoAudio 1 }
+
+audioOutputLevel OBJECT-TYPE
+    SYNTAX      Gauge32
+    UNITS       "0.01 dBFS (absolute)"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Peak output level. Encoded as abs(dBFS) * 100. -18dBFS = 1800."
+    ::= { infernoAudio 2 }
+
+audioClipping OBJECT-TYPE
+    SYNTAX      Counter32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Cumulative audio clip events since last reset."
+    ::= { infernoAudio 3 }
+
+audioSampleRate OBJECT-TYPE
+    SYNTAX      Gauge32
+    UNITS       "Hz"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Active audio sample rate in Hz."
+    ::= { infernoAudio 4 }
+
+audioLoopbackLoaded OBJECT-TYPE
+    SYNTAX      INTEGER { loaded(1), notLoaded(0) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "1 if snd-aloop kernel module is loaded."
+    ::= { infernoAudio 5 }
+
+-- ── spotify(6) ──────────────────────────────────────────────────────────────
+-- Only meaningful when nodeMode = spotify(1). Returns notApplicable(4) otherwise.
+
+spotifyState OBJECT-TYPE
+    SYNTAX      INTEGER { playing(1), paused(2), idle(3), disconnected(4) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "librespot playback state."
+    ::= { infernoSpotify 1 }
+
+spotifyTrack OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE (0..64))
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Currently playing track as 'Artist - Title'. Empty when not playing."
+    ::= { infernoSpotify 2 }
+
+spotifyVolume OBJECT-TYPE
+    SYNTAX      Gauge32
+    UNITS       "percent"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Spotify volume 0-100."
+    ::= { infernoSpotify 3 }
+
+-- ── iradio(7) ───────────────────────────────────────────────────────────────
+-- Only meaningful when nodeMode = iradio(5). Returns notApplicable(4) otherwise.
+
+iradioState OBJECT-TYPE
+    SYNTAX      INTEGER { playing(1), paused(2), idle(3), disconnected(4) }
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Internet radio playback state."
+    ::= { infernoIradio 1 }
+
+iradioStation OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE (0..64))
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Current internet radio station name."
+    ::= { infernoIradio 2 }
+
+iradioUrl OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE (0..128))
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Current internet radio stream URL."
+    ::= { infernoIradio 3 }
+
+-- ── system(8) ───────────────────────────────────────────────────────────────
+
+sysLastHealthCheck OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE (0..32))
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "ISO 8601 timestamp of last health check run."
+    ::= { infernoSystem 1 }
+
+sysApplicanceUptime OBJECT-TYPE
+    SYNTAX      Gauge32
+    UNITS       "seconds"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Appliance uptime in seconds (from /proc/uptime)."
+    ::= { infernoSystem 2 }
+
+sysServiceCount OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "Number of running Inferno-related systemd services."
+    ::= { infernoSystem 3 }
+
+END
