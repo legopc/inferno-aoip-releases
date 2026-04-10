@@ -51,6 +51,10 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     curl ethtool \
     # SSH server
     openssh-server \
+    # SNMP agent (Item 84) — net-snmp for snmpd + AgentX master
+    net-snmp net-snmp-utils \
+    # Python pip for pyagentx3 install
+    python3-pip \
     # Required by IoT Updater apply-update.sh (OCI image import)
     skopeo \
     # bsdiff: bspatch used by iot-updater apply-update.sh for delta bundle support
@@ -228,6 +232,19 @@ RUN chmod +x /usr/local/sbin/probe-node.sh
 COPY scripts/bench/ /usr/local/sbin/inferno-bench/
 RUN chmod +x /usr/local/sbin/inferno-bench/*.sh && \
     ln -s /usr/local/sbin/inferno-bench/inferno-bench.sh /usr/local/bin/inferno-bench
+
+# ── SNMP agent (Item 84) ──────────────────────────────────────────────────────
+# Install pyagentx3 (pure-Python AgentX subagent library)
+RUN pip3 install --no-cache-dir pyagentx3
+
+COPY scripts/inferno-snmp-agent.py /usr/local/sbin/inferno-snmp-agent.py
+COPY templates/snmpd-inferno.conf  /etc/snmp/snmpd.conf
+COPY templates/systemd/system/inferno-snmpd.service       /etc/systemd/system/inferno-snmpd.service
+COPY templates/systemd/system/inferno-snmp-agent.service  /etc/systemd/system/inferno-snmp-agent.service
+RUN chmod +x /usr/local/sbin/inferno-snmp-agent.py && \
+    # Enable snmpd always — the subagent is gated by ConditionPathExists (.snmp-enabled marker)
+    # snmpd runs but exposes nothing useful until marker exists and subagent starts
+    systemctl enable inferno-snmpd inferno-snmp-agent
 
 # ── Cockpit IoT Updater — baked in (v9+) ──────────────────────────────────────
 # Provides the web UI for delivering OCI update bundles (~2 GB) via Cockpit.

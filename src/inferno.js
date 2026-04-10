@@ -2067,6 +2067,13 @@ async function init() {
     $("btn-log-refresh").addEventListener("click", loadLog);
     $("btn-redeploy").addEventListener("click", triggerRedeploy);
     $("btn-reboot").addEventListener("click", triggerReboot);
+
+    // SNMP toggle
+    var snmpToggle = document.getElementById("snmp-toggle");
+    if (snmpToggle) {
+        snmpToggle.addEventListener("change", function() { toggleSNMP(this.checked); });
+        loadSNMPStatus();
+    }
     $("log-svc-select").addEventListener("change", loadLog);
     $("log-level-select").addEventListener("change", loadLog);
     $("log-lines-select").addEventListener("change", loadLog);
@@ -2151,6 +2158,70 @@ async function init() {
     setRefreshInterval(20000);
     // Initial PTP poll
     refreshPTP().catch(function(){});
+}
+
+
+// ── SNMP toggle ────────────────────────────────────────────────────────────────
+// The SNMP agent is enabled/disabled via a marker file: /etc/inferno/.snmp-enabled
+// inferno-snmp-agent.service has ConditionPathExists on that file.
+// Toggle writes/removes the file and starts/stops the service.
+
+const SNMP_MARKER = "/etc/inferno/.snmp-enabled";
+
+async function loadSNMPStatus() {
+    var checkbox = document.getElementById("snmp-toggle");
+    var statusText = document.getElementById("snmp-status-text");
+    if (!checkbox) return;
+    try {
+        // Check if marker file exists
+        await cockpit.spawn(["test", "-f", SNMP_MARKER], { superuser: "require", err: "message" });
+        checkbox.checked = true;
+        statusText.textContent = "enabled";
+        statusText.style.color = "#3e8635";
+    } catch (_) {
+        checkbox.checked = false;
+        statusText.textContent = "disabled";
+        statusText.style.color = "#6a6e73";
+    }
+}
+
+async function toggleSNMP(enabled) {
+    var statusText = document.getElementById("snmp-status-text");
+    var checkbox = document.getElementById("snmp-toggle");
+    checkbox.disabled = true;
+    statusText.textContent = enabled ? "enabling..." : "disabling...";
+    try {
+        if (enabled) {
+            await cockpit.spawn(
+                ["bash", "-c", "touch " + SNMP_MARKER],
+                { superuser: "require", err: "message" }
+            );
+            await cockpit.spawn(
+                ["systemctl", "start", "inferno-snmpd.service", "inferno-snmp-agent.service"],
+                { superuser: "require", err: "message" }
+            );
+            statusText.textContent = "enabled";
+            statusText.style.color = "#3e8635";
+            toast("SNMP agent enabled", "success", 3000);
+        } else {
+            await cockpit.spawn(
+                ["systemctl", "stop", "inferno-snmp-agent.service", "inferno-snmpd.service"],
+                { superuser: "require", err: "message" }
+            );
+            await cockpit.spawn(
+                ["bash", "-c", "rm -f " + SNMP_MARKER],
+                { superuser: "require", err: "message" }
+            );
+            statusText.textContent = "disabled";
+            statusText.style.color = "#6a6e73";
+            toast("SNMP agent disabled", "info", 3000);
+        }
+    } catch (e) {
+        toast("SNMP toggle error: " + ((e && e.message) || String(e)), "error", 0);
+        await loadSNMPStatus();
+    } finally {
+        checkbox.disabled = false;
+    }
 }
 
 init().catch(function(e) { toast("Init error: " + String(e), "error", 0); });

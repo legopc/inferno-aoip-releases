@@ -1,0 +1,20 @@
+[Unit]
+Description=Inferno SNMP AgentX subagent
+Documentation=https://github.com/legopc/inferno-aoip-releases
+After=snmpd.service local-fs.target
+Requires=snmpd.service
+# Only start if SNMP is enabled (controlled by Cockpit toggle)
+ConditionPathExists=/etc/inferno/.snmp-enabled
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/sbin/inferno-snmp-agent.py
+Restart=on-failure
+RestartSec=10
+# Retry on AgentX socket not ready — agent handles this internally
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=inferno-snmp-agent
+
+[Install]
+WantedBy=multi-user.target
