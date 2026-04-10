@@ -1655,6 +1655,106 @@ async function triggerReboot() {
     } catch (e) { toast("Reboot error: " + ((e && e.message) || String(e)), "error", 0); }
 }
 
+
+// ── Factory Reset ──────────────────────────────────────────────────────────────
+// Three-step confirmation flow:
+//   Step 1: Warning dialog (what will be wiped)
+//   Step 2: Type RESET to confirm (hard gate)
+//   Step 3: In-progress (write marker, reboot)
+
+const FACTORY_RESET_MARKER = "/var/lib/inferno/.factory-reset-pending";
+
+function frModal()  { return document.getElementById("factory-reset-modal"); }
+function frStep(n)  { return document.getElementById("fr-step-" + n); }
+
+function frShowStep(n) {
+    [1, 2, 3].forEach(function(i) {
+        frStep(i).style.display = (i === n) ? "" : "none";
+    });
+}
+
+function initFactoryResetModal() {
+    var modal = frModal();
+    if (!modal) return;
+
+    // Step 1 → Cancel
+    document.getElementById("fr-btn-cancel-1").addEventListener("click", function() {
+        modal.close();
+    });
+    // Step 1 → Continue
+    document.getElementById("fr-btn-next").addEventListener("click", function() {
+        frShowStep(2);
+        var inp = document.getElementById("fr-confirm-input");
+        inp.value = "";
+        document.getElementById("fr-btn-confirm").disabled = true;
+        document.getElementById("fr-mismatch-hint").hidden = true;
+        setTimeout(function() { inp.focus(); }, 50);
+    });
+
+    // Step 2 → input validation
+    document.getElementById("fr-confirm-input").addEventListener("input", function() {
+        var val = this.value.trim().toUpperCase();
+        var btn = document.getElementById("fr-btn-confirm");
+        var hint = document.getElementById("fr-mismatch-hint");
+        if (val === "RESET") {
+            btn.disabled = false;
+            hint.hidden = true;
+        } else {
+            btn.disabled = true;
+            hint.hidden = (val.length === 0);
+        }
+    });
+    // Step 2 → allow Enter key when valid
+    document.getElementById("fr-confirm-input").addEventListener("keydown", function(e) {
+        if (e.key === "Enter" && !document.getElementById("fr-btn-confirm").disabled) {
+            document.getElementById("fr-btn-confirm").click();
+        }
+    });
+
+    // Step 2 → Cancel
+    document.getElementById("fr-btn-cancel-2").addEventListener("click", function() {
+        modal.close();
+    });
+
+    // Step 2 → Confirm (the real action)
+    document.getElementById("fr-btn-confirm").addEventListener("click", async function() {
+        this.disabled = true;
+        frShowStep(3);
+        try {
+            // Get current user for audit marker
+            var whoami = "unknown";
+            try { whoami = (await cockpit.spawn(["id", "-un"])).trim(); } catch(_) {}
+            var now = new Date().toISOString();
+            var markerData = {
+                requested_at: now,
+                requested_by: whoami,
+                source: "cockpit-inferno"
+            };
+            // Write marker file (requires superuser)
+            var markerJson = JSON.stringify(markerData);
+            var proc = cockpit.spawn(
+                ["tee", FACTORY_RESET_MARKER],
+                { superuser: "require", err: "message" }
+            );
+            proc.input(markerJson + "\n", true);
+            await proc;
+            // Trigger reboot — device will run inferno-factory-reset.service on next boot
+            await cockpit.spawn(["systemctl", "reboot"], { superuser: "require", err: "message" });
+        } catch(e) {
+            // Roll back to step 2 with error toast
+            frShowStep(2);
+            document.getElementById("fr-btn-confirm").disabled = false;
+            toast("Factory reset error: " + ((e && e.message) || String(e)), "error", 0);
+        }
+    });
+}
+
+function triggerFactoryReset() {
+    var modal = frModal();
+    if (!modal) { toast("Factory reset modal not found", "error", 0); return; }
+    frShowStep(1);
+    modal.showModal();
+}
 // ── Config export / import ─────────────────────────────────────────────────────
 function exportConfig() {
     var text = buildConfText(currentConf);
@@ -2067,6 +2167,8 @@ async function init() {
     $("btn-log-refresh").addEventListener("click", loadLog);
     $("btn-redeploy").addEventListener("click", triggerRedeploy);
     $("btn-reboot").addEventListener("click", triggerReboot);
+    $("btn-factory-reset").addEventListener("click", triggerFactoryReset);
+    initFactoryResetModal();
     $("log-svc-select").addEventListener("change", loadLog);
     $("log-level-select").addEventListener("change", loadLog);
     $("log-lines-select").addEventListener("change", loadLog);

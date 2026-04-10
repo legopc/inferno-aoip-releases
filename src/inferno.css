@@ -205,6 +205,18 @@ body {
 .danger-zone { border: 1px solid #f1c0bb; border-radius: 6px; padding: 16px; background: #fff8f7; }
 .danger-zone-title { font-size: 0.8rem; font-weight: 700; color: #c9190b; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
 .danger-hint { margin-top: 10px; }
+.danger-zone-critical { border-color: #c9190b; background: #fff0ee; }
+
+/* ── Factory Reset modal ──────────────────────────────────────────────────── */
+.factory-reset-modal { min-width: 420px; max-width: 520px; }
+.factory-reset-modal input.form-control {
+  width: 100%; box-sizing: border-box;
+  padding: 8px 12px; border: 1px solid #8a8d90;
+  border-radius: 4px; font-size: 0.95rem;
+}
+.factory-reset-modal input.form-control:focus {
+  outline: none; border-color: #c9190b; box-shadow: 0 0 0 2px rgba(201,25,11,.2);
+}
 .section-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #6a6e73; margin-bottom: 10px; }
 .mode-badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
 .mode-badge.spotify { background: #e6f4ea; color: #1e7e1e; }

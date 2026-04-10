@@ -220,6 +220,12 @@ COPY templates/systemd/system/inferno-health-check.service /etc/systemd/system/i
 RUN chmod +x /usr/local/sbin/inferno-health-check.sh && \
     systemctl enable inferno-health-check
 
+# ── Factory Reset (Item 84 adjacent — safety feature) ─────────────────────────
+COPY scripts/inferno-reset.sh /usr/local/sbin/inferno-reset.sh
+COPY templates/systemd/system/inferno-factory-reset.service /etc/systemd/system/inferno-factory-reset.service
+RUN chmod +x /usr/local/sbin/inferno-reset.sh && \
+    systemctl enable inferno-factory-reset
+
 # ── Hardware probe script (Item 14 — invoked by inferno-configure.sh at firstboot) ──
 COPY scripts/probe-node.sh /usr/local/sbin/probe-node.sh
 RUN chmod +x /usr/local/sbin/probe-node.sh

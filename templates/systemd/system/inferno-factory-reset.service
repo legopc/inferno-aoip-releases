@@ -1,0 +1,38 @@
+# inferno-factory-reset.service
+#
+# Checks for a factory reset marker on boot and performs the wipe if present.
+# Runs early — after filesystems are mounted but before inferno services start.
+# On a normal boot (no marker), exits immediately (< 10ms overhead).
+#
+# The marker is written by the Cockpit UI backend after double-confirmation.
+# Location: /var/lib/inferno/.factory-reset-pending
+
+[Unit]
+Description=Inferno Factory Reset (marker-triggered)
+Documentation=https://github.com/legopc/inferno-aoip-releases
+# Must run after persistent storage is available
+After=local-fs.target
+# Must run before inferno services start — if we're resetting, no point starting them
+Before=inferno-health-check.service statime-inferno.service
+# Also run before network target so we can reset NM connections cleanly
+Before=network.target
+# Run even in rescue/emergency targets (in case we need to unstick a bad state)
+DefaultDependencies=no
+ConditionPathExists=/var/lib/inferno/.factory-reset-pending
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/usr/local/sbin/inferno-reset.sh
+# Reset script handles its own error logging and reboots on success.
+# If script fails (e.g. partial wipe), log the failure but do NOT loop.
+# The marker file will remain, so the reset will be retried on next boot.
+# Admin can SSH in and investigate before the next attempt.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=inferno-factory-reset
+# Run as root — required for passwd, hostnamectl, rm of system files
+User=root
+
+[Install]
+WantedBy=multi-user.target
