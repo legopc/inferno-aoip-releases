@@ -2162,58 +2162,98 @@ async function init() {
 
 
 // ── SNMP toggle ────────────────────────────────────────────────────────────────
-// The SNMP agent is enabled/disabled via a marker file: /etc/inferno/.snmp-enabled
-// inferno-snmp-agent.service has ConditionPathExists on that file.
-// Toggle writes/removes the file and starts/stops the service.
+// Enable/disable the SNMPv2c read-only agent (net-snmp + AgentX subagent).
+//
+// Mechanism:
+//   - Marker file /etc/inferno/.snmp-enabled controls ConditionPathExists on units
+//   - Community string stored in /etc/inferno/.snmp-community (default: "public")
+//   - inferno-configure.sh reads both at boot to write /etc/snmp/snmpd.conf
+//   - Toggle also directly starts/stops the running services
 
-const SNMP_MARKER = "/etc/inferno/.snmp-enabled";
+const SNMP_MARKER    = "/etc/inferno/.snmp-enabled";
+const SNMP_COMM_FILE = "/etc/inferno/.snmp-community";
+const SNMPD_SVC      = "inferno-snmpd.service";
+const SNMP_SUB_SVC   = "inferno-snmp-subagent.service";
+
+function _snmpCommunityRow() { return document.getElementById("snmp-community-row"); }
+function _snmpCommunityInput() { return document.getElementById("snmp-community-input"); }
 
 async function loadSNMPStatus() {
-    var checkbox = document.getElementById("snmp-toggle");
+    var checkbox   = document.getElementById("snmp-toggle");
     var statusText = document.getElementById("snmp-status-text");
     if (!checkbox) return;
     try {
-        // Check if marker file exists
         await cockpit.spawn(["test", "-f", SNMP_MARKER], { superuser: "require", err: "message" });
         checkbox.checked = true;
         statusText.textContent = "enabled";
         statusText.style.color = "#3e8635";
+        var cr = _snmpCommunityRow();
+        if (cr) cr.style.display = "";
     } catch (_) {
         checkbox.checked = false;
         statusText.textContent = "disabled";
         statusText.style.color = "#6a6e73";
+        var cr = _snmpCommunityRow();
+        if (cr) cr.style.display = "none";
     }
+    // Load community string
+    try {
+        var comm = await cockpit.file(SNMP_COMM_FILE).read();
+        var inp = _snmpCommunityInput();
+        if (inp && comm) inp.value = comm.trim();
+    } catch (_) {}
+}
+
+async function _applySnmpCommunity() {
+    var inp = _snmpCommunityInput();
+    var community = (inp ? inp.value.trim() : "") || "public";
+    // Write community file
+    await cockpit.spawn(["bash", "-c", "echo " + JSON.stringify(community) + " | sudo tee " + SNMP_COMM_FILE + " > /dev/null"],
+        { err: "message" });
+    // Patch running snmpd.conf if it exists
+    await cockpit.spawn(["bash", "-c",
+        "[ -f /etc/snmp/snmpd.conf ] && sudo sed -i 's/^rocommunity .*/rocommunity " + community + " default/' /etc/snmp/snmpd.conf || true"],
+        { err: "message" });
+    // Restart snmpd to pick up new community (non-fatal)
+    try {
+        await cockpit.spawn(["sudo", "systemctl", "try-restart", SNMPD_SVC], { err: "message" });
+    } catch (_) {}
 }
 
 async function toggleSNMP(enabled) {
     var statusText = document.getElementById("snmp-status-text");
-    var checkbox = document.getElementById("snmp-toggle");
+    var checkbox   = document.getElementById("snmp-toggle");
     checkbox.disabled = true;
     statusText.textContent = enabled ? "enabling..." : "disabling...";
     try {
         if (enabled) {
+            await _applySnmpCommunity();
             await cockpit.spawn(
-                ["bash", "-c", "touch " + SNMP_MARKER],
-                { superuser: "require", err: "message" }
+                ["bash", "-c", "sudo touch " + SNMP_MARKER],
+                { err: "message" }
             );
             await cockpit.spawn(
-                ["systemctl", "start", "inferno-snmpd.service", "inferno-snmp-agent.service"],
-                { superuser: "require", err: "message" }
+                ["sudo", "systemctl", "start", SNMPD_SVC, SNMP_SUB_SVC],
+                { err: "message" }
             );
             statusText.textContent = "enabled";
             statusText.style.color = "#3e8635";
-            toast("SNMP agent enabled", "success", 3000);
+            var cr = _snmpCommunityRow();
+            if (cr) cr.style.display = "";
+            toast("SNMP agent enabled (port 161/udp)", "success", 3000);
         } else {
             await cockpit.spawn(
-                ["systemctl", "stop", "inferno-snmp-agent.service", "inferno-snmpd.service"],
-                { superuser: "require", err: "message" }
+                ["sudo", "systemctl", "stop", SNMP_SUB_SVC, SNMPD_SVC],
+                { err: "message" }
             );
             await cockpit.spawn(
-                ["bash", "-c", "rm -f " + SNMP_MARKER],
-                { superuser: "require", err: "message" }
+                ["bash", "-c", "sudo rm -f " + SNMP_MARKER],
+                { err: "message" }
             );
             statusText.textContent = "disabled";
             statusText.style.color = "#6a6e73";
+            var cr = _snmpCommunityRow();
+            if (cr) cr.style.display = "none";
             toast("SNMP agent disabled", "info", 3000);
         }
     } catch (e) {

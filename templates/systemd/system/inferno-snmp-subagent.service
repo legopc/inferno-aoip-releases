@@ -1,0 +1,17 @@
+[Unit]
+Description=Inferno SNMP subagent (AgentX — custom OIDs)
+Documentation=https://github.com/legopc/inferno-aoip-releases
+After=inferno-snmpd.service
+Requires=inferno-snmpd.service
+ConditionPathExists=/etc/inferno.conf
+
+[Service]
+Type=simple
+User=root
+ExecStartPre=/bin/sleep 3
+ExecStart=/usr/bin/python3 /usr/local/sbin/inferno-snmp-subagent.py
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

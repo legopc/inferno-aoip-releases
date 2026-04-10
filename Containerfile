@@ -51,6 +51,8 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     curl ethtool \
     # SSH server
     openssh-server \
+    # SNMP agent (read-only, for Cisco NMS integration)
+    net-snmp net-snmp-utils python3-net-snmp \
     # SNMP agent (Item 84) — net-snmp for snmpd + AgentX master
     net-snmp net-snmp-utils \
     # Python pip for pyagentx3 install
@@ -219,6 +221,17 @@ RUN chmod +x /usr/local/sbin/inferno-configure.sh && \
 # Runs 120 s after multi-user.target; calls 'bootc rollback + reboot' if all
 # critical services (statime-inferno, cockpit.socket) are down simultaneously.
 # Protects headless nodes from being permanently bricked by a bad OTA update.
+# ── SNMP agent files ─────────────────────────────────────────────────────────
+COPY templates/snmp/snmpd.conf              /etc/inferno/snmpd.conf.template
+COPY scripts/inferno-snmp-subagent.py       /usr/local/sbin/inferno-snmp-subagent.py
+COPY scripts/inferno-snmp-sysDescr.sh       /usr/local/sbin/inferno-snmp-sysDescr.sh
+COPY templates/systemd/system/inferno-snmpd.service           /etc/systemd/system/
+COPY templates/systemd/system/inferno-snmp-subagent.service   /etc/systemd/system/
+RUN chmod +x /usr/local/sbin/inferno-snmp-subagent.py \
+             /usr/local/sbin/inferno-snmp-sysDescr.sh
+# Note: services are NOT enabled by default — they start only when
+# /etc/inferno/.snmp-enabled marker exists (set via Cockpit or inferno-configure.sh).
+
 COPY scripts/inferno-health-check.sh /usr/local/sbin/inferno-health-check.sh
 COPY templates/systemd/system/inferno-health-check.service /etc/systemd/system/inferno-health-check.service
 RUN chmod +x /usr/local/sbin/inferno-health-check.sh && \

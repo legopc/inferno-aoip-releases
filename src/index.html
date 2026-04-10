@@ -265,9 +265,12 @@
                   <span id="snmp-status-text" class="form-hint" style="margin:0;">loading...</span>
                 </div>
               </div>
+              <div id="snmp-community-row" class="form-row" style="margin-top:10px; display:none;">
+                <label class="row-label" for="snmp-community-input">Community</label>
+                <input type="text" id="snmp-community-input" class="form-input" placeholder="public" value="public" style="max-width:200px;">
+              </div>
               <div class="form-hint" style="margin-top:8px;">
                 Enable SNMPv2c read-only agent for NMS polling (port 161/udp).
-                Community string configured in <code>/etc/snmp/snmpd.conf</code>.
               </div>
             </div>
           </div>

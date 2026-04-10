@@ -242,6 +242,23 @@ INFERNO_AUDIO_CARD=${INFERNO_AUDIO_CARD}
 INFERNO_HW_PTP=${INFERNO_HW_PTP}
 EOF
 
+
+# ── SNMP agent setup ──────────────────────────────────────────────────────────
+# Deploy snmpd.conf from template, substituting the community string.
+# Community defaults to "public" unless /etc/inferno/.snmp-community was written
+# by Cockpit prior to this run.
+SNMP_COMMUNITY=$(cat /etc/inferno/.snmp-community 2>/dev/null || echo "public")
+if [ -f /etc/inferno/snmpd.conf.template ]; then
+    mkdir -p /etc/snmp
+    sed "s/%%SNMP_COMMUNITY%%/${SNMP_COMMUNITY}/g"         /etc/inferno/snmpd.conf.template > /etc/snmp/snmpd.conf
+    echo "SNMP: snmpd.conf written (community=${SNMP_COMMUNITY})"
+fi
+# Start SNMP services if the enable marker exists
+if [ -f /etc/inferno/.snmp-enabled ]; then
+    systemctl enable --now inferno-snmpd.service inferno-snmp-subagent.service || true
+    echo "SNMP: services enabled and started"
+fi
+
 # ── Item 15: Write /var/lib/inferno/version sentinel ─────────────────────────
 mkdir -p /var/lib/inferno
 echo "${INFERNO_VERSION}" > /var/lib/inferno/version

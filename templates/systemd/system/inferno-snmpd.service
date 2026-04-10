@@ -1,19 +1,17 @@
 [Unit]
-Description=Net-SNMP daemon (Inferno AoIP appliance)
-Documentation=man:snmpd(8)
-After=network.target local-fs.target
-Before=inferno-snmp-agent.service
+Description=Net-SNMP daemon (Inferno AoIP read-only agent)
+Documentation=https://github.com/legopc/inferno-aoip-releases
+After=network-online.target inferno-configure.service
+Wants=network-online.target
+ConditionPathExists=/etc/inferno.conf
+ConditionPathExists=/etc/snmp/snmpd.conf
 
 [Service]
-Type=notify
-ExecStart=/usr/sbin/snmpd -f -LS4d -u root -g root -I -smux,mteTrigger,mteTriggerConf -p /run/snmpd.pid
-ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/snmpd.pid
+Type=simple
+User=root
+ExecStart=/usr/sbin/snmpd -f -Lo -c /etc/snmp/snmpd.conf
 Restart=on-failure
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=snmpd
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
