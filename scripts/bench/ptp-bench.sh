@@ -1,7 +1,7 @@
 #!/bin/bash
 # ptp-bench.sh — Collect PTP jitter statistics from statime-inferno
 #
-# Parses INFO-level Measurement lines from the statime-inferno journal.
+# Parses TRACE-level "Estimated offset" lines from the statime-inferno journal.
 # Values are in nanoseconds.
 #
 # Usage:
@@ -155,30 +155,24 @@ REMOTE_HOST=$(run_remote hostname 2>/dev/null || echo "localhost")
 echo -e "${BOLD}PTP Jitter Benchmark${RESET}  —  ${CYAN}${LABEL}${RESET}"
 
 # Build journalctl time window
-# statime emits ~5 INFO measurements/sec; each measurement is among ~8 total log lines
-# For --samples N: fetch SAMPLES/5 seconds + 30s buffer; for --minutes M: use --since
+# statime emits ~40 TRACE offset measurements/sec at loglevel=trace
+# For --samples N: fetch SAMPLES/40 seconds + 30s buffer; for --minutes M: use --since
 if [[ -n "$MINUTES" ]]; then
     JCTL_SINCE="--since=-${MINUTES}min"
     echo -e "${DIM}  collecting last ${MINUTES} minutes of journal...${RESET}"
 else
-    WINDOW_SEC=$(( (SAMPLES / 5) + 60 ))
+    WINDOW_SEC=$(( (SAMPLES / 40) + 30 ))
     JCTL_SINCE="--since=-${WINDOW_SEC}s"
     echo -e "${DIM}  collecting ~${SAMPLES} samples (~${WINDOW_SEC}s window)...${RESET}"
 fi
 
-# Remote awk command: extract offset values from INFO Measurement lines
-# Pattern: "INFO" + "offset: Some(Duration { inner:" + capture number
+# Remote awk command: extract offset values from TRACE "Estimated offset" lines
+# Pattern: "Estimated offset" + capture value in ns
 AWK_PROG='
-/INFO.*Measurement.*offset: Some\(Duration/ {
-    n = split($0, parts, "inner:")
-    for (i = 2; i <= n; i++) {
-        # Only the offset field (not event_time which is a large integer)
-        # event_time inner values are large integers > 1e11; offset values are small floats
-        val = parts[i]
-        gsub(/^[ ]+/, "", val)
-        gsub(/[ }),].*$/, "", val)
-        v = val + 0
-        if (v < 1e10 && v > -1e10) { print val }
+/Estimated offset/ {
+    if (match($0, /Estimated offset ([+-]?[0-9.]+)ns/, a)) {
+        v = a[1] + 0
+        if (v < 1e10 && v > -1e10) print a[1]
     }
 }
 '
