@@ -283,10 +283,9 @@ echo ""
 # Save JSON
 if ! $NO_SAVE; then
     [[ -z "$OUTPUT_FILE" ]] && OUTPUT_FILE="${LABEL//@/_}-ptp-$(date +%Y%m%d-%H%M%S).json"
-    # Write raw offsets to temp file for JSON embedding
-    RAW_OFFSETS_TMP=".ptp-bench-offsets-$$"
+    # Write raw offsets to temp file for JSON embedding (use /tmp — script may run from read-only dir)
+    RAW_OFFSETS_TMP=$(mktemp /tmp/ptp-bench-raw-XXXXXX)
     echo "$RAW_OFFSETS" > "$RAW_OFFSETS_TMP"
-    trap "rm -f '$RAW_OFFSETS_TMP'" RETURN
     python3 - <<PYEOF
 import json
 stats_raw = json.loads("""$STATS_JSON""")
@@ -320,4 +319,5 @@ with open("$OUTPUT_FILE", "w") as f:
     json.dump(result, f, indent=2)
 print(f"  Saved → $OUTPUT_FILE")
 PYEOF
+    rm -f "$RAW_OFFSETS_TMP"
 fi
