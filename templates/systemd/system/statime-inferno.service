@@ -11,6 +11,11 @@ ExecStart=/usr/local/bin/statime -c /etc/statime-inferno.toml
 Restart=on-failure
 RestartSec=5
 LimitMEMLOCK=infinity
+CapabilityBoundingSet=CAP_SYS_TIME CAP_NET_RAW CAP_NET_BIND_SERVICE CAP_SYS_NICE
+AmbientCapabilities=CAP_SYS_TIME CAP_NET_RAW CAP_NET_BIND_SERVICE CAP_SYS_NICE
+NoNewPrivileges=no
+ProtectHome=true
+PrivateTmp=yes
 
 [Install]
 WantedBy=multi-user.target
