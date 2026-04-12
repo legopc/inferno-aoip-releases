@@ -2,7 +2,7 @@
 
 > **Document type:** Engineering review and improvement backlog  
 > **Scope:** Fedora bootc appliance (installer, first-boot, runtime, upgrade, build pipeline, operations)  
-> **Total items:** 115 (7 bug fixes + 108 improvements) — 30 resolved, 7 rejected, 5 deferred, 73 active  
+> **Total items:** 114 (7 bug fixes + 107 improvements) — 51 resolved, 7 rejected, 6 deferred, 50 active  
 > **Generated:** April 2026  
 
 > Resolved items archived in [archived/IMPROVEMENT_ROADMAP_DONE.md](archived/IMPROVEMENT_ROADMAP_DONE.md)
@@ -328,6 +328,8 @@ Scrubbing git history (via `git filter-branch` or `git filter-repo`) is operatio
 ---
 
 #### BUG-08 — `apply-update.sh` Uses `eval` with Python Heredoc for JSON Parsing
+
+> ✅ **Implemented** — Sprint 4, commit `5d360c2` (`inferno-aoip-releases`) Replace eval heredoc with individual python3 -c calls
 
 **Importance:** 🟠 High  
 **Impact:** Eliminates potential code injection vector in the OTA update path  
@@ -3950,6 +3952,8 @@ Cockpit reads `/var/lib/inferno/monitor-status.json` and renders the PTP card wi
 
 #### Item 97 — Disable RT Throttling (`sched_rt_runtime_us=-1`)
 
+> ✅ **Implemented** — Sprint 4, commit `fb0e4dd` (`inferno-aoip-releases`) Add /etc/sysctl.d/99-rt-audio.conf
+
 **Importance:** 🟠 High  
 **Impact:** Prevents kernel from preempting SCHED_FIFO statime — eliminates 50ms/s forced pauses that cause PTP jitter spikes  
 **Difficulty:** Easy  
@@ -4168,6 +4172,8 @@ Add `ethtool` to `Containerfile` dnf install line. Add `|| true` to all ethtool 
 
 #### Item 104 — bootc Switch Rollback via `FailureAction=`
 
+> ✅ **Implemented** — Sprint 4, commits `003e95c`+`5d8b4ca` (`inferno-aoip-releases`) OnFailure rollback service + boot-loop circuit breaker
+
 **Importance:** 🟠 High  
 **Impact:** Automatic rollback to previous image if updated image hard-locks before reaching multi-user.target  
 **Difficulty:** Easy  
@@ -4204,6 +4210,8 @@ Longer term: use `bootc switch --apply` in `apply-update.sh` to enable systemd-b
 
 #### Item 105 — Cockpit CSP Hardening (Remove `unsafe-inline`)
 
+> ✅ **Implemented** — Sprint 4, commit `c805d23` (`iot-updater`) Remove unsafe-inline; migrate 47 inline styles to CSS classes
+
 **Importance:** 🟠 High  
 **Impact:** Eliminates CSS/script injection vector in IoT Updater and Cockpit Inferno plugins  
 **Difficulty:** Easy  
@@ -4229,6 +4237,8 @@ Audit `index.html` and `updater.js` for inline `style=` attributes and `<style>`
 ---
 
 #### Item 106 — `statime-inferno.service` Capability Sandboxing
+
+> ✅ **Implemented** — Sprint 4, commits `d6532b8`+`004f2e4` (`inferno-aoip-releases`) CapabilityBoundingSet with CAP_SYS_NICE; PrivateTmp removed (breaks ptp-usrvclock)
 
 **Importance:** 🟠 High  
 **Impact:** Limits blast radius if statime process is exploited — strips 35+ unnecessary Linux capabilities  
@@ -4261,6 +4271,8 @@ Test with `systemd-analyze security statime-inferno` before and after.
 ---
 
 #### Item 107 — `WatchdogSec=` for Critical Audio Services
+
+> ✅ **Implemented** — Sprint 4, commits `4477f3b`+`f69dec1` (`inferno-aoip-releases`) Wrapper scripts for alsaloop and librespot; WatchdogSec=30/60
 
 **Importance:** 🟠 High  
 **Impact:** Detects hung (non-exiting) service states and forces restart — catches zombie alsaloop processes  
