@@ -57,6 +57,9 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     bsdiff \
     # LLDP auto-discovery — advertises Virgil-AoIP identity to Cisco switches for auto-VLAN
     lldpd \
+    # SNMP agent — exposes device metrics to AV control systems (QSC, Crestron, AMX)
+    # Disabled by default; enabled via Cockpit SNMP tab. Adds ~20 MB to image.
+    net-snmp \
     # Benchmarking and stress testing (inferno-bench suite)
     # stress-ng: system stress (CPU/memory/network) for PTP degradation testing
     # rt-tests: cyclictest for scheduler latency measurement under load
@@ -239,6 +242,15 @@ RUN chmod +x /usr/local/sbin/inferno-health-check.sh && \
 # ── Hardware probe script (Item 14 — invoked by inferno-configure.sh at firstboot) ──
 COPY scripts/probe-node.sh /usr/local/sbin/probe-node.sh
 RUN chmod +x /usr/local/sbin/probe-node.sh
+
+# ── SNMP agent (Item 84) ───────────────────────────────────────────────────────
+# Disabled by default. Operator enables via Cockpit SNMP tab.
+# inferno-snmp-apply.sh reads /etc/inferno.conf and renders snmpd.conf from template.
+# inferno-snmp-oid.sh is called by snmpd extend directives to expose Inferno OIDs.
+COPY templates/snmpd.conf.template /etc/inferno/snmpd.conf.template
+COPY scripts/inferno-snmp-apply.sh /usr/local/sbin/inferno-snmp-apply.sh
+COPY scripts/inferno-snmp-oid.sh   /usr/local/sbin/inferno-snmp-oid.sh
+RUN chmod +x /usr/local/sbin/inferno-snmp-apply.sh /usr/local/sbin/inferno-snmp-oid.sh
 
 # ── Watchdog wrappers (Item 107) ───────────────────────────────────────────────
 COPY templates/scripts/inferno-bridge-watchdog.sh /usr/local/sbin/inferno-bridge-watchdog.sh
