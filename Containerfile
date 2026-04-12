@@ -55,6 +55,8 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     skopeo \
     # bsdiff: bspatch used by iot-updater apply-update.sh for delta bundle support
     bsdiff \
+    # LLDP auto-discovery — advertises Virgil-AoIP identity to Cisco switches for auto-VLAN
+    lldpd \
     # Benchmarking and stress testing (inferno-bench suite)
     # stress-ng: system stress (CPU/memory/network) for PTP degradation testing
     # rt-tests: cyclictest for scheduler latency measurement under load
@@ -115,6 +117,7 @@ RUN systemctl enable \
     sshd \
     cockpit.socket \
     avahi-daemon \
+    lldpd \
     pmcd
 
 # ── Mask conflicting time sync services (PTP manages the clock) ───────────────
@@ -174,6 +177,7 @@ COPY templates/inferno-ptpv1.toml         /etc/inferno/statime-inferno.toml.temp
 COPY templates/alsa/99-inferno.conf       /etc/inferno/99-inferno.conf.template
 COPY templates/alsa/asoundrc.spotify      /etc/inferno/asoundrc.spotify.template
 COPY templates/alsa/asoundrc.aux          /etc/inferno/asoundrc.aux.template
+COPY templates/lldpd.conf                 /etc/inferno/lldpd.conf.template
 # Per-user scripts (installed to ~/bin at first boot)
 COPY templates/inferno-sink-event         /etc/inferno/inferno-sink-event
 COPY templates/librespot-watchdog         /etc/inferno/librespot-watchdog

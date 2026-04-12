@@ -139,6 +139,7 @@ substitute() {
 echo "Writing system config files..."
 substitute /etc/inferno/statime-inferno.toml.template /etc/statime-inferno.toml
 substitute /etc/inferno/99-inferno.conf.template      /etc/alsa/conf.d/99-inferno.conf
+substitute /etc/inferno/lldpd.conf.template           /etc/lldpd.conf
 
 # ── Set hostname ───────────────────────────────────────────────────────────────
 HOSTNAME="inferno-$(echo "${MAC_SUFFIX}" | tr '[:upper:]' '[:lower:]')"
