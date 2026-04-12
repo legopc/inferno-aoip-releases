@@ -91,6 +91,7 @@ ISO_BUILD_PID=$!
 # Background job 2: raw tarball export
 (
   echo "── [4/5] Exporting raw upgrade tarball → ${UPGRADE_TAR} ──"
+  rm -f "${UPGRADE_TAR}"
   ${PODMAN} save "localhost/inferno-appliance:${VERSION}" -o "${UPGRADE_TAR}"
   echo "Upgrade tar: $(ls -lh ${UPGRADE_TAR})"
 ) >"${TAR_LOG}" 2>&1 &
