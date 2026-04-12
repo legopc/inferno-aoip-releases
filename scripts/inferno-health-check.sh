@@ -19,6 +19,7 @@ set -uo pipefail
 
 LOG_TAG="inferno-health-check"
 OK_FLAG="/var/lib/inferno/health-check-ok"
+ROLLBACK_FLAG="/var/lib/inferno/rollback-attempted"
 
 log() { logger -t "$LOG_TAG" "$*"; echo "[${LOG_TAG}] $*"; }
 
@@ -39,6 +40,7 @@ TOTAL=${#CRITICAL_SERVICES[@]}
 if [[ $FAILED -lt $TOTAL ]]; then
     log "Health check passed ($((TOTAL - FAILED))/${TOTAL} critical services healthy)"
     touch "$OK_FLAG"
+    rm -f "$ROLLBACK_FLAG" 2>/dev/null || true
     exit 0
 fi
 
@@ -60,6 +62,18 @@ if [[ "$HAS_ROLLBACK" != "yes" ]]; then
     log "No rollback deployment available — cannot auto-recover (physical intervention required)"
     exit 1
 fi
+
+# Circuit breaker: if rollback was already attempted on a previous boot, both
+# images are likely broken.  Exiting 0 prevents the rollback service from
+# firing again and looping indefinitely between two broken deployments.
+if [ -f "$ROLLBACK_FLAG" ]; then
+    log "WARN: Health check failing but rollback already attempted — skipping rollback to prevent boot loop"
+    log "WARN: Manual intervention required. Check: journalctl -u statime-inferno -u cockpit.socket"
+    exit 0
+fi
+mkdir -p /var/lib/inferno
+echo "$(date -Iseconds)" > "$ROLLBACK_FLAG"
+log "INFO: Writing rollback flag — rollback will be triggered"
 
 log "CRITICAL: Triggering bootc rollback — this boot is unhealthy"
 bootc rollback || { log "bootc rollback failed — cannot auto-recover"; exit 1; }
