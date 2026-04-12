@@ -238,6 +238,10 @@ RUN chmod +x /usr/local/sbin/inferno-health-check.sh && \
 COPY scripts/probe-node.sh /usr/local/sbin/probe-node.sh
 RUN chmod +x /usr/local/sbin/probe-node.sh
 
+# ── Watchdog wrapper for inferno-bridge (Item 107) ───────────────────────────
+COPY templates/scripts/inferno-bridge-watchdog.sh /usr/local/sbin/inferno-bridge-watchdog.sh
+RUN chmod +x /usr/local/sbin/inferno-bridge-watchdog.sh
+
 # ── Benchmark suite ───────────────────────────────────────────────────────────
 COPY scripts/bench/ /usr/local/sbin/inferno-bench/
 RUN chmod +x /usr/local/sbin/inferno-bench/*.sh && \

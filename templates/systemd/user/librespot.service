@@ -23,9 +23,12 @@ ExecStart=/usr/local/bin/librespot \
     --system-cache /var/home/core/.cache/librespot \
     --disable-gapless \
     --emit-sink-events \
+    --enable-audio-locking \
     --onevent /var/home/core/bin/inferno-sink-event
 Restart=always
 RestartSec=5
+WatchdogSec=60
+NotifyAccess=main
 LimitMEMLOCK=infinity
 
 [Install]

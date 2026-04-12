@@ -12,13 +12,16 @@ ConditionPathExists=/etc/inferno.conf
 # alsaloop with -t 20000 (20ms transfer window) and SAMPLERATE sync for clock drift.
 # Invoked via Virgil-Appliance symlink — sets the Dante Controller "Model Name" field.
 ExecStartPre=/bin/sh -c 'while [ ! -S /tmp/ptp-usrvclock ]; do sleep 1; done'
-ExecStart=/usr/local/bin/Virgil-Appliance \
+ExecStart=/usr/local/sbin/inferno-bridge-watchdog.sh \
   -C hw:Loopback,1,0 \
   -P inferno_spotify \
   -r 48000 \
   -f S32_LE \
   -c 2 \
   -t 20000
+Type=notify
+NotifyAccess=all
+WatchdogSec=30
 Restart=always
 RestartSec=3
 TimeoutStopSec=5
