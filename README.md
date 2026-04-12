@@ -212,6 +212,7 @@ inferno-aoip-releases/
 │   ├── cockpit-ui.md           Cockpit UI internals and ALSA/systemd provisioning logic
 │   ├── upgrade.md              Node upgrade procedure (tar-based, no registry required)
 │   ├── install-guide.md        Physical/VM installation guide
+│   ├── network-auto-discovery.md  LLDP auto-discovery — Cisco switch config for auto-VLAN
 │   ├── operations.md           Lab hosts, IPs, credentials, operational runbook
 │   └── troubleshooting.md      Common failures and fixes
 ├── scripts/
@@ -278,6 +279,18 @@ Images are built on **COPILOT-BUILD-01** (`10.10.1.98`) at `/opt/inferno-build/`
 ### USB hot-plug (udev)
 
 A udev rule detects USB audio card add/remove events and triggers an ALSA rescan. The Cockpit UI's **Audio Devices** panel shows a live list of cards with capture/playback capability, with a manual **Refresh** button alongside.
+
+---
+
+## Network Auto-Discovery (LLDP)
+
+Virgil nodes advertise `"Virgil-AoIP-Appliance <NodeName>"` via LLDP on startup. Cisco IOS-XE
+switches (Catalyst 3650/3850) with device classifier + autoconf enabled automatically place the
+port on the Dante VLAN when they see the advertisement — plug in a node and it lands on the right
+VLAN with no per-port switch configuration.
+
+See [`docs/network-auto-discovery.md`](docs/network-auto-discovery.md) for the full Cisco switch
+configuration and verification commands.
 
 ---
 
