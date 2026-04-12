@@ -2,7 +2,7 @@
 
 > **Document type:** Engineering review and improvement backlog  
 > **Scope:** Fedora bootc appliance (installer, first-boot, runtime, upgrade, build pipeline, operations)  
-> **Total items:** 114 (7 bug fixes + 107 improvements) — 51 resolved, 7 rejected, 6 deferred, 50 active  
+> **Total items:** 117 (10 bug fixes + 107 improvements) — 55 resolved, 7 rejected, 6 deferred, 49 active  
 > **Generated:** April 2026  
 
 > Resolved items archived in [archived/IMPROVEMENT_ROADMAP_DONE.md](archived/IMPROVEMENT_ROADMAP_DONE.md)
@@ -85,7 +85,10 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 18 | Upgrade | Upload Resume / Chunked Upload | ✅ Implemented | Hard (multi-day) | Medium | BUG-01 |
 | BUG-05 | Security | SELinux `unlabeled_t` on `/var/home/core/.ssh` | ✅ Resolved | Easy (<2h) | Low | None |
 | BUG-07 | Security | Credentials Committed to Documentation Files | 🔴 Critical | Easy (<2h) | Low | None |
-| BUG-08 | Security | `apply-update.sh` Uses `eval` with Python Heredoc for JSON Parsing | 🟠 High | Medium (half-day) | Medium | None |
+| BUG-08 | Security | `apply-update.sh` Uses `eval` with Python Heredoc for JSON Parsing | ✅ Resolved Sprint 5 `725a1b4` | Medium (half-day) | Medium | None |
+| BUG-09 | Dante | Dante mDNS scan uses `_netaudio-arc._udp` (wrong protocol — must be TCP) | ✅ Resolved Sprint 5 `4c072a9` | Easy (<2h) | Low | None |
+| BUG-10 | Diagnostics | PTP Performance UI shows all zeros; exits in seconds instead of 5 min | ✅ Resolved Sprint 5 `4c072a9` `725a1b4` | Easy (<2h) | Low | None |
+| BUG-11 | Audio | Internal speakers/mics (HDA-Intel cards) not filtered from AUX device selection | ✅ Resolved Sprint 5 `810d328` | Easy (<2h) | Low | None |
 | 58 | RT/Reliability | PREEMPT_RT Kernel Option | 🟡 Medium | Hard (multi-day) | High | None |
 | 59 | Security | `restorecon` for User Home Dir in `inferno-configure.sh` | ✅ Implemented | Easy (<2h) | Low | None |
 | 60 | Operations | `dante-network-bench.sh` Default Timeout 3s → 8s | 🟢 Low | Easy (<2h) | Low | None |
@@ -236,7 +239,7 @@ Items 47–56 → (none, each independent; some enhanced by Items 12, 30)
 | BUG-01 | `apply-update.sh`: missing `skopeo copy` command | ✅ Implemented | Easy (<2h) | Low | None |
 | BUG-02 | Wizard overlay blocks own dialog (z-index conflict) | ✅ Implemented | Easy (<2h) | Low | None |
 | BUG-03 | Add `cockpit-pcp` for Cockpit Metrics & History | ✅ Implemented | Easy (<1h) | Low | None |
-| BUG-04 | Dante discovery: longer scan + better results table | 🟡 Medium | Easy (<2h) | Low | None |
+| BUG-04 | Dante discovery: longer scan + better results table | ✅ Resolved Sprint 5 `4c072a9` | Easy (<2h) | Low | None |
 | BUG-05 | SELinux `unlabeled_t` on `/var/home/core/.ssh` → SSH key auth fails | ✅ Resolved | Easy (<2h) | Low | None |
 | BUG-07 | Credentials Committed to Documentation Files | 🔴 Critical | Easy (<2h) | Low | None |
 | BUG-08 | `apply-update.sh` Uses `eval` with Python Heredoc for JSON Parsing | 🟠 High | Medium (half-day) | Medium | None |
