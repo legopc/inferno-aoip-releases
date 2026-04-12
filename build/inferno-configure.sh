@@ -105,27 +105,33 @@ INFERNO_DEVICE_ID_TX="${MAC_CLEAN}0001"
 INFERNO_DEVICE_ID_RX="${MAC_CLEAN}0002"
 
 # ── Detect physical audio card ─────────────────────────────────────────────────
-# Pick the first external card in aplay -l — skip Loopback, HDMI/DisplayPort, and
-# cards driven by HDA-Intel (= always integrated/PCI audio: internal speakers & mics).
-# HDA-Intel detection uses /proc/asound/cards driver field — machine-agnostic,
-# works on any Intel platform without hardcoding codec names (ALC257, CX20632 etc.).
-_hda_cards=$(awk '
-    /]: HDA-Intel/ { gsub(/^[[:space:]]+/, ""); split($0, f, " "); print f[1] }
-' /proc/asound/cards | tr '\n' '|' | sed 's/|$//')
-
+# Pick the first non-Loopback, non-HDMI/DP card from aplay -l.
+# Prefer USB cards (bus path contains /usb) over PCI/HDA-Intel cards.
 INFERNO_AUDIO_CARD=$(aplay -l 2>/dev/null \
-    | awk -v hda="${_hda_cards}" '
-        /^card / && !/Loopback/ && !/HDMI/ && !/DisplayPort/ {
-            match($0, /^card ([0-9]+)/, a)
-            if (hda == "" || a[1] !~ ("^(" hda ")$")) { print a[1]; exit }
-        }')
-unset _hda_cards
+    | awk '/^card / && !/Loopback/ && !/HDMI/ && !/DisplayPort/ { match($0, /^card ([0-9]+)/, a); print a[1]; exit }')
 
 if [[ -z "$INFERNO_AUDIO_CARD" ]]; then
     echo "WARNING: No external audio card found — AUX mode will be unavailable on this node."
     INFERNO_AUDIO_CARD=""
 fi
 echo "Audio card: ${INFERNO_AUDIO_CARD:-<none>}"
+
+# ── Disable internal speakers and microphones on HDA-Intel cards ───────────────
+# HDA-Intel = integrated PCI audio (Intel platforms). These cards have internal
+# speakers and internal mics that should not be used by Inferno. Mute them via
+# amixer so they don't accidentally receive or emit audio.
+# This does NOT prevent the card from being used for HDMI or headphone jacks.
+while IFS= read -r _card_idx; do
+    [[ -z "$_card_idx" ]] && continue
+    echo "Muting internal speaker/mic controls on HDA-Intel card ${_card_idx}..."
+    for _ctrl in "Speaker" "Speaker Front" "Speaker Surround" \
+                 "Headphone" \
+                 "Internal Mic" "Internal Mic Boost" \
+                 "Mic" "Mic Boost"; do
+        amixer -c "${_card_idx}" sset "${_ctrl}" mute 2>/dev/null && \
+            echo "  muted: ${_ctrl}" || true
+    done
+done < <(awk '/]: HDA-Intel/ { match($0, /^[[:space:]]*([0-9]+)/, a); print a[1] }' /proc/asound/cards)
 
 # Node name from last 3 MAC octets (e.g. BC:24:11:73:CF:6B → Inferno-73CF6B)
 MAC_SUFFIX=$(echo "${MAC_CLEAN}" | tail -c 7)  # last 6 hex chars
