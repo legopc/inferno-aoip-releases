@@ -130,10 +130,11 @@ RUN systemctl set-default multi-user.target
 
 # ── core user ─────────────────────────────────────────────────────────────────
 # Login: core / inferno123  (console, SSH, Cockpit web UI at https://node:9090)
-# First-login password change is handled by the Cockpit wizard (sentinel: /var/lib/inferno/.first-login-done)
+# chage -d 0 forces password change on first login — enforced by both Cockpit and CLI natively.
 RUN mkdir -p /var/home && \
     useradd -m -d /var/home/core -G wheel -s /bin/bash core && \
     echo "core:inferno123" | chpasswd && \
+    chage -d 0 core && \
     echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd && \
     # Add core to audio group so user services can open /dev/snd/* (crw-rw---- root:audio).
     # On Fedora bootc, the audio group (GID 63) lives in /usr/lib/group (immutable system layer).
