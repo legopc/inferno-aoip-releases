@@ -101,7 +101,21 @@ jobs:
             --features "alsa-backend with-libmdns rustls-tls-webpki-roots"
           ls -lh target/release/librespot
 
-      # ── Build iradio-bridge ───────────────────────────────────────────────
+      # ── Build iradio-bridge (Svelte UI first, then Rust embeds it) ──────────
+      - name: Setup Node.js for iradio web-ui
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: inferno-iradio/web-ui/package-lock.json
+
+      - name: Build iradio web-ui (Svelte)
+        working-directory: inferno-iradio/web-ui
+        run: |
+          npm ci
+          npm run build
+          ls -lh dist/
+
       - name: Build iradio-bridge
         working-directory: inferno-iradio
         run: |
