@@ -112,6 +112,9 @@ RUN mkdir -p /usr/lib/bootc/kargs.d /usr/lib/sysusers.d /etc/security/limits.d &
     printf '@realtime - rtprio 99\n@realtime - memlock unlimited\n' \
       > /etc/security/limits.d/realtime.conf
 
+# Disable RT throttling and optimize network buffers for low-latency audio
+RUN printf 'kernel.sched_rt_runtime_us = -1\nkernel.sched_rt_period_us = 1000000\nnet.core.rmem_max = 16777216\nnet.core.wmem_max = 16777216\nnet.core.netdev_max_backlog = 300000\n' > /etc/sysctl.d/99-rt-audio.conf
+
 # ── Enable package-provided services ──────────────────────────────────────────
 RUN systemctl enable \
     sshd \
