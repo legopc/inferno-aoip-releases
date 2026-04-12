@@ -8,7 +8,7 @@ After=default.target
 # Reads from the physical analog input and sends to the Inferno AUX TX Dante device.
 # %%INFERNO_AUDIO_CARD%% is replaced by inferno-deploy.sh from /etc/inferno.conf.
 # -t 10000 = 10ms transfer time. Use -t 20000 if xruns occur.
-ExecStart=/usr/bin/alsaloop \
+ExecStart=/usr/local/bin/Inferno-AUX-TX \
   -C plughw:%%INFERNO_AUDIO_CARD%%,0 \
   -P inferno_aux_tx \
   -r 48000 \

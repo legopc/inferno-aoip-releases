@@ -7,7 +7,7 @@ After=default.target
 [Service]
 # Reads from the Inferno AUX RX device and plays to the physical analog output.
 # %%INFERNO_AUDIO_CARD%% is replaced by inferno-deploy.sh from /etc/inferno.conf.
-ExecStart=/usr/bin/alsaloop \
+ExecStart=/usr/local/bin/Inferno-AUX-RX \
   -C inferno_aux_rx \
   -P plughw:%%INFERNO_AUDIO_CARD%%,0 \
   -r 48000 \

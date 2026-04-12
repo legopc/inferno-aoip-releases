@@ -172,7 +172,9 @@ RUN TARBALL=inferno-aoip.tar.gz && \
     cp /tmp/inferno-aoip/lib/libasound_module_pcm_inferno.so /usr/lib64/alsa-lib/ && \
     chmod +x /usr/local/bin/statime /usr/local/bin/librespot /usr/local/bin/iradio-bridge && \
     rm -rf /tmp/inferno-aoip /tmp/${TARBALL} /tmp/${TARBALL}.sha256 && \
-    ln -s /usr/bin/alsaloop /usr/local/bin/Virgil-Appliance
+    ln -s /usr/bin/alsaloop /usr/local/bin/Virgil-Appliance && \
+    ln -s /usr/bin/alsaloop /usr/local/bin/Inferno-AUX-TX && \
+    ln -s /usr/bin/alsaloop /usr/local/bin/Inferno-AUX-RX
 
 # ── Templates (stored with %%PLACEHOLDER%% values, substituted at first boot) ─
 # System config templates
