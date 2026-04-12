@@ -177,7 +177,6 @@ COPY templates/inferno-ptpv1.toml         /etc/inferno/statime-inferno.toml.temp
 COPY templates/alsa/99-inferno.conf       /etc/inferno/99-inferno.conf.template
 COPY templates/alsa/asoundrc.spotify      /etc/inferno/asoundrc.spotify.template
 COPY templates/alsa/asoundrc.aux          /etc/inferno/asoundrc.aux.template
-COPY templates/lldpd.conf                 /etc/inferno/lldpd.conf.template
 # Per-user scripts (installed to ~/bin at first boot)
 COPY templates/inferno-sink-event         /etc/inferno/inferno-sink-event
 COPY templates/librespot-watchdog         /etc/inferno/librespot-watchdog
@@ -195,6 +194,12 @@ COPY cockpit-inferno/src/ /usr/share/cockpit/inferno/
 # ── Systemd SYSTEM units ───────────────────────────────────────────────────────
 COPY templates/systemd/system/statime-inferno.service /etc/systemd/system/
 RUN systemctl enable statime-inferno
+
+# lldpd drop-in: regenerates /etc/lldpd.conf from /etc/inferno.conf on every boot
+# so upgrades (which skip inferno-configure.sh) always get the correct description.
+RUN mkdir -p /etc/systemd/system/lldpd.service.d
+COPY templates/systemd/system/lldpd.service.d/inferno-description.conf \
+     /etc/systemd/system/lldpd.service.d/inferno-description.conf
 
 # ── Systemd USER units (templates — copied to user dir at first boot) ─────────
 # inferno-bridge, inferno-keepalive are static (no placeholders)
