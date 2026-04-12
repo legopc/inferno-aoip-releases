@@ -15,7 +15,7 @@
 #   Result is a bootc-managed system — atomic updates via 'bootc upgrade'
 #
 # Layer order (cache-optimised — most stable layers first):
-#   1. FROM (pinned SHA)
+#   1. FROM
 #   2. Packages (expensive, rarely changes)
 #   3. Directory structure (stable)
 #   4. Static system config: snd-aloop, journald, RT kargs (stable)
@@ -28,7 +28,7 @@
 #  10. SELinux relabel (always after all COPY layers)
 #  11. OCI labels (always last — contains per-build values)
 
-FROM registry.fedoraproject.org/fedora-bootc:43@sha256:30ef5d8b43866e2764b54821dc5c48f33ba154b9bc3799730c9ae8ca9e2e3f69
+FROM registry.fedoraproject.org/fedora-bootc:43
 
 # ── Packages ──────────────────────────────────────────────────────────────────
 RUN dnf install -y --setopt=install_weak_deps=False \
