@@ -230,6 +230,7 @@ RUN chmod +x /usr/local/sbin/inferno-configure.sh && \
 # Protects headless nodes from being permanently bricked by a bad OTA update.
 COPY scripts/inferno-health-check.sh /usr/local/sbin/inferno-health-check.sh
 COPY templates/systemd/system/inferno-health-check.service /etc/systemd/system/inferno-health-check.service
+COPY templates/systemd/system/inferno-rollback-reboot.service /etc/systemd/system/inferno-rollback-reboot.service
 RUN chmod +x /usr/local/sbin/inferno-health-check.sh && \
     systemctl enable inferno-health-check
 

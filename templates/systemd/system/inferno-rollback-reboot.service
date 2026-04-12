@@ -1,0 +1,13 @@
+[Unit]
+Description=Inferno Bootc Rollback — triggered by failed health check
+Documentation=https://github.com/legopc/inferno-aoip-releases
+DefaultDependencies=no
+After=inferno-health-check.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bootc rollback
+ExecStartPost=/usr/bin/systemctl reboot
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=inferno-rollback
