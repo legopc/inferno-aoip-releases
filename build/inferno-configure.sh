@@ -105,12 +105,27 @@ INFERNO_DEVICE_ID_TX="${MAC_CLEAN}0001"
 INFERNO_DEVICE_ID_RX="${MAC_CLEAN}0002"
 
 # ── Detect physical audio card ─────────────────────────────────────────────────
-# Pick the first card in aplay -l that is not Loopback or HDMI/DisplayPort.
-# Used as the AUX mode source/sink (card index for plughw:N,0).
+# Pick the first external card in aplay -l — skip Loopback, HDMI/DisplayPort, and
+# cards driven by HDA-Intel (= always integrated/PCI audio: internal speakers & mics).
+# HDA-Intel detection uses /proc/asound/cards driver field — machine-agnostic,
+# works on any Intel platform without hardcoding codec names (ALC257, CX20632 etc.).
+_hda_cards=$(awk '
+    /]: HDA-Intel/ { gsub(/^[[:space:]]+/, ""); split($0, f, " "); print f[1] }
+' /proc/asound/cards | tr '\n' '|' | sed 's/|$//')
+
 INFERNO_AUDIO_CARD=$(aplay -l 2>/dev/null \
-    | awk '/^card / && !/Loopback/ && !/HDMI/ && !/DisplayPort/ {match($0, /^card ([0-9]+)/, a); print a[1]; exit}')
-INFERNO_AUDIO_CARD="${INFERNO_AUDIO_CARD:-0}"
-echo "Audio card: ${INFERNO_AUDIO_CARD}"
+    | awk -v hda="${_hda_cards}" '
+        /^card / && !/Loopback/ && !/HDMI/ && !/DisplayPort/ {
+            match($0, /^card ([0-9]+)/, a)
+            if (hda == "" || a[1] !~ ("^(" hda ")$")) { print a[1]; exit }
+        }')
+unset _hda_cards
+
+if [[ -z "$INFERNO_AUDIO_CARD" ]]; then
+    echo "WARNING: No external audio card found — AUX mode will be unavailable on this node."
+    INFERNO_AUDIO_CARD=""
+fi
+echo "Audio card: ${INFERNO_AUDIO_CARD:-<none>}"
 
 # Node name from last 3 MAC octets (e.g. BC:24:11:73:CF:6B → Inferno-73CF6B)
 MAC_SUFFIX=$(echo "${MAC_CLEAN}" | tail -c 7)  # last 6 hex chars
