@@ -115,7 +115,7 @@ All 58 items sorted by importance (Critical → High → Medium → Low), then b
 | 81 | Operations | User Action Audit Trail in Cockpit UI | 🟡 Medium | Medium (half-day) | Low | None |
 | 82 | Operations | Prometheus Metrics Endpoint via PCP | 🟡 Medium | Medium (half-day) | Low | None |
 | 83 | Operations | Central Logging via `systemd-journal-remote` | 🟡 Medium | Medium (half-day) | Low | None |
-| 84 | Operations | SNMP v2c Read-Only Agent | 🟢 Low | Hard (multi-day) | Low | None |
+| ~~84~~ | Operations | ~~SNMP v2c Read-Only Agent~~ | ✅ Done | Hard (multi-day) | Low | None |
 | 85 | Network/Dante | DSCP/QoS Marking for Dante Audio Traffic | 🟡 Medium | Medium (half-day) | Medium | 65 |
 | 86 | Network/Dante | VLAN Interface Support for Dante AoIP Network | 🟡 Medium | Hard (multi-day) | Medium | None |
 | 87 | Network/Dante | Dante Device Name Conflict Detection | 🟡 Medium | Easy (<2h) | Low | None |
@@ -3304,7 +3304,7 @@ Writing BATS tests for existing scripts requires understanding every code path �
 | 81 | User Action Audit Trail in Cockpit UI | 🟡 Medium | Medium (half-day) | Low | None |
 | 82 | Prometheus Metrics Endpoint via PCP | 🟡 Medium | Medium (half-day) | Low | None |
 | 83 | Central Logging via `systemd-journal-remote` | 🟡 Medium | Medium (half-day) | Low | None |
-| 84 | SNMP v2c Read-Only Agent | 🟢 Low | Hard (multi-day) | Low | None |
+| ~~84~~ | ~~SNMP v2c Read-Only Agent~~ | ✅ Done | Hard (multi-day) | Low | None |
 | 90 | Internet Radio (iradio) Channel/Station Management in Cockpit | 🟢 Low | Medium (half-day) | Low | None |
 
 ---
@@ -3665,7 +3665,9 @@ fi
 
 ---
 
-#### Item 84 — SNMP v2c Read-Only Agent
+#### Item 84 — SNMP v2c Read-Only Agent ✅ DONE
+
+**Status:** ✅ Implemented — `legopc/cockpit-inferno` + `inferno-aoip-releases` (2026). Supports both SNMPv2c (community string) and SNMPv3 (SHA-256/AES-128). Cockpit SNMP tab for config; inferno-snmp-apply.sh renders snmpd.conf from template; OIDs exposed under NET-SNMP-EXTEND-MIB; disabled by default.
 
 **Importance:** 🟢 Low  
 **Impact:** Integration with AV system management platforms (QSC, Crestron, Extron) that use SNMP for device monitoring  
