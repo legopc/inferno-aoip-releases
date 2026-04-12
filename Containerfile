@@ -240,8 +240,7 @@ RUN chmod +x /usr/local/sbin/probe-node.sh
 
 # ── Watchdog wrappers (Item 107) ───────────────────────────────────────────────
 COPY templates/scripts/inferno-bridge-watchdog.sh /usr/local/sbin/inferno-bridge-watchdog.sh
-COPY templates/scripts/librespot-watchdog-wrapper.sh /usr/local/sbin/librespot-watchdog-wrapper.sh
-RUN chmod +x /usr/local/sbin/inferno-bridge-watchdog.sh /usr/local/sbin/librespot-watchdog-wrapper.sh
+RUN chmod +x /usr/local/sbin/inferno-bridge-watchdog.sh
 
 # ── Benchmark suite ───────────────────────────────────────────────────────────
 COPY scripts/bench/ /usr/local/sbin/inferno-bench/

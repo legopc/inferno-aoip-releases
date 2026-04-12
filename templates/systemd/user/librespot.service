@@ -5,11 +5,10 @@ Wants=default.target
 ConditionPathExists=/etc/inferno.conf
 
 [Service]
-Type=notify
 ExecStartPre=/bin/sh -c 'while [ ! -S /tmp/ptp-usrvclock ]; do sleep 1; done'
 # Only wait for PTP to stabilise on first boot (uptime < 60s).
 ExecStartPre=/bin/sh -c 'UP=$(cut -d. -f1 /proc/uptime); [ "$UP" -gt 60 ] || sleep 10'
-ExecStart=/usr/local/sbin/librespot-watchdog-wrapper.sh \
+ExecStart=/usr/local/bin/librespot \
     --name "%%INFERNO_NAME%%" \
     --device-type avr \
     --backend alsa \
@@ -28,8 +27,6 @@ ExecStart=/usr/local/sbin/librespot-watchdog-wrapper.sh \
     --onevent /var/home/core/bin/inferno-sink-event
 Restart=always
 RestartSec=5
-WatchdogSec=60
-NotifyAccess=all
 LimitMEMLOCK=infinity
 
 [Install]
