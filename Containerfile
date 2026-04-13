@@ -38,11 +38,11 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     #   selinux = SELinux policy browser, ostree = bootc image upgrades via UI,
     #   kdump = kernel crash config, sosreport = support data collection
     #   pcp = performance metrics graphs, files = web-based file browser
-    # Note: cockpit-pcp was merged into cockpit-system; just install pcp for pmcd
+    # cockpit-bridge uses Python channel (pcp.py) to talk to pmcd — needs python3-pcp
     cockpit-ws cockpit-system \
     cockpit-networkmanager cockpit-storaged cockpit-selinux \
     cockpit-ostree cockpit-kdump cockpit-sosreport \
-    cockpit-files pcp \
+    cockpit-files pcp python3-pcp \
     # ALSA audio stack
     alsa-lib alsa-utils alsa-plugins-speex speexdsp \
     # Avahi / mDNS (Dante discovery)
