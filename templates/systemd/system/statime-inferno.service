@@ -7,7 +7,6 @@ ConditionPathExists=/etc/inferno.conf
 [Service]
 Type=simple
 User=root
-ExecStartPre=/bin/sed -i '/hardware-clock/d' /etc/statime-inferno.toml
 ExecStartPre=-/bin/rm -f /tmp/ptp-usrvclock
 ExecStart=/usr/local/bin/statime -c /etc/statime-inferno.toml
 Restart=on-failure

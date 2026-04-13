@@ -90,6 +90,18 @@ elif command -v ethtool &>/dev/null; then
     if [ "${HW_TS}" -gt 0 ]; then
         INFERNO_HW_PTP="yes"
         echo "HW PTP: ${INFERNO_NIC} supports hardware timestamping (ethtool) ✓  (~100 ns offset)"
+        # sysfs path didn't give us the device name; scan /sys/class/ptp/ by device symlink
+        NIC_DEV=$(readlink -f "/sys/class/net/${INFERNO_NIC}/device" 2>/dev/null || true)
+        if [ -n "$NIC_DEV" ]; then
+            for _ptpd in /sys/class/ptp/ptp*/; do
+                if [ "$(readlink -f "${_ptpd}device" 2>/dev/null)" = "$NIC_DEV" ]; then
+                    PTP_DEV=$(basename "$_ptpd")
+                    break
+                fi
+            done
+        fi
+        [ -n "$PTP_DEV" ] && echo "HW PTP device: /dev/${PTP_DEV}" || echo "HW PTP: device node not found, will use software clock"
+        [ -z "$PTP_DEV" ] && INFERNO_HW_PTP="no"
     else
         echo "HW PTP: ${INFERNO_NIC} — software PTP only  (~500 µs offset, Dante works fine)"
     fi
@@ -160,6 +172,16 @@ substitute() {
 echo "Writing system config files..."
 substitute /etc/inferno/statime-inferno.toml.template /etc/statime-inferno.toml
 substitute /etc/inferno/99-inferno.conf.template      /etc/alsa/conf.d/99-inferno.conf
+
+# ── Configure hardware PTP clock in statime if detected ─────────────────────
+# The template has no hardware-clock entry; we inject it only when a real PTP
+# device is confirmed so statime never guesses ("auto") or silently falls back.
+if [ "$INFERNO_HW_PTP" = "yes" ] && [ -n "${PTP_DEV:-}" ] && [ -c "/dev/${PTP_DEV}" ]; then
+    sed -i "/^\[\[port\]\]/a hardware-clock = \"/dev/${PTP_DEV}\"" /etc/statime-inferno.toml
+    echo "PTP: statime configured with hardware-clock = /dev/${PTP_DEV}"
+else
+    echo "PTP: statime using software virtual clock"
+fi
 
 # ── Set hostname ───────────────────────────────────────────────────────────────
 HOSTNAME="inferno-$(echo "${MAC_SUFFIX}" | tr '[:upper:]' '[:lower:]')"
