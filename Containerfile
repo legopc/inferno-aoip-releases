@@ -83,8 +83,14 @@ RUN mkdir -p \
 RUN mkdir -p /usr/lib/sysusers.d /usr/lib/tmpfiles.d && \
     printf 'u core 1000 "Inferno Core" /var/home/core /bin/bash\nm core wheel\nm core audio\n' \
         > /usr/lib/sysusers.d/inferno.conf && \
-    printf 'd /var/lib/inferno     0755 core core -\nd /var/lib/iot-updater 0755 root root -\n' \
+    printf 'd /var/lib/inferno     0755 core core -\nd /var/lib/iot-updater 0755 root root -\nZ /var/log/pcp 0775 pcp pcp -\n' \
         > /usr/lib/tmpfiles.d/inferno.conf
+
+# ── Fix pcp user primary GID to always match the pcp group name ──────────────
+# Dynamic UID/GID assignment by RPM can swap pcp/lldpd GIDs between builds.
+# usermod -g pcp pcp ensures pcp user's pw_gid == gid(group pcp), regardless of
+# what numeric ID was assigned. Without this, pmlogger setgid() fails.
+RUN usermod -g pcp pcp
 
 # ── snd-aloop kernel module (pinned to card 10 — avoids card number conflicts) ─
 RUN echo "options snd-aloop index=10" > /etc/modprobe.d/snd-aloop.conf && \
