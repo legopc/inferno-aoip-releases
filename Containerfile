@@ -145,11 +145,9 @@ RUN systemctl set-default multi-user.target
 
 # ── core user ─────────────────────────────────────────────────────────────────
 # Login: core / inferno123  (console, SSH, Cockpit web UI at https://node:9090)
-# chage -d 0 forces password change on first login — enforced by both Cockpit and CLI natively.
 RUN mkdir -p /var/home && \
     useradd -m -d /var/home/core -G wheel -s /bin/bash core && \
     echo "core:inferno123" | chpasswd && \
-    chage -d 0 core && \
     echo "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wheel-nopasswd && \
     # Add core to audio group so user services can open /dev/snd/* (crw-rw---- root:audio).
     # On Fedora bootc, the audio group (GID 63) lives in /usr/lib/group (immutable system layer).
@@ -208,6 +206,12 @@ COPY cockpit-inferno/src/ /usr/share/cockpit/inferno/
 # ── Systemd SYSTEM units ───────────────────────────────────────────────────────
 COPY templates/systemd/system/statime-inferno.service /etc/systemd/system/
 RUN systemctl enable statime-inferno
+
+# ── Boot-time user service migration (syncs templates after bootc upgrades) ───
+COPY templates/systemd/system/inferno-upgrade.service /etc/systemd/system/
+COPY templates/scripts/inferno-upgrade.sh /usr/local/sbin/inferno-upgrade.sh
+RUN chmod +x /usr/local/sbin/inferno-upgrade.sh && \
+    systemctl enable inferno-upgrade
 
 # lldpd drop-in: regenerates /etc/lldpd.conf from /etc/inferno.conf on every boot
 # so upgrades (which skip inferno-configure.sh) always get the correct description.

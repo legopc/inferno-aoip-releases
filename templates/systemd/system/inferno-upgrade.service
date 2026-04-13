@@ -1,0 +1,14 @@
+[Unit]
+Description=Inferno user service migration (sync templates on bootc upgrade)
+After=inferno-configure.service
+ConditionPathExists=/etc/inferno.conf
+# Run before user session starts so services load the new files
+Before=user@1000.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/inferno-upgrade.sh
+
+[Install]
+WantedBy=multi-user.target
