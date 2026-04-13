@@ -11,6 +11,4 @@ usrvclock-export = true
 interface = "%%INFERNO_NIC%%"
 network-mode = "ipv4"
 
-hardware-clock = "auto"
-
 protocol-version = "PTPv1"
