@@ -403,3 +403,523 @@ Defer for multi-appliance LAN environments. For single-appliance studio installs
 
 ---
 
+
+
+---
+
+## Archived April 2026 -- Sprint Planning Session
+
+#### Item 101 — PTP `priority1 = 255` Slave-Only Enforcement
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents Inferno from accidentally winning PTP grandmaster election on a network with no other Dante master  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+`templates/inferno-ptpv1.toml` uses `priority1 = 251`. IEEE 1588 BMCA: `priority1 = 255` means "never become master" — the device explicitly refuses grandmaster election. At 251, if no other Dante device is visible, Inferno could win the BMCA election and become grandmaster with its unsynchronised free-running clock, causing every other Dante device to slew to an incorrect time reference.
+
+##### Why implement?
+Inferno is a Dante endpoint/bridge, not a grandmaster clock. It should never be selected as PTP master. A professional install that loses its Dante grandmaster clock should not silently fall back to Inferno's local clock — it should log a fault.
+
+##### Why NOT implement (or defer)?
+In a standalone single-node test setup, `priority1=255` means the node never has a master. statime should handle this gracefully (not crash), but behaviour should be verified.
+
+##### Implementation notes
+One-line change in `templates/inferno-ptpv1.toml`:
+```toml
+priority1 = 255   # slave-only: never win BMCA grandmaster election
+priority2 = 255   # belt-and-suspenders
+```
+Verify statime handles no-master condition gracefully before deploying.
+
+---
+
+
+
+---
+
+#### Item 38 — NIC Link-Down Recovery
+
+**Importance:** 🟡 Medium  
+**Impact:** Audio resumes within seconds of cable re-plug instead of requiring 30–60 seconds of failed restarts  
+**Difficulty:** Medium (half-day)  
+**Risk:** Low  
+**Prerequisites:** Items 8, 9  
+
+> **Implementation note:** Priority demoted to Medium. Depends on Items 8 (NIC carrier check) and 9 (multi-NIC support) — implement those first. The `BindsTo=` device unit approach requires stable NIC naming, but Items 8/9 are sufficient prerequisites (Item 10 udev rename is rejected).
+
+##### What is it?
+
+When the Ethernet cable is unplugged, `statime-inferno.service` loses its PTP grandmaster and immediately fails. With `Restart=always`, it restarts — but the NIC has no carrier, so the next start attempt fails instantly too. This cycle repeats at the `RestartSec=` interval (default 100ms), flooding the journal and burning CPU. When the cable is re-plugged, the NIC must re-negotiate link (~2s), DHCP must renew (~5s), and ARP must resolve before Statime can reach the PTP grandmaster. The `Restart=always` loop may restart Statime before the network is ready, causing 3–5 more failures before it finally succeeds. Total recovery: 30–60 seconds of chaos.
+
+Three targeted improvements collapse this to under 10 seconds:
+
+1. **`After=network-online.target`** in `statime-inferno.service` — ensures the service only starts when NetworkManager reports the link is up and routable. Does not help with mid-run link loss, but prevents the initial start storm on boot with a slow NIC.
+
+2. **`ExecStartPre` carrier check** — wait for the NIC carrier before attempting to start:
+   ```bash
+   ExecStartPre=/bin/bash -c 'until [ "$(cat /sys/class/net/${NIC}/carrier 2>/dev/null)" = "1" ]; do sleep 1; done'
+   ```
+   This makes the service block at `ExecStartPre` (no failure) until the link is physically up, then proceed to start normally. Combined with `Restart=always`, link-down recovery becomes: cable re-plugged → carrier detected → `ExecStartPre` exits → Statime starts successfully. One restart, clean.
+
+3. **`BindsTo=sys-subsystem-net-devices-<NIC>.device`** — binds the service lifecycle to the kernel device object for the NIC. When the NIC is unplugged (device disappears), systemd stops the service cleanly. When the NIC reappears (cable re-plug or driver reload), systemd restarts it. This requires predictable NIC naming (item 10) because the device unit name is derived from the interface name.
+
+##### Why implement?
+
+Network interruptions in a venue are common — someone trips over a cable, a switch is rebooted, a patch panel connection is jostled. The current behaviour (30–60s of restart storm) is operator-visible: audio cuts out, Cockpit shows service failures, the journal fills with errors. The improvements make the failure mode silent and self-healing in < 10 seconds, which matches what operators expect from a professional audio appliance.
+
+##### Why NOT implement (or defer)?
+
+Defer `BindsTo=sys-subsystem-net-devices-<NIC>.device` until Items 8 and 9 are complete and the NIC name is reliably known at boot time. The `After=network-online.target` and `ExecStartPre` carrier check have no dependencies and should be implemented immediately.
+
+##### Implementation notes
+
+In `statime-inferno.service`:
+
+```ini
+[Unit]
+After=network-online.target sys-subsystem-net-devices-enp1s0.device
+Wants=network-online.target
+BindsTo=sys-subsystem-net-devices-enp1s0.device
+
+[Service]
+# NIC name must be resolved at runtime from /etc/inferno.conf or environment:
+EnvironmentFile=/etc/inferno.conf
+ExecStartPre=/bin/bash -c 'until [ "$(cat /sys/class/net/${INFERNO_NIC}/carrier 2>/dev/null)" = "1" ]; do sleep 1; done'
+Restart=always
+RestartSec=5s
+```
+
+Use `RestartSec=5s` rather than the default to avoid hammering the network stack during transient failures. Five seconds is fast enough for practical recovery and slow enough to avoid log floods.
+
+The `BindsTo=` device unit name follows the pattern `sys-subsystem-net-devices-<iface>.device` with hyphens replacing any non-alphanumeric characters in the interface name. For `enp1s0`: `sys-subsystem-net-devices-enp1s0.device`. Verify the unit exists:
+
+```bash
+systemctl status sys-subsystem-net-devices-enp1s0.device
+```
+
+---
+
+### New RT / Reliability Improvements (Session 2, April 2026)
+
+---
+
+
+
+---
+
+#### Item 58 — PREEMPT_RT Kernel Option
+
+**Importance:** 🟡 Medium  
+**Impact:** Sub-100µs scheduling latency for statime/inferno-bridge vs. current ~500µs with PREEMPT_DYNAMIC  
+**Difficulty:** Hard (multi-day)  
+**Risk:** High  
+**Prerequisites:** None  
+
+##### What is it?
+
+The current Fedora IoT 43 kernel uses `PREEMPT_DYNAMIC` with `preempt=full` (full preemption, soft-RT). True `PREEMPT_RT` requires the Linus RT patchset and shows as `PREEMPT_RT` in `uname -a`. Fedora ships `kernel-rt` in its repos since F38, making it installable via dnf. PREEMPT_RT reduces worst-case scheduler latency from ~500µs to ~50µs — a measurable improvement in PTP jitter under CPU load.
+
+##### Why implement?
+
+`cyclictest` P99 latency with PREEMPT_RT is typically 50µs vs. 500µs with PREEMPT_DYNAMIC. For Dante AES67 with tight PTP requirements, reducing worst-case jitter by 10x directly improves audio quality under load. The improvement is most visible on nodes running multiple concurrent workloads (librespot + iradio + cockpit updates).
+
+##### Why NOT implement (or defer)?
+
+`kernel-rt` is a separate package not in `fedora-bootc:43` by default. Replacing the kernel adds ~200MB to the image and requires extensive hardware compatibility testing. bootc may have constraints on non-standard kernels. Dante audio works acceptably with PREEMPT_DYNAMIC for most deployments — this is a marginal improvement for demanding installs, not a fix for a broken feature. Estimate: 3–5 days including testing across all target hardware.
+
+##### Implementation notes
+
+In Containerfile:
+
+```dockerfile
+RUN dnf install -y kernel-rt kernel-rt-modules-extra &&     dnf remove -y kernel kernel-core kernel-modules &&     dnf clean all
+```
+
+Requires careful testing — verify `uname -r` shows `-rt` suffix, run `cyclictest -l100000 -m -n -a -t -p99 -i200 -h400` to confirm latency improvement, test full Dante audio stack for regressions. See `docs/rt-scheduling.md` for reference benchmarks.
+
+---
+
+
+
+---
+
+#### Item 61 — Cockpit Plugin Update Without Full Image Rebuild
+
+**Importance:** 🟡 Medium  
+**Impact:** Cockpit UI fixes deployable in minutes instead of requiring a 45–60 minute full image rebuild  
+**Difficulty:** Medium (half-day)  
+**Risk:** Low  
+**Prerequisites:** None  
+
+##### What is it?
+
+`/usr/share/cockpit/inferno/` is read-only in the bootc image. Every UI-only fix (layout, labels, a missing status indicator) requires a full image build cycle. The `~/.local/share/cockpit/inferno/` path is writable and Cockpit checks it first, but it requires manual SSH deployment of plugin files.
+
+##### Why implement?
+
+A 45–60 minute build cycle for a one-line UI fix is impractical during active customer deployments. A signed update script that replaces only the Cockpit plugin files enables hotfixes within minutes. This also reduces the pressure to batch unrelated changes into releases, improving overall code quality.
+
+##### Why NOT implement (or defer)?
+
+Out-of-band UI updates bypass the normal image build/test/sign pipeline. Plugin updates must be separately versioned and verified to avoid divergence between the appliance image version and the UI version. Adds complexity to version tracking.
+
+##### Implementation notes
+
+**Option A (recommended):** Mount cockpit plugin from `/var/lib/inferno/cockpit-override/` if present, so OTA updates only need to write to `/var`:
+
+```bash
+# In Containerfile:
+RUN ln -sf /var/lib/inferno/cockpit-override /root/.local/share/cockpit/inferno-override 2>/dev/null || true
+```
+
+**Option B:** `update-cockpit-plugin.sh` script that:
+
+1. Fetches latest `cockpit-inferno` tarball from GitHub releases
+2. Verifies SHA256 against a published checksum
+3. Extracts to `~/.local/share/cockpit/inferno/`
+4. Restarts `cockpit.service`
+
+Add "Check for UI Update" button to Cockpit Config tab. Show current plugin version and available version.
+
+---
+
+
+
+---
+
+#### Item 64 — URL Allowlist for IoT Updater `POST /fetch-url`
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents SSRF attacks via the bundle fetch endpoint  
+**Difficulty:** Easy (<2h)  
+**Risk:** Low  
+**Prerequisites:** None  
+
+##### What is it?
+
+`sidecar/server.py`'s `/fetch-url` endpoint accepts any `https://` URL as a bundle source. An attacker with Cockpit access (or a compromised Cockpit session) could use this to probe internal network services via SSRF — including cloud metadata endpoints (`169.254.169.254`), internal APIs, or other hosts on the AV LAN.
+
+##### Why implement?
+
+SSRF via bundle fetch is a realistic attack vector on a multi-tenant AV installation where Cockpit may be accessible to multiple operators. An allowlist restricts fetches to known safe hosts with minimal operator impact.
+
+##### Why NOT implement (or defer)?
+
+Operators self-hosting an update server on a custom domain would need to configure the allowlist. Default should be permissive enough for the common case (GitHub releases) while blocking obvious SSRF targets.
+
+##### Implementation notes
+
+Add `ALLOWED_FETCH_HOSTS` environment variable (default: `["github.com", "raw.githubusercontent.com", "releases.github.com"]`). In the `/fetch-url` handler in `server.py`:
+
+```python
+from urllib.parse import urlparse
+ALLOWED_HOSTS = os.environ.get("ALLOWED_FETCH_HOSTS", "github.com,raw.githubusercontent.com").split(",")
+
+@app.route("/fetch-url", methods=["POST"])
+def fetch_url():
+    url = request.json.get("url", "")
+    host = urlparse(url).hostname
+    if host not in ALLOWED_HOSTS:
+        return jsonify({"error": f"Host {host} not in allowlist"}), 403
+    # ... existing fetch logic
+```
+
+Operators with private update servers set `ALLOWED_FETCH_HOSTS=my-update-server.internal` in `/etc/inferno.conf` and the sidecar unit's `EnvironmentFile=`.
+
+---
+
+
+
+---
+
+#### Item 66 — TLS Certificate Validation for Bundle URL Fetches
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents MITM attacks on OTA bundle downloads from custom URL sources  
+**Difficulty:** Easy (<2h)  
+**Risk:** Low  
+**Prerequisites:** None  
+
+##### What is it?
+
+`sidecar/server.py` uses `urllib.request.urlopen(req, timeout=300)` for bundle fetch and manifest downloads with default SSL validation. No explicit `ssl.create_default_context()` is created, meaning the system CA bundle's currency is assumed. Should explicitly create an SSL context and optionally support a custom CA certificate for self-hosted update servers.
+
+##### Why implement?
+
+Explicit SSL context creation is a security best practice — it ensures the system CA bundle is loaded correctly and allows operators with private CA certificates to pin their own CA for custom update servers. The change is three lines.
+
+##### Why NOT implement (or defer)?
+
+Default SSL validation already works correctly in most deployments. This is a defence-in-depth improvement, not a fix for a known vulnerability.
+
+##### Implementation notes
+
+In `server.py`, add to fetch functions:
+
+```python
+import ssl
+ctx = ssl.create_default_context()
+# Optionally add custom CA:
+custom_ca = "/etc/iot-updater/ca.crt"
+if os.path.exists(custom_ca):
+    ctx.load_verify_locations(custom_ca)
+response = urllib.request.urlopen(req, context=ctx, timeout=300)
+```
+
+Document the `/etc/iot-updater/ca.crt` path for operators with private update servers.
+
+---
+
+
+
+---
+
+#### Item 69 — Pin `bootc-image-builder` Image Version in Build Script
+
+**Importance:** 🟡 Medium  
+**Impact:** Reproducible ISO builds — same BIB version used every time; prevents silent ISO layout changes  
+**Difficulty:** Easy (<2h)  
+**Risk:** Low  
+**Prerequisites:** None  
+
+##### What is it?
+
+`build/build-release.sh` uses `ghcr.io/osbuild/bootc-image-builder:latest` — a floating tag. BIB updates can change ISO layout, Kickstart handling, partition schemes, or introduce breaking changes without notice. A BIB update between v23 and v24 builds could produce different installer behaviour silently.
+
+##### Why implement?
+
+ISO build reproducibility requires a pinned toolchain. If a node in the field reports an installer problem that isn't reproducible, the first question is "what BIB version was used?" — which is currently unanswerable. Pinning to a specific digest answers that question definitively.
+
+##### Why NOT implement (or defer)?
+
+Pinning requires intentional version bumps, which means staying on an older BIB version longer than necessary. BIB is actively developed and may have bug fixes or security patches. Set a reminder to review the pin quarterly.
+
+##### Implementation notes
+
+```bash
+# In build-release.sh, replace:
+BIB_IMAGE="ghcr.io/osbuild/bootc-image-builder:latest"
+# With:
+BIB_IMAGE="ghcr.io/osbuild/bootc-image-builder:1.0.0@sha256:<digest>"
+```
+
+Get current digest: `podman pull ghcr.io/osbuild/bootc-image-builder:latest && podman inspect ghcr.io/osbuild/bootc-image-builder:latest --format '{{.Digest}}'`. Document the BIB version and upgrade procedure in `docs/build-process.md`.
+
+---
+
+
+
+---
+
+#### Item 82 — Prometheus Metrics Endpoint via PCP
+
+**Importance:** 🟡 Medium  
+**Impact:** Enables integration with Grafana/Prometheus monitoring stacks for AV system visibility  
+**Difficulty:** Medium (half-day)  
+**Risk:** Low  
+**Prerequisites:** None  
+
+##### What is it?
+
+`pcp` (Performance Co-Pilot) is already installed for Cockpit metrics. PCP ships `pmproxy` which can expose PCP metrics as a Prometheus-compatible endpoint on port 44322 when run with `--timeseries`. This is not configured. PTP offset, audio xrun count, service uptime, CPU governor frequency, and disk utilisation are all available as PCP metrics.
+
+##### Why implement?
+
+AV integrators with Grafana/Prometheus monitoring stacks want to pull metrics from all devices without SSH. PTP offset trends over time are particularly valuable — they reveal systematic clock drift patterns not visible in instantaneous Cockpit displays.
+
+##### Why NOT implement (or defer)?
+
+`pmproxy` adds a listening service on port 44322. This port must be added to the firewall config (Item 65). PCP's Prometheus format may not include all desired metrics out-of-the-box — custom PCP metrics for inferno-specific data (PTP offset, Dante status) would require additional development.
+
+##### Implementation notes
+
+Add `pcp-export-pcp2prometheus` to Containerfile package list. Enable `pmproxy` with `--timeseries` flag:
+
+```bash
+systemctl enable pmproxy.service
+```
+
+Set `PMPROXY_OPTIONS=--timeseries` in `/etc/sysconfig/pmproxy`. Add firewall rule for port 44322 (optional, operator-controlled via `INFERNO_PROMETHEUS_ENABLED=yes` in `/etc/inferno.conf`).
+
+---
+
+
+
+---
+
+#### Item 86 — VLAN Interface Support for Dante AoIP Network
+
+**Importance:** 🟡 Medium  
+**Impact:** Supports dedicated AoIP VLANs — standard practice in professional AV installations  
+**Difficulty:** Hard (multi-day)  
+**Risk:** Medium  
+**Prerequisites:** None  
+
+##### What is it?
+
+Professional AV installations typically use a dedicated VLAN for Dante traffic (e.g., VLAN 10 for AoIP, VLAN 1 for management). Currently, inferno uses the same NIC and VLAN for both management (Cockpit, SSH) and Dante audio. Supporting `INFERNO_DANTE_VLAN=10` in the config would allow creating a VLAN sub-interface for Dante traffic while management stays on the native interface.
+
+##### Why implement?
+
+Dedicated Dante VLANs: (1) isolate audio multicast from management traffic, (2) enable per-VLAN QoS policies on managed switches, (3) match the Audinate recommended deployment architecture for large installs. Many enterprise AV integrators require this for compliance with their network segmentation policies.
+
+##### Why NOT implement (or defer)?
+
+Hard difficulty and medium risk reflect the complexity of creating VLAN interfaces via NetworkManager, ensuring Dante binds to the VLAN interface instead of the native NIC, handling the PTP vs. management interface split, and testing across different switch configurations. Defer until the simpler items (DSCP, domain config) are in place.
+
+##### Implementation notes
+
+Add to `inferno-configure.sh`: if `INFERNO_DANTE_VLAN` is set and non-empty, create VLAN interface:
+
+```bash
+if [ -n "${INFERNO_DANTE_VLAN:-}" ]; then
+    DANTE_IFACE="${INFERNO_NIC}.${INFERNO_DANTE_VLAN}"
+    nmcli connection add type vlan ifname "${DANTE_IFACE}"         dev "${INFERNO_NIC}" id "${INFERNO_DANTE_VLAN}"
+fi
+```
+
+Update statime and inferno-bridge configurations to use `${DANTE_IFACE}` instead of `${INFERNO_NIC}` when `INFERNO_DANTE_VLAN` is set.
+
+---
+
+
+
+---
+
+#### Item 87 — Dante Device Name Conflict Detection
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents audio routing failures caused by duplicate device names in Dante Controller  
+**Difficulty:** Easy (<2h)  
+**Risk:** Low  
+**Prerequisites:** None  
+
+##### What is it?
+
+Inferno's Dante device name is derived from the MAC address suffix (e.g., `Inferno-73CF6B`). If two nodes produce the same name — due to sequential MAC assignment in batch NIC orders, VM cloning, or MAC spoofing — Dante Controller displays both with the same name, creating routing confusion. No detection or warning currently exists.
+
+##### Why implement?
+
+Dante name conflicts cause routing failures that are extremely difficult to diagnose without physical access. Operators see "two devices with the same name" in Dante Controller and cannot determine which is which. Early detection during first-boot or via Cockpit monitoring allows the operator to set a unique name via `INFERNO_NAME` in the config.
+
+##### Why NOT implement (or defer)?
+
+`avahi-browse` conflict detection adds ~8s to first-boot. On a large network, the scan may not capture all devices before timing out. This is best-effort detection, not a guarantee.
+
+##### Implementation notes
+
+In `inferno-configure.sh`, after device name is set:
+
+```bash
+CONFLICT=$(avahi-browse -t -p --resolve _netaudio-arc._udp 2>/dev/null     | awk -F';' '{print $4}' | grep -c "^${INFERNO_NAME}$" || true)
+if [ "${CONFLICT:-0}" -gt 0 ]; then
+    echo "WARNING: Dante device name '${INFERNO_NAME}' already visible on network — possible conflict"
+    echo "WARNING: Set INFERNO_NAME in /etc/inferno.conf to a unique value"
+fi
+```
+
+Also add to Cockpit Monitoring tab `scanDanteDevices()`: if any discovered device name matches local `INFERNO_NAME` on a different IP, show a warning badge.
+
+---
+
+
+
+---
+
+#### Item 90 — Internet Radio (iradio) Channel/Station Management in Cockpit
+
+**Importance:** 🟢 Low  
+**Impact:** Operators can manage iRadio stations from Cockpit without SSH  
+**Difficulty:** Medium (half-day)  
+**Risk:** Low  
+**Prerequisites:** None  
+
+##### What is it?
+
+iRadio mode is supported via the `iradio-bridge` submodule and the Cockpit mode switcher. However, station management — adding, removing, and reordering internet radio station URLs — requires SSH and direct editing of the iradio config file. The Cockpit Config tab shows an iradio mode option but no inline station editor.
+
+##### Why implement?
+
+iRadio mode is a value-add feature that differentiates inferno from a basic Dante device. Operators using iRadio mode should be able to manage their station list from the same Cockpit interface they use for everything else. Requiring SSH for station management undermines the "no SSH needed" operator story.
+
+##### Why NOT implement (or defer)?
+
+iRadio is a secondary feature; implement after the core audio features are stable. Station management requires reading/writing a TOML config file via Cockpit — use `cockpit.file()` API for this.
+
+##### Implementation notes
+
+Add station editor card to Cockpit Config tab (only visible when mode = iradio):
+
+```javascript
+// Only show when in iradio mode
+if (mode === "iradio") {
+    renderIradioStations(config.iradio_stations);
+}
+```
+
+Read/write iradio config TOML via `cockpit.file("/etc/iradio.toml")`. Show station list as editable rows: name, URL, enabled toggle. On save, call `spSudo("systemctl --user restart iradio-bridge")`.
+
+---
+
+
+---
+
+
+
+---
+
+#### Item 93 — Auto-Hostname Conflict Detection
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents duplicate mDNS hostnames causing routing confusion on the AV network  
+**Difficulty:** Easy (<2h)  
+**Risk:** Low  
+**Prerequisites:** None  
+
+##### What is it?
+
+`inferno-configure.sh` sets the hostname to `inferno-<mac_suffix>` and Avahi advertises it as `inferno-<mac_suffix>.local`. If two nodes somehow get the same MAC suffix (theoretically impossible but seen with batch-ordered NICs using sequential MACs), or if nodes are cloned from the same VM snapshot, mDNS hostname conflicts occur. Avahi silently renames to `inferno-73cf6b-2.local`, confusing operators.
+
+##### Why implement?
+
+mDNS hostname conflicts cause confusing duplicate entries in Dante Controller and make remote access unreliable (both nodes respond to the same `.local` name). Early detection with a warning in the configure log saves significant debugging time.
+
+##### Why NOT implement (or defer)?
+
+The `avahi-browse` check adds ~3 seconds to first-boot configure time. On a network with many nodes, the broadcast scan may miss late responders. This is a best-effort check, not a guarantee — document as such.
+
+##### Implementation notes
+
+After setting hostname in `inferno-configure.sh`, add:
+
+```bash
+HOSTNAME_CONFLICT=$(avahi-browse -t -p --resolve _workstation._tcp 2>/dev/null     | grep "^=" | awk -F';' '{print $4}' | grep -c "^${HOSTNAME}$" || true)
+if [ "${HOSTNAME_CONFLICT:-0}" -gt 0 ]; then
+    echo "WARNING: Hostname ${HOSTNAME} is already visible on the network — possible conflict"
+    echo "WARNING: Consider setting INFERNO_NAME in ignition config to a unique value"
+fi
+```
+
+---
+
+
+
+---
+
+#### FR-02 — Provisioning Mode mDNS Advertisement  
+**Importance:** 🟠 High  
+**Difficulty:** Medium  
+**Risk:** Low  
+**Prerequisite:** FR-01  
+
+In unconfigured state (no ), the node advertises:
+-  (new service type, signals "ready to configure")
+- Payload: MAC address, hardware type, current firmware version
+
+inferno-central discovers this service type and lists the node as "awaiting provisioning". Operator can push a config remotely, node transitions to operational state and switches advertisement to .
+
+This is the zero-touch deployment model for fleet management.
+

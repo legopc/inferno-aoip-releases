@@ -1,192 +1,153 @@
-# Inferno AoIP Appliance — Improvement Roadmap
+# Inferno AoIP Appliance -- Improvement Roadmap
 
-> **Document type:** Engineering review and improvement backlog  
+> **Document type:** Engineering backlog  
 > **Scope:** Fedora bootc appliance (installer, first-boot, runtime, upgrade, build pipeline, operations)  
-> **Total items:** 49 active + 6 deferred — resolved and rejected items archived in `archived/`  
-> **Generated:** April 2026  
-
-> Resolved items archived in [archived/IMPROVEMENT_ROADMAP_DONE.md](archived/IMPROVEMENT_ROADMAP_DONE.md)
+> **Last triaged:** April 2026 -- Sprint planning session  
+> **Active:** 42 items (15 Sprint 2 / 18 later / 9 on hold)  
+> **Deferred:** 6  
+> **Archived:** resolved -> [IMPROVEMENT_ROADMAP_DONE.md](archived/IMPROVEMENT_ROADMAP_DONE.md) | rejected -> [IMPROVEMENT_ROADMAP_REJECTED.md](archived/IMPROVEMENT_ROADMAP_REJECTED.md)
 
 ## How to Read This Document
 
-Each improvement item is scored on four axes:
-
-| Field | Meaning |
+| Field | Values |
 |---|---|
-| **Importance** | 🔴 Critical (blocking/broken) · 🟠 High (significant pain) · 🟡 Medium (meaningful improvement) · 🟢 Low (nice-to-have) |
-| **Difficulty** | Easy (<2h) · Medium (half-day) · Hard (multi-day) |
-| **Risk** | Low · Medium · High — chance of regressions |
-| **Prerequisites** | Other item numbers that must be completed first |
-
-Items marked 🔴 Critical should be addressed before any Medium or Low items regardless of category.
-
-## Executive Summary
-
-All 58 items sorted by importance (Critical → High → Medium → Low), then by difficulty (Easy → Medium → Hard) within each level.
-
-| ID | Category | Title | Importance | Difficulty | Risk | Prerequisites |
-|---|---|---|---|---|---|---|
-| 38 | RT/Reliability | NIC Link-Down Recovery | 🟡 Medium | Medium (half-day) | Low | Items 8, 9 |
-| 24 | First-boot | Eliminate the Reboot at End of `inferno-configure.sh` | ⏸ Deferred | Medium (half-day) | Medium | Item 11 |
-| 32 | Security | Cockpit TLS: Custom Certificate | ⏸ Deferred | Medium (half-day) | Low | None |
-| 56 | Operations | Cockpit: Certificate Management | ⏸ Deferred | Medium (half-day) | Medium | None |
-| 29 | Security | Image Signing with cosign/sigstore | ⏸ Deferred | Hard (multi-day) | Low | None |
-| 37 | RT/Reliability | IRQ Affinity / CPU Isolation | ⏸ Deferred | Hard (multi-day) | Medium | None |
-| 4 | Install | GRUB / Boot Screen Branding via BIB | ⏸ Deferred — BIB has no native GRUB branding API | Medium (half-day) | Low | Item 1 |
-| BUG-07 | Security | Credentials Committed to Documentation Files | 🔴 Critical | Easy (<2h) | Low | None |
-| 58 | RT/Reliability | PREEMPT_RT Kernel Option | 🟡 Medium | Hard (multi-day) | High | None |
-| 60 | Operations | `dante-network-bench.sh` Default Timeout 3s → 8s | 🟢 Low | Easy (<2h) | Low | None |
-| 61 | Build | Cockpit Plugin Update Without Full Image Rebuild | 🟡 Medium | Medium (half-day) | Low | None |
-| 62 | Security | Restrict `sudo` to Specific Inferno Commands | 🟠 High | Easy (<2h) | Low | None |
-| 63 | Security | Enable OTA Bundle Signature Enforcement by Default | 🟠 High | Easy (<2h) | Low | None |
-| 64 | Security | URL Allowlist for IoT Updater `POST /fetch-url` | 🟡 Medium | Easy (<2h) | Low | None |
-| 65 | Security | Firewall Configuration (nftables) for Inferno Appliance | 🟠 High | Medium (half-day) | Medium | None |
-| 66 | Security | TLS Certificate Validation for Bundle URL Fetches | 🟡 Medium | Easy (<2h) | Low | None |
-| 67 | Build | Remove/Redact Hardcoded IPs from Bench Scripts | 🟢 Low | Easy (<2h) | Low | None |
-| 68 | Build | Add `.containerignore` to Reduce Build Context Size | 🟡 Medium | Easy (<2h) | Low | None |
-| 69 | Build | Pin `bootc-image-builder` Image Version in Build Script | 🟡 Medium | Easy (<2h) | Low | None |
-| 70 | Build | Add `--setopt=tsflags=nodocs` to DNF Install | 🟢 Low | Easy (<2h) | Low | None |
-| 71 | Build | Tag Releases on Submodule Repositories | 🟢 Low | Easy (<2h) | Low | None |
-| 72 | Build | Consolidate Containerfile RUN Layers | 🟢 Low | Medium (half-day) | Low | None |
-| 73 | Build | BATS Test Suite for Shell Scripts | 🟡 Medium | Hard (multi-day) | Low | None |
-| 74 | Operations | Continuous Health Monitoring Daemon | 🟡 Medium | Medium (half-day) | Low | None |
-| 75 | RT/Reliability | Resource Limits in Service Units (MemoryMax, TasksMax, CPUQuota) | 🟡 Medium | Easy (<2h) | Low | None |
-| 76 | RT/Reliability | Explicit Systemd Service Dependencies Between User Services | 🟡 Medium | Easy (<2h) | Low | None |
-| 77 | RT/Reliability | Restart Backoff Strategy for Flapping Services | 🟢 Low | Easy (<2h) | Low | None |
-| 78 | Operations | Log Rotation for Custom Script Logs | 🟡 Medium | Easy (<2h) | Low | None |
-| 79 | Upgrades | Config Backup Before OTA Update | 🟡 Medium | Easy (<2h) | Low | None |
-| 80 | First-boot | Boot-Time Disk Space and RAM Check | 🟡 Medium | Easy (<2h) | Low | None |
-| 81 | Operations | User Action Audit Trail in Cockpit UI | 🟡 Medium | Medium (half-day) | Low | None |
-| 82 | Operations | Prometheus Metrics Endpoint via PCP | 🟡 Medium | Medium (half-day) | Low | None |
-| 83 | Operations | Central Logging via `systemd-journal-remote` | 🟡 Medium | Medium (half-day) | Low | None |
-| 85 | Network/Dante | DSCP/QoS Marking for Dante Audio Traffic | 🟡 Medium | Medium (half-day) | Medium | 65 |
-| 86 | Network/Dante | VLAN Interface Support for Dante AoIP Network | 🟡 Medium | Hard (multi-day) | Medium | None |
-| 87 | Network/Dante | Dante Device Name Conflict Detection | 🟡 Medium | Easy (<2h) | Low | None |
-| 88 | Network/Dante | Configurable PTP Domain Number | 🟡 Medium | Easy (<2h) | Low | None |
-| 89 | Network/Dante | PTP Offset Alerting Threshold | 🟡 Medium | Medium (half-day) | Low | 74 |
-| 90 | Operations | Internet Radio (iradio) Channel/Station Management in Cockpit | 🟢 Low | Medium (half-day) | Low | None |
-| 91 | RT/Reliability | `statime` Log Level: Reduce from `trace` to `info` in Production | 🟢 Low | Easy (<2h) | Low | None |
-| 92 | First-boot | `inferno-configure.sh` Idempotent Re-Run Mode | 🟡 Medium | Medium (half-day) | Medium | None |
-| 93 | First-boot | Auto-Hostname Conflict Detection | 🟡 Medium | Easy (<2h) | Low | None |
-| 94 | First-boot | librespot Cache Size Limit | 🟢 Low | Easy (<2h) | Low | None |
-| 95 | Operations | Cockpit Configuration Export/Import | 🟡 Medium | Medium (half-day) | Low | None |
-| 96 | Operations | Cockpit In-App Help / Troubleshooting Runbook | 🟡 Medium | Medium (half-day) | Low | None |
-| 97 | RT / Reliability | Disable RT Throttling (`sched_rt_runtime_us=-1`) | 🟠 High | Easy | Low | None |
-| 98 | RT / Reliability | RT CPU Isolation (`isolcpus` + `nohz_full` + `rcu_nocbs`) | 🟠 High | Medium | Medium | 97, 108 |
-| 99 | RT / Reliability | NIC Interrupt Pinning Away from RT CPUs | 🟡 Medium | Medium | Medium | 98 |
-| 100 | Hardware Detection | Hardware PTP Timestamping Enforcement | 🔴 Critical | Easy | Low | None |
-| 101 | Network / Dante | PTP `priority1 = 255` Slave-Only Enforcement | 🟡 Medium | Easy | Low | None |
-| 102 | Network / Dante | IGMP Multicast Group Membership for Dante | 🟡 Medium | Easy | Low | None |
-| 103 | RT / Reliability | NIC TX Queue and Ring Buffer Tuning | 🟡 Medium | Easy | Low | None |
-| 104 | Upgrades | bootc Switch Rollback via `FailureAction=` | 🟠 High | Easy | Low | None |
-| 105 | Security | Cockpit CSP Hardening (Remove `unsafe-inline`) | 🟠 High | Easy | Low | None |
-| 106 | Security | `statime-inferno.service` Capability Sandboxing | 🟠 High | Easy | Medium | None |
-| 107 | RT / Reliability | `WatchdogSec=` for Critical Audio Services | 🟠 High | Medium | Low | None |
-| 108 | Build Pipeline | `/usr/lib/bootc/kargs.d/` for Declarative Kernel Args | 🟡 Medium | Easy | Low | None |
-| 109 | Security | Bundle Manifest `valid_from` Anti-Replay | 🟡 Medium | Medium | Low | 63 |
-| 110 | Security | SELinux Policy Module for `inferno_aoip` | 🟡 Medium | Hard | Medium | BUG-05, 59, 106 |
-| 111 | Developer Experience | `cockpit.transport.wait()` for Plugin Init | 🟡 Medium | Easy | Low | None |
-
-## Where to Start
-
-### Top 5 Quick Wins (Easy difficulty, High or Critical importance)
-
-1. **BUG-01 — `apply-update.sh`: Missing `skopeo copy`** — ✅ **RESOLVED** (April 2026, commits `a8d2890` / `a1cd215` on `legopc/cockpit-iot-updater`). See BUG-01 section for full resolution notes including additional bugs fixed during investigation.
-2. **Item 33 — Hardware Watchdog** — A Critical+Easy item that gives the appliance automatic crash/hang recovery. Without it, a wedged librespot or a kernel panic requires physical intervention at the customer site.
-3. **Item 26 — Default Password Policy** — The appliance ships with a default credential; this must be enforced before any unit leaves the build pipeline. One-liner in `inferno-configure.sh` or the Containerfile.
-4. **Item 31 — SELinux: `restorecon` After Custom File Copies** — Critical and trivially easy; without it, files copied into the image via `COPY` in the Containerfile may carry wrong SELinux labels, causing silent service failures after first boot.
-5. **Item 45 — Clean Up `output-vN/` Directories After Build** — Critical disk hygiene: each build accumulates multi-GB artifact directories; without cleanup the build host will eventually run out of space and fail silently mid-build.
-
-### Top 5 High-Impact Items (regardless of difficulty)
-
-1. **Item 17 — Auto-Rollback on Failed Boot** — Without this, a bad image update permanently bricks the appliance (requires physical access to recover). This is the single highest safety item in the entire roadmap; once BUG-01 is fixed this should be next.
-2. **BUG-01 — `apply-update.sh`: Missing `skopeo copy`** — ✅ **RESOLVED** (April 2026). Unlocks the entire upgrade subsystem. Every upgrade-related item (15, 16, 17, 18, 19, 20, 50) is blocked until this is resolved.
-3. **Item 33 — Hardware Watchdog** — Auto-recovery from crashes and hangs without human intervention; critical for a headless appliance deployed in AV racks.
-4. **Item 26 — Default Password Policy** — A shipped appliance with a known default credential is a security incident waiting to happen; eliminates that risk entirely.
-5. **Item 1 — Add Kickstart to BIB `config.toml`** — Enables fully unattended zero-touch provisioning; without it every new node requires manual install interaction. It is also the prerequisite foundation for Items 2, 3, 4, 5, 7.
-
-
-### New Quick Wins Added (Session 2, April 2026)
-
-6. **BUG-05 — SELinux `unlabeled_t` on `/var/home/core/.ssh`** — Critical+Easy: add one `restorecon` call in `inferno-configure.sh` to fix silent SSH key auth failures on all deployed nodes.
-7. **BUG-07 — Credentials in Documentation Files** — Critical+Easy: scrub `(redacted)` from docs and add a pre-commit hook to prevent future credential commits.
-8. **Item 59 — `restorecon` for User Home Dir** — same fix as BUG-05, confirmed path in `inferno-configure.sh`; one-liner after `chown -R core:core`.
-9. **Item 62 — Restrict `sudo` to Specific Commands** — High+Easy: scope NOPASSWD sudo grant from `ALL` to a specific whitelist; eliminates the broadest attack vector if Cockpit is compromised.
-10. **Item 63 — Enable OTA Bundle Signature Enforcement by Default** — High+Easy: flip one env var default from `0` to `1`; signature infrastructure already exists.
-11. **Item 97 — Disable RT Throttling (`sched_rt_runtime_us=-1`)** — High+Easy: one sysctl file prevents kernel from preempting statime for 50ms/s; single highest-leverage RT tuning available.
-12. **Item 100 — Hardware PTP Timestamping Enforcement** — Critical+Easy: verify HW timestamps are active at configure time; silent SW fallback is the leading cause of poor PTP accuracy.
-13. **Item 101 — PTP `priority1 = 255`** — Medium+Easy: one-line change prevents Inferno from accidentally becoming PTP grandmaster on a quiet network.
-14. **Item 104 — bootc Rollback via `FailureAction=`** — High+Easy: closes the gap where hard-lock before multi-user.target leaves no rollback path.
-15. **Item 105 — Cockpit CSP `unsafe-inline` removal** — High+Easy: eliminates CSS injection XSS vector in Cockpit plugins.
-16. **Item 106 — statime Capability Sandboxing** — High+Easy: strip 35+ unnecessary Linux capabilities from PTP daemon.
-
-### Recommended Sequencing
-
-Natural "stacks" that should be done together as sprint-sized units:
-
-- **Upgrade safety stack (BUG-01 → 15 → 16 → 17 → 50):** Fix the broken command first, add the version sentinel, add the pre-upgrade check, implement auto-rollback, then surface the audit log in Cockpit. These form a complete safe-upgrade story.
-- **Install/kickstart stack (1 → 2 → 7):** Kickstart entry in config.toml, then dynamic disk selection, then the `%pre` detection script. Items 3 and 6 can be bundled into the same PR cheaply.
-- **NIC/hardware stack (8 → 9 → 12 → 10 → 14):** Carrier check first, then multi-NIC override support, then PTP auto-reporting, then (carefully) predictable naming via udev (High risk), then probe log.
-- **Security baseline stack (26 → 27 → 28 → 31):** Password policy, SSH hardening, firewalld rules, and SELinux restorecon — all Easy, all Critical or High, do them in one pass.
-- **Build hygiene stack (43 → 44 → 40 → 42 → 45):** Pass VERSION build-arg, add BUILD_DATE/GIT_SHA, pin base image digest, reorder layers for cache, then add output-dir cleanup. All Easy, all High or Critical.
-- **Cockpit operations stack (47 → 54 → 51 → 48):** Node identity panel, Dante status, bootc status, health endpoint — all Easy+High and buildable incrementally.
-
-## Dependency Map
-
-Items with no prerequisites are safe to start immediately. Items with prerequisites should wait until those are marked done.
-
-```
-BUG-01  → (none)
-Item 1  → (none)
-Item 2  → Item 1
-Item 7  → Item 1
-Item 8  → (none)
-Item 9  → Item 8
-Item 10 → Items 8, 9
-Item 11 → (none)
-Item 12 → Item 8
-Item 14 → Items 8, 12
-Item 15 → BUG-01
-Item 16 → BUG-01
-Item 17 → BUG-01
-Item 18 → BUG-01
-Item 19 → (none — infrastructure decision)
-Item 22 → (none)
-Item 23 → (none)
-Item 24 → Item 11
-Item 25 → Item 9
-Item 26 → (none)
-Item 27 → Item 26
-Item 28 → (none)
-Item 29 → Items 26, 30
-Item 30 → Items 43, 44
-Item 31 → (none)
-Item 32 → (none)
-Items 33–39 → (none, each independent)
-Items 40–46 → (none, each independent)
-Items 47–56 → (none, each independent; some enhanced by Items 12, 30)
-```
-
-**Foundation items** (no dependencies, unlock others): BUG-01, Item 1, Item 6, Item 8, Item 11, Item 26, Item 28, Item 31, Item 33, Item 35, Item 39, Item 42, Item 43, Item 45.
-
-> **Note on prerequisites vs. the detail sections:** Items 29 and 30 list "None" as prerequisites in their individual detail entries, but the dependency map above reflects the recommended implementation order: Item 30 (OCI Labels) builds on the `VERSION` and `BUILD_DATE` build-args introduced by Items 43 and 44; Item 29 (cosign signing) is most useful once labels are in place (Item 30) and a password policy is enforced (Item 26). The detail section text is preserved verbatim; the dependency map is the authoritative sequencing guide.
+| **Importance** | Critical / High / Medium / Low |
+| **Difficulty** | Easy (<2h) / Medium (half-day) / Hard (multi-day) |
+| **Risk** | Low / Medium / High -- chance of regressions |
+| **Sprint** | Sprint 2 (next) / Later / On Hold / Deferred |
 
 ---
 
+## Sprint Plan
+
+### Sprint 2 -- Next Up (15 items)
+
+| ID | Category | Title | Importance | Difficulty |
+|---|---|---|---|---|
+| BUG-08 | Bug | apply-update.sh Uses eval with Python Heredoc | High | Medium |
+| 97 | RT/Reliability | Disable RT Throttling (sched_rt_runtime_us=-1) | High | Easy |
+| 104 | Upgrades | bootc Switch Rollback via FailureAction= | High | Easy |
+| 105 | Security | Cockpit CSP Hardening (Remove unsafe-inline) | High | Easy |
+| 73 | Build | BATS Test Suite for Shell Scripts | Medium | Hard |
+| 76 | RT/Reliability | Explicit Systemd Service Dependencies Between User Services | Medium | Easy |
+| 78 | Operations | Log Rotation for Custom Script Logs | Medium | Easy |
+| 79 | Upgrades | Config Backup Before OTA Update | Medium | Easy |
+| 80 | First-boot | Boot-Time Disk Space and RAM Check | Medium | Easy |
+| 89 | Network/Dante | PTP Offset Alerting Threshold | Medium | Medium |
+| 92 | First-boot | inferno-configure.sh Idempotent Re-Run Mode | Medium | Medium |
+| 103 | RT/Reliability | NIC TX Queue and Ring Buffer Tuning | Medium | Easy |
+| FR-01 | Operations | Factory Reset: Full Wipe and Re-Configure | Medium | Medium |
+| 67 | Build | Remove/Redact Hardcoded IPs from Bench Scripts | Low | Easy |
+| 70 | Build | Add --setopt=tsflags=nodocs to DNF Install | Low | Easy |
+
+### Later Sprints (18 items)
+
+| ID | Category | Title | Importance | Difficulty |
+|---|---|---|---|---|
+| 62 | Security | Restrict sudo to Specific Inferno Commands | High | Easy |
+| 65 | Security | Firewall Configuration (nftables) | High | Medium |
+| 106 | Security | statime-inferno.service Capability Sandboxing | High | Easy |
+| 68 | Build | Add .containerignore to Reduce Build Context Size | Medium | Easy |
+| 74 | Operations | Continuous Health Monitoring Daemon | Medium | Medium |
+| 75 | RT/Reliability | Resource Limits in Service Units (MemoryMax, TasksMax, CPUQuota) | Medium | Easy |
+| 85 | Network/Dante | DSCP/QoS Marking for Dante Audio Traffic | Medium | Medium |
+| 88 | Network/Dante | Configurable PTP Domain Number | Medium | Easy |
+| 95 | Operations | Cockpit Configuration Export/Import | Medium | Medium |
+| 96 | Operations | Cockpit In-App Help / Troubleshooting Runbook | Medium | Medium |
+| 108 | Build | kargs.d/ for Declarative Kernel Args | Medium | Easy |
+| 111 | Build | cockpit.transport.wait() for Plugin Init | Medium | Easy |
+| 60 | Operations | dante-network-bench.sh Default Timeout 3s to 8s | Low | Easy |
+| 71 | Build | Tag Releases on Submodule Repositories | Low | Easy |
+| 72 | Build | Consolidate Containerfile RUN Layers | Low | Medium |
+| 77 | RT/Reliability | Restart Backoff Strategy for Flapping Services | Low | Easy |
+| 91 | RT/Reliability | statime Log Level: trace to info in Production | Low | Easy |
+| 94 | First-boot | librespot Cache Size Limit | Low | Easy |
+
+### On Hold -- Pending Decision (9 items)
+
+| ID | Category | Title | Notes |
+|---|---|---|---|
+| 63 | Security | Enable OTA Bundle Signature Enforcement by Default |  |
+| 98 | RT/Reliability | RT CPU Isolation (isolcpus + nohz_full + rcu_nocbs) | Must be dynamic: only apply CPU isolation on 4-core+ systems. Configurable via configure script, not baked into image. |
+| 107 | RT/Reliability | WatchdogSec= for Critical Audio Services |  |
+| 81 | Operations | User Action Audit Trail in Cockpit UI |  |
+| 83 | Operations | Central Logging via systemd-journal-remote | Only implement if the remote syslog server URL can be configured from within the Cockpit UI. |
+| 99 | RT/Reliability | NIC Interrupt Pinning Away from RT CPUs |  |
+| 102 | Network/Dante | IGMP Multicast Group Membership for Dante |  |
+| 109 | Security | Bundle Manifest valid_from Anti-Replay |  |
+| 110 | Security | SELinux Policy Module for inferno_aoip |  |
+
+---
+
+## Active Items -- Executive Summary
+
+| ID | Category | Title | Importance | Difficulty | Risk | Prerequisites | Sprint |
+|---|---|---|---|---|---|---|---|
+| BUG-07 | Bug | Credentials Committed to Documentation Files | Critical | Easy | Low | None | (tracked separately) |
+| 100 | Hardware | Hardware PTP Timestamping Enforcement | Critical | Easy | Low | None | (tracked separately) |
+| BUG-08 | Bug | apply-update.sh Uses eval with Python Heredoc | High | Medium | Medium | None | Sprint 2 |
+| 97 | RT/Reliability | Disable RT Throttling (sched_rt_runtime_us=-1) | High | Easy | Low | None | Sprint 2 |
+| 104 | Upgrades | bootc Switch Rollback via FailureAction= | High | Easy | Low | None | Sprint 2 |
+| 105 | Security | Cockpit CSP Hardening (Remove unsafe-inline) | High | Easy | Low | None | Sprint 2 |
+| 73 | Build | BATS Test Suite for Shell Scripts | Medium | Hard | Low | None | Sprint 2 |
+| 76 | RT/Reliability | Explicit Systemd Service Dependencies Between User Services | Medium | Easy | Low | None | Sprint 2 |
+| 78 | Operations | Log Rotation for Custom Script Logs | Medium | Easy | Low | None | Sprint 2 |
+| 79 | Upgrades | Config Backup Before OTA Update | Medium | Easy | Low | None | Sprint 2 |
+| 80 | First-boot | Boot-Time Disk Space and RAM Check | Medium | Easy | Low | None | Sprint 2 |
+| 89 | Network/Dante | PTP Offset Alerting Threshold | Medium | Medium | Low | 74 | Sprint 2 |
+| 92 | First-boot | inferno-configure.sh Idempotent Re-Run Mode | Medium | Medium | Medium | None | Sprint 2 |
+| 103 | RT/Reliability | NIC TX Queue and Ring Buffer Tuning | Medium | Easy | Low | None | Sprint 2 |
+| FR-01 | Operations | Factory Reset: Full Wipe and Re-Configure | Medium | Medium | Low | None | Sprint 2 |
+| 67 | Build | Remove/Redact Hardcoded IPs from Bench Scripts | Low | Easy | Low | None | Sprint 2 |
+| 70 | Build | Add --setopt=tsflags=nodocs to DNF Install | Low | Easy | Low | None | Sprint 2 |
+| 62 | Security | Restrict sudo to Specific Inferno Commands | High | Easy | Low | None | Later |
+| 65 | Security | Firewall Configuration (nftables) | High | Medium | Medium | None | Later |
+| 106 | Security | statime-inferno.service Capability Sandboxing | High | Easy | Medium | None | Later |
+| 68 | Build | Add .containerignore to Reduce Build Context Size | Medium | Easy | Low | None | Later |
+| 74 | Operations | Continuous Health Monitoring Daemon | Medium | Medium | Low | None | Later |
+| 75 | RT/Reliability | Resource Limits in Service Units (MemoryMax, TasksMax, CPUQuota) | Medium | Easy | Low | None | Later |
+| 85 | Network/Dante | DSCP/QoS Marking for Dante Audio Traffic | Medium | Medium | Medium | 65 | Later |
+| 88 | Network/Dante | Configurable PTP Domain Number | Medium | Easy | Low | None | Later |
+| 95 | Operations | Cockpit Configuration Export/Import | Medium | Medium | Low | None | Later |
+| 96 | Operations | Cockpit In-App Help / Troubleshooting Runbook | Medium | Medium | Low | None | Later |
+| 108 | Build | kargs.d/ for Declarative Kernel Args | Medium | Easy | Low | None | Later |
+| 111 | Build | cockpit.transport.wait() for Plugin Init | Medium | Easy | Low | None | Later |
+| 60 | Operations | dante-network-bench.sh Default Timeout 3s to 8s | Low | Easy | Low | None | Later |
+| 71 | Build | Tag Releases on Submodule Repositories | Low | Easy | Low | None | Later |
+| 72 | Build | Consolidate Containerfile RUN Layers | Low | Medium | Low | None | Later |
+| 77 | RT/Reliability | Restart Backoff Strategy for Flapping Services | Low | Easy | Low | None | Later |
+| 91 | RT/Reliability | statime Log Level: trace to info in Production | Low | Easy | Low | None | Later |
+| 94 | First-boot | librespot Cache Size Limit | Low | Easy | Low | None | Later |
+| 63 | Security | Enable OTA Bundle Signature Enforcement by Default | High | Easy | Low | None | On Hold |
+| 98 | RT/Reliability | RT CPU Isolation (isolcpus + nohz_full + rcu_nocbs) | High | Medium | Medium | 97, 108 | On Hold |
+| 107 | RT/Reliability | WatchdogSec= for Critical Audio Services | High | Medium | Low | None | On Hold |
+| 81 | Operations | User Action Audit Trail in Cockpit UI | Medium | Medium | Low | None | On Hold |
+| 83 | Operations | Central Logging via systemd-journal-remote | Medium | Medium | Low | None | On Hold |
+| 99 | RT/Reliability | NIC Interrupt Pinning Away from RT CPUs | Medium | Medium | Medium | 98 | On Hold |
+| 102 | Network/Dante | IGMP Multicast Group Membership for Dante | Medium | Easy | Low | None | On Hold |
+| 109 | Security | Bundle Manifest valid_from Anti-Replay | Medium | Medium | Low | 63 | On Hold |
+| 110 | Security | SELinux Policy Module for inferno_aoip | Medium | Hard | Medium | 63, 106 | On Hold |
+| 4 | Install | GRUB / Boot Screen Branding via BIB | Medium | Medium | Low | None | Deferred |
+| 24 | First-boot | Eliminate Reboot at End of inferno-configure.sh | Deferred | Medium | Medium | 11 | Deferred |
+| 29 | Security | Image Signing with cosign/sigstore | Deferred | Hard | Low | None | Deferred |
+| 32 | Security | Cockpit TLS: Custom Certificate | Deferred | Medium | Low | None | Deferred |
+| 37 | RT/Reliability | IRQ Affinity / CPU Isolation | Deferred | Hard | Medium | None | Deferred |
+| 56 | Operations | Cockpit: Certificate Management | Deferred | Medium | Medium | None | Deferred |
+
+---
+
+
 ## Bug Fixes
 
-### Summary Table
-
-| ID | Title | Importance | Difficulty | Risk | Prerequisites |
-|---|---|---|---|---|---|
-| BUG-07 | Credentials Committed to Documentation Files | 🔴 Critical | Easy (<2h) | Low | None |
-| BUG-08 | `apply-update.sh` Uses `eval` with Python Heredoc for JSON Parsing | 🟠 High | Medium (half-day) | Medium | None |
-
-### New Bug Fixes (Session 2, April 2026)
+| ID | Title | Importance | Difficulty | Risk | Prerequisites | Sprint |
+|---|---|---|---|---|---|---|
+| BUG-07 | Credentials Committed to Documentation Files | Critical | Easy | Low | None | (tracked separately) |
+| BUG-08 | apply-update.sh Uses eval with Python Heredoc | High | Medium | Medium | None | Sprint 2 |
 
 ---
 
 #### BUG-07 — Credentials Committed to Documentation Files
+> Tracked separately -- excluded from sprint planning
 
 **Importance:** 🔴 Critical  
 **Impact:** Reduces risk of credential exposure from documentation files in the repository  
@@ -221,84 +182,91 @@ Scrubbing git history (via `git filter-branch` or `git filter-repo`) is operatio
 
 ---
 
-## Install / One-Shot Provisioning
+#### BUG-08 -- apply-update.sh Uses eval with Python Heredoc
+> Sprint 2 -- scheduled for next sprint
 
-### Summary Table
-
-| ID | Title | Importance | Difficulty | Risk | Prerequisites |
-|---|---|---|---|---|---|
-| 3 | Boot timeout = 3s | 🟡 Medium | Easy | Low | 1 |
-| 4 | GRUB / boot screen branding via BIB | ⏸ Deferred — BIB has no native GRUB branding API | Medium | Low | 1 |
-
----
-
-#### Item 4 — GRUB / Boot Screen Branding via BIB
-
-**Importance:** 🟢 Low
-**Impact:** Eliminates the post-build `inject-iso-branding.sh` step; branding baked into ISO automatically
+**Importance:** High
+**Impact:** Eliminates remote code execution risk in the OTA update path
 **Difficulty:** Medium
-**Risk:** Low
-**Prerequisites:** 1
-
-> **Implementation note:** Conditional — only implement if BIB supports the required branding elements natively. No workarounds or hybrid approaches; if BIB cannot do it cleanly, leave the post-build `inject-iso-branding.sh` script as-is.
+**Risk:** Medium
+**Prerequisites:** None
 
 ##### What is it?
-
-Currently branding is applied via a post-build script (`inject-iso-branding.sh`) that modifies the ISO after BIB produces it. BIB's `[customizations.installer]` in `config.toml` could handle this natively.
+`apply-update.sh` uses `eval` to execute a Python heredoc passed from the OTA payload. If the payload is tampered with or if a path injection is possible, `eval` allows arbitrary code execution on the appliance with the privileges of the update service.
 
 ##### Why implement?
-
-Every ISO rebuild requires remembering to run `inject-iso-branding.sh` or shipping an unbranded ISO. Moving branding into `config.toml` makes the build self-contained.
-
-##### Why NOT implement (or defer)?
-
-Defer if BIB's installer customisation API doesn't support all the branding elements currently in the post-build script. The `[customizations.installer]` surface area changes frequently between BIB versions. A hybrid approach (BIB handles what it can, reduced post-build script for the rest) is acceptable.
+The update path is a privileged, trusted code channel. Using `eval` on externally-sourced content is one of the highest-risk patterns in shell scripting. Replace with explicit argument passing or a signed script approach.
 
 ##### Implementation notes
-
-Track [BIB release notes](https://github.com/osbuild/bootc-image-builder) for native GRUB theme support. For now, the kickstart `bootloader --timeout=3` (Item 3) covers the most important functional aspect of "appliance boot behaviour."
-
----
-
-## HARDWARE DETECTION & ADAPTABILITY
-
-### Summary Table
-
-| ID | Title | Importance | Difficulty | Risk | Prerequisites |
-|----|-------|-----------|-----------|------|---------------|
-| 8 | NIC carrier check | 🔴 Critical | Easy | Low | None |
-| 9 | Multiple NIC support / INFERNO_NIC_OVERRIDE | 🟠 High | Easy | Low | 8 |
-| 11 | snd-aloop index: bump to 10 in modprobe.d | 🟠 High | Easy | Medium | None |
-| 12 | Hardware PTP auto-reporting | 🔴 Critical | Easy | Low | 8 |
-| 13 | CPU frequency scaling: performance governor | 🟡 Medium | Easy | Low | None |
-| 14 | `probe-node.sh` output to `/var/log/inferno-probe.log` | 🟡 Medium | Easy | Low | 8, 12 |
+1. Identify all `eval` calls in `apply-update.sh` and trace their input sources.
+2. Replace heredoc+eval pattern with explicit function calls or a Python script called with arguments.
+3. Validate that the update path cannot be influenced by payload content beyond the intended update action.
 
 ---
 
-## First-Boot Configuration
+---
 
-### Summary Table
 
-| ID | Title | Importance | Difficulty | Risk | Prerequisites |
-|---|---|---|---|---|---|
-| 22 | Butane YAML for Ignition | 🟡 Medium | Easy | Low | None |
-| 23 | `systemd-sysusers` and `tmpfiles.d` for user/directory setup | 🟠 High | Medium | Medium | None |
-| 24 | Eliminate reboot at end of `inferno-configure.sh` | ⏸ Deferred | Medium | Medium | Item 11 |
-| 25 | `INFERNO_NIC_OVERRIDE` in Ignition/kickstart | 🟢 Low | Easy | Low | Item 9 |
-| 80 | Boot-Time Disk Space and RAM Check | 🟡 Medium | Easy (<2h) | Low | None |
-| 92 | `inferno-configure.sh` Idempotent Re-Run Mode | 🟡 Medium | Medium (half-day) | Medium | None |
-| 93 | Auto-Hostname Conflict Detection | 🟡 Medium | Easy (<2h) | Low | None |
-| 94 | librespot Cache Size Limit | 🟢 Low | Easy (<2h) | Low | None |
-| 95 | Cockpit Configuration Export/Import | 🟡 Medium | Medium (half-day) | Low | None |
-| 96 | Cockpit In-App Help / Troubleshooting Runbook | 🟡 Medium | Medium (half-day) | Low | None |
+## Hardware Detection
+
+| ID | Title | Importance | Difficulty | Risk | Prerequisites | Sprint |
+|---|---|---|---|---|---|---|
+| 100 | Hardware PTP Timestamping Enforcement | Critical | Easy | Low | None | (tracked separately) |
 
 ---
 
-### New First-Boot / Provisioning Improvements (Session 2, April 2026)
+#### Item 100 — Hardware PTP Timestamping Enforcement
+> Tracked separately -- excluded from sprint planning
+
+**Importance:** 🔴 Critical  
+**Impact:** Guarantees sub-microsecond PTP precision on supporting NICs; provides clear diagnostic when hardware timestamping is unavailable  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+`inferno-configure.sh` detects hardware PTP capability (Item 12) but `inferno-ptpv1.toml` uses `hardware-clock = "auto"` — silently falling back to software timestamps if hardware timestamps fail. Software PTP timestamps have 10-100× worse accuracy. There's no log entry or health status to indicate which mode is active.
+
+##### Why implement?
+On NICs that support hardware timestamping (Intel i210, i219, I225 — all common in EliteDesk hardware), software fallback represents a massive quality regression with zero operator visibility. Inferno nodes that silently fall back to SW timestamps will have noticeably worse Dante audio quality but no obvious cause.
+
+##### Why NOT implement (or defer)?
+Some deployment NICs genuinely don't support hardware timestamping. Hard-failing would block deployment on those nodes. Must warn clearly but not block.
+
+##### Implementation notes
+```bash
+# inferno-configure.sh — extend existing HW_PTP detection block
+if [ "${HW_PTP_AVAILABLE:-no}" = "yes" ]; then
+    PTP_DEV=$(ls /sys/class/net/"$INFERNO_NIC"/device/ptp/ 2>/dev/null | head -1)
+    if test -c "/dev/${PTP_DEV:-ptpX}"; then
+        echo "HW_PTP_DEVICE=/dev/$PTP_DEV" >> /etc/inferno.conf
+        ethtool -T "$INFERNO_NIC" 2>/dev/null | grep -q "hardware-transmit" && \
+            echo "✓ Hardware PTP timestamps confirmed on $INFERNO_NIC" || \
+            echo "WARNING: NIC reports PTP support but hardware-transmit not listed"
+    else
+        echo "WARNING: HW PTP claimed but /dev/$PTP_DEV not accessible — using SW timestamps"
+    fi
+fi
+```
+Surface `HW_PTP_DEVICE` value in Cockpit Services tab PTP card.
+
+---
+
+---
+
+
+## First-Boot and Provisioning
+
+| ID | Title | Importance | Difficulty | Risk | Prerequisites | Sprint |
+|---|---|---|---|---|---|---|
+| 80 | Boot-Time Disk Space and RAM Check | Medium | Easy | Low | None | Sprint 2 |
+| 92 | inferno-configure.sh Idempotent Re-Run Mode | Medium | Medium | Medium | None | Sprint 2 |
+| 94 | librespot Cache Size Limit | Low | Easy | Low | None | Later |
 
 ---
 
 #### Item 80 — Boot-Time Disk Space and RAM Check
+> Sprint 2 -- scheduled for next sprint
 
 **Importance:** 🟡 Medium  
 **Impact:** Provides a clear error message instead of mysterious failures when hardware is undersized  
@@ -337,7 +305,10 @@ fi
 
 ---
 
+---
+
 #### Item 92 — `inferno-configure.sh` Idempotent Re-Run Mode
+> Sprint 2 -- scheduled for next sprint
 
 **Importance:** 🟡 Medium  
 **Impact:** Allows reconfiguring NIC/name/mode without requiring a full reboot and sentinel deletion  
@@ -381,41 +352,10 @@ Skip `loginctl enable-linger core` and user service enablement steps if already 
 
 ---
 
-#### Item 93 — Auto-Hostname Conflict Detection
-
-**Importance:** 🟡 Medium  
-**Impact:** Prevents duplicate mDNS hostnames causing routing confusion on the AV network  
-**Difficulty:** Easy (<2h)  
-**Risk:** Low  
-**Prerequisites:** None  
-
-##### What is it?
-
-`inferno-configure.sh` sets the hostname to `inferno-<mac_suffix>` and Avahi advertises it as `inferno-<mac_suffix>.local`. If two nodes somehow get the same MAC suffix (theoretically impossible but seen with batch-ordered NICs using sequential MACs), or if nodes are cloned from the same VM snapshot, mDNS hostname conflicts occur. Avahi silently renames to `inferno-73cf6b-2.local`, confusing operators.
-
-##### Why implement?
-
-mDNS hostname conflicts cause confusing duplicate entries in Dante Controller and make remote access unreliable (both nodes respond to the same `.local` name). Early detection with a warning in the configure log saves significant debugging time.
-
-##### Why NOT implement (or defer)?
-
-The `avahi-browse` check adds ~3 seconds to first-boot configure time. On a network with many nodes, the broadcast scan may miss late responders. This is a best-effort check, not a guarantee — document as such.
-
-##### Implementation notes
-
-After setting hostname in `inferno-configure.sh`, add:
-
-```bash
-HOSTNAME_CONFLICT=$(avahi-browse -t -p --resolve _workstation._tcp 2>/dev/null     | grep "^=" | awk -F';' '{print $4}' | grep -c "^${HOSTNAME}$" || true)
-if [ "${HOSTNAME_CONFLICT:-0}" -gt 0 ]; then
-    echo "WARNING: Hostname ${HOSTNAME} is already visible on the network — possible conflict"
-    echo "WARNING: Consider setting INFERNO_NAME in ignition config to a unique value"
-fi
-```
-
 ---
 
 #### Item 94 — librespot Cache Size Limit
+> Later -- scheduled for a future sprint
 
 **Importance:** 🟢 Low  
 **Impact:** Prevents Spotify audio cache from filling `/var` on long-running nodes  
@@ -441,86 +381,20 @@ In `librespot.service` ExecStart, add `--cache-size-limit 512` (in megabytes). A
 
 ---
 
-#### Item 95 — Cockpit Configuration Export/Import
-
-**Importance:** 🟡 Medium  
-**Impact:** Enables mass provisioning of multiple nodes with identical config; backup/restore of node settings  
-**Difficulty:** Medium (half-day)  
-**Risk:** Low  
-**Prerequisites:** None  
-
-##### What is it?
-
-There is currently no way to export a node's configuration (`INFERNO_NAME`, `INFERNO_NIC`, `INFERNO_MODE`, etc.) from Cockpit or restore it. Operators with 10 identical nodes must configure each manually. A "Export Config" button and "Import Config" upload in the Cockpit Config tab would significantly speed up fleet provisioning.
-
-##### Why implement?
-
-AV installs frequently have multiple identical nodes — backup receivers, multiple venues, staging/production pairs. Config export/import accelerates deployment from hours to minutes for large fleets. Config export also serves as an implicit backup mechanism.
-
-##### Why NOT implement (or defer)?
-
-Imported configs must be validated before applying — importing a config intended for different hardware (different NIC name) could break network connectivity. Add validation: check that `INFERNO_NIC` value exists as a network interface on the target node.
-
-##### Implementation notes
-
-Add to Cockpit Config tab in `inferno.js`:
-
-- **Export**: `cockpit.file("/etc/inferno.conf").read()` → `Blob` download as `inferno-config-HOSTNAME.conf`
-- **Import**: file upload → validate NIC exists → `cockpit.file("/etc/inferno.conf").replace(content)` → `spSudo("systemctl restart inferno-configure")`
-
-JSON format with schema validation is preferred over raw shell env format for import — convert `/etc/inferno.conf` to JSON for the export format while keeping the file itself as shell env syntax.
-
 ---
 
-#### Item 96 — Cockpit In-App Help / Troubleshooting Runbook
-
-**Importance:** 🟡 Medium  
-**Impact:** Reduces support requests; operators can self-diagnose the top 5 failure modes without SSH  
-**Difficulty:** Medium (half-day)  
-**Risk:** Low  
-**Prerequisites:** None  
-
-##### What is it?
-
-No in-app help or troubleshooting guidance exists in the Cockpit UI. Common issues — no Dante devices discovered, PTP not converged, audio not playing, OTA update fails — each have multiple root causes that require knowledge of the system architecture to diagnose. A "Help" tab or collapsible guidance panels would guide operators through the decision tree.
-
-##### Why implement?
-
-AV operators are typically not Linux experts. "Dante shows no devices in Cockpit" has five possible causes (no cable, wrong NIC, mDNS filtered by switch, Dante device not powered, avahi-daemon not running). A guided decision tree in the UI narrows this to the actual cause in 30 seconds instead of 20 minutes of SSH debugging.
-
-##### Why NOT implement (or defer)?
-
-Help content requires maintenance — it must be updated when the system changes. Start with the 5 most common failure modes and expand as support patterns emerge from real deployments.
-
-##### Implementation notes
-
-Add "Help" tab to Cockpit plugin or collapsible `?` icon on each card:
-
-1. **No Dante devices**: cable → NIC selection → avahi-daemon running → try manual `avahi-browse -rt _netaudio-arc._tcp`
-2. **PTP not converged**: grandmaster available → statime running → check `journalctl -u statime-inferno` → check domain number (Item 88)
-3. **Audio not playing**: mode correct → librespot active → ALSA device exists → check `aplay -l` for loopback card
-4. **OTA update fails**: network connectivity → sidecar running → disk space → check `/var/lib/iot-updater/update.log`
-5. **Cockpit shows errors**: service unit logs → `journalctl --user -u inferno-bridge` → restart services
-
-
----
 
 ## Upgrades
 
-### Summary Table
-
-| ID | Title | Importance | Difficulty | Risk | Prerequisites |
-|---|---|---|---|---|---|
-| 15 | Version sentinel comparison in `inferno-configure.sh` | 🟠 High | Medium (half-day) | Medium | BUG-01 |
-| 79 | Config Backup Before OTA Update | 🟡 Medium | Easy (<2h) | Low | None |
-
----
-
-### New Upgrade Improvements (Session 2, April 2026)
+| ID | Title | Importance | Difficulty | Risk | Prerequisites | Sprint |
+|---|---|---|---|---|---|---|
+| 79 | Config Backup Before OTA Update | Medium | Easy | Low | None | Sprint 2 |
+| 104 | bootc Switch Rollback via FailureAction= | High | Easy | Low | None | Sprint 2 |
 
 ---
 
 #### Item 79 — Config Backup Before OTA Update
+> Sprint 2 -- scheduled for next sprint
 
 **Importance:** 🟡 Medium  
 **Impact:** Allows config recovery if an OTA update resets or overwrites customised node settings  
@@ -560,31 +434,43 @@ Surface backup list and restore action in Cockpit Diagnostics tab (links to Item
 
 ---
 
-## Security
+---
 
-### Summary Table
+#### Item 104 -- bootc Switch Rollback via FailureAction=
+> Sprint 2 -- scheduled for next sprint
 
-| ID | Title | Importance | Difficulty | Risk | Prerequisites |
-|----|-------|-----------|------------|------|---------------|
-| 29 | Image signing with cosign/sigstore | ⏸ Deferred | Hard | Low | None |
-| 30 | OCI labels for version tracking | 🟢 Low | Easy | Low | None |
-| 31 | SELinux: `restorecon` after custom file copies | 🔴 Critical | Easy | Low | None |
-| 32 | Cockpit TLS: custom certificate | ⏸ Deferred | Medium | Low | None |
-| 57 | Cockpit: first-login password prompt | 🟠 High | Medium (half-day) | Low | None |
-| 62 | Restrict `sudo` to Specific Inferno Commands | 🟠 High | Easy (<2h) | Low | None |
-| 63 | Enable OTA Bundle Signature Enforcement by Default | 🟠 High | Easy (<2h) | Low | None |
-| 64 | URL Allowlist for IoT Updater `POST /fetch-url` | 🟡 Medium | Easy (<2h) | Low | None |
-| 65 | Firewall Configuration (nftables) for Inferno Appliance | 🟠 High | Medium (half-day) | Medium | None |
-| 66 | TLS Certificate Validation for Bundle URL Fetches | 🟡 Medium | Easy (<2h) | Low | None |
-| 67 | Remove/Redact Hardcoded IPs from Bench Scripts | 🟢 Low | Easy (<2h) | Low | None |
+**Importance:** High  
+**Impact:** Automatic rollback to previous image if new image fails to reach multi-user.target  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+After `bootc switch`, if the node hard-locks before reaching `multi-user.target`, there is no automatic recovery. Configuring a `FailureAction=` on the post-upgrade unit triggers rollback automatically.
+
+##### Implementation
+Configure bootc for automatic rollback on repeated boot failure via bootloader policy. Set `FailureAction=` on the post-upgrade unit to reboot into the previous deployment.
 
 ---
 
-### New Security Improvements (Session 2, April 2026)
+
+## Security
+
+| ID | Title | Importance | Difficulty | Risk | Prerequisites | Sprint |
+|---|---|---|---|---|---|---|
+| 62 | Restrict sudo to Specific Inferno Commands | High | Easy | Low | None | Later |
+| 63 | Enable OTA Bundle Signature Enforcement by Default | High | Easy | Low | None | On Hold |
+| 65 | Firewall Configuration (nftables) | High | Medium | Medium | None | Later |
+| 105 | Cockpit CSP Hardening (Remove unsafe-inline) | High | Easy | Low | None | Sprint 2 |
+| 106 | statime-inferno.service Capability Sandboxing | High | Easy | Medium | None | Later |
+| 109 | Bundle Manifest valid_from Anti-Replay | Medium | Medium | Low | 63 | On Hold |
+| 110 | SELinux Policy Module for inferno_aoip | Medium | Hard | Medium | 63, 106 | On Hold |
 
 ---
 
 #### Item 62 — Restrict `sudo` to Specific Inferno Commands
+> Later -- scheduled for a future sprint
+> Planning note: Preferred approach: add a separate end-user account and restrict sudo to that account only; keep `core` (manufacturer) unrestricted.
 
 **Importance:** 🟠 High  
 **Impact:** Reduces blast radius if the `core` user session is compromised via Cockpit or librespot  
@@ -619,7 +505,10 @@ Audit `cockpit-inferno/src/inferno.js` for all `spSudo()` and `cockpit.spawn(["s
 
 ---
 
+---
+
 #### Item 63 — Enable OTA Bundle Signature Enforcement by Default
+> On Hold -- pending decision
 
 **Importance:** 🟠 High  
 **Impact:** Prevents installation of unsigned or tampered OTA bundles on production nodes  
@@ -647,48 +536,10 @@ All bundles must be signed before changing the default. If any existing bundles 
 
 ---
 
-#### Item 64 — URL Allowlist for IoT Updater `POST /fetch-url`
-
-**Importance:** 🟡 Medium  
-**Impact:** Prevents SSRF attacks via the bundle fetch endpoint  
-**Difficulty:** Easy (<2h)  
-**Risk:** Low  
-**Prerequisites:** None  
-
-##### What is it?
-
-`sidecar/server.py`'s `/fetch-url` endpoint accepts any `https://` URL as a bundle source. An attacker with Cockpit access (or a compromised Cockpit session) could use this to probe internal network services via SSRF — including cloud metadata endpoints (`169.254.169.254`), internal APIs, or other hosts on the AV LAN.
-
-##### Why implement?
-
-SSRF via bundle fetch is a realistic attack vector on a multi-tenant AV installation where Cockpit may be accessible to multiple operators. An allowlist restricts fetches to known safe hosts with minimal operator impact.
-
-##### Why NOT implement (or defer)?
-
-Operators self-hosting an update server on a custom domain would need to configure the allowlist. Default should be permissive enough for the common case (GitHub releases) while blocking obvious SSRF targets.
-
-##### Implementation notes
-
-Add `ALLOWED_FETCH_HOSTS` environment variable (default: `["github.com", "raw.githubusercontent.com", "releases.github.com"]`). In the `/fetch-url` handler in `server.py`:
-
-```python
-from urllib.parse import urlparse
-ALLOWED_HOSTS = os.environ.get("ALLOWED_FETCH_HOSTS", "github.com,raw.githubusercontent.com").split(",")
-
-@app.route("/fetch-url", methods=["POST"])
-def fetch_url():
-    url = request.json.get("url", "")
-    host = urlparse(url).hostname
-    if host not in ALLOWED_HOSTS:
-        return jsonify({"error": f"Host {host} not in allowlist"}), 403
-    # ... existing fetch logic
-```
-
-Operators with private update servers set `ALLOWED_FETCH_HOSTS=my-update-server.internal` in `/etc/inferno.conf` and the sidecar unit's `EnvironmentFile=`.
-
 ---
 
 #### Item 65 — Firewall Configuration (nftables) for Inferno Appliance
+> Later -- scheduled for a future sprint
 
 **Importance:** 🟠 High  
 **Impact:** Limits attack surface to only the ports required for Dante/PTP/Cockpit; all others closed by default  
@@ -738,190 +589,130 @@ DSCP marking for Dante traffic can be added to this ruleset (see Item 85).
 
 ---
 
-#### Item 66 — TLS Certificate Validation for Bundle URL Fetches
+---
 
-**Importance:** 🟡 Medium  
-**Impact:** Prevents MITM attacks on OTA bundle downloads from custom URL sources  
-**Difficulty:** Easy (<2h)  
+#### Item 105 -- Cockpit CSP Hardening (Remove unsafe-inline)
+> Sprint 2 -- scheduled for next sprint
+
+**Importance:** High  
+**Impact:** Eliminates CSS/JS injection vector in Cockpit plugin  
+**Difficulty:** Easy  
 **Risk:** Low  
-**Prerequisites:** None  
+**Prerequisites:** None
 
 ##### What is it?
+Current Cockpit plugin headers include `Content-Security-Policy: script-src 'unsafe-inline'`. Removing it closes the primary XSS attack vector.
 
-`sidecar/server.py` uses `urllib.request.urlopen(req, timeout=300)` for bundle fetch and manifest downloads with default SSL validation. No explicit `ssl.create_default_context()` is created, meaning the system CA bundle's currency is assumed. Should explicitly create an SSL context and optionally support a custom CA certificate for self-hosted update servers.
-
-##### Why implement?
-
-Explicit SSL context creation is a security best practice — it ensures the system CA bundle is loaded correctly and allows operators with private CA certificates to pin their own CA for custom update servers. The change is three lines.
-
-##### Why NOT implement (or defer)?
-
-Default SSL validation already works correctly in most deployments. This is a defence-in-depth improvement, not a fix for a known vulnerability.
-
-##### Implementation notes
-
-In `server.py`, add to fetch functions:
-
-```python
-import ssl
-ctx = ssl.create_default_context()
-# Optionally add custom CA:
-custom_ca = "/etc/iot-updater/ca.crt"
-if os.path.exists(custom_ca):
-    ctx.load_verify_locations(custom_ca)
-response = urllib.request.urlopen(req, context=ctx, timeout=300)
-```
-
-Document the `/etc/iot-updater/ca.crt` path for operators with private update servers.
+##### Implementation
+1. Move all inline `<script>` and `<style>` blocks to external files.
+2. Update the CSP header in the plugin manifest to remove `unsafe-inline`.
 
 ---
 
-#### Item 67 — Remove/Redact Hardcoded IPs from Bench Scripts
+#### Item 106 -- statime-inferno.service Capability Sandboxing
+> Later -- scheduled for a future sprint
+> Planning note: Requires thorough testing before committing. Verify statime operates correctly under the restricted capability set.
 
-**Importance:** 🟢 Low  
-**Impact:** Removes confusion for external operators copying bench commands from examples  
-**Difficulty:** Easy (<2h)  
-**Risk:** Low  
-**Prerequisites:** None  
-
-##### What is it?
-
-`scripts/bench/ptp-bench.sh`, `audio-loopback-test.sh`, and `stress-bench.sh` have hardcoded example IPs (`192.168.1.43`, `192.168.1.25`) in comments and default variable values. Operators copy-pasting these commands may accidentally target wrong nodes or be confused by errors from the placeholder IPs.
-
-##### Why implement?
-
-Documentation quality and operator safety. Hardcoded IPs in bench scripts look like they should work and cause confusing errors when they don't. Placeholder-style documentation (`<node-ip>`) is unambiguous.
-
-##### Why NOT implement (or defer)?
-
-No reason to defer. Purely documentation cleanup, zero risk.
-
-##### Implementation notes
-
-Replace hardcoded IPs in comments with `<node-ip>` or `TARGET_NODE_IP`. Change any default `TARGET=192.168.1.43` to `TARGET=""` with:
-
-```bash
-[ -z "$TARGET" ] && { echo "ERROR: set TARGET=<node-ip> before running"; exit 1; }
-```
-
-
----
-
-## Real-Time Audio & Reliability
-
-### Summary Table
-
-| ID | Title | Importance | Difficulty | Risk | Prerequisites |
-|---|---|---|---|---|---|
-| 33 | Hardware watchdog | 🔴 Critical | Easy (<2h) | Low | None |
-| 34 | Service dependency: `ConditionPathExists=/etc/inferno.conf` | 🟠 High | Easy (<2h) | Low | None |
-| 35 | journald log size limit | 🟠 High | Easy (<2h) | Low | None |
-| 36 | `LimitMEMLOCK=infinity` for RT services | 🟠 High | Easy (<2h) | Low | None |
-| 37 | IRQ affinity / CPU isolation | ⏸ Deferred | Hard (multi-day) | Medium | None |
-| 38 | NIC link-down recovery | 🟡 Medium | Medium (half-day) | Low | Items 8, 9 |
-| 39 | Boot: mask unnecessary Fedora services | 🟠 High | Easy (<2h) | Low | None |
-
----
-
-#### Item 38 — NIC Link-Down Recovery
-
-**Importance:** 🟡 Medium  
-**Impact:** Audio resumes within seconds of cable re-plug instead of requiring 30–60 seconds of failed restarts  
-**Difficulty:** Medium (half-day)  
-**Risk:** Low  
-**Prerequisites:** Items 8, 9  
-
-> **Implementation note:** Priority demoted to Medium. Depends on Items 8 (NIC carrier check) and 9 (multi-NIC support) — implement those first. The `BindsTo=` device unit approach requires stable NIC naming, but Items 8/9 are sufficient prerequisites (Item 10 udev rename is rejected).
+**Importance:** High  
+**Impact:** Limits blast radius to only the two capabilities statime actually needs  
+**Difficulty:** Easy  
+**Risk:** Medium  
+**Prerequisites:** None
 
 ##### What is it?
+`statime` only needs `CAP_NET_ADMIN` and `CAP_SYS_TIME`. Currently it inherits ~35 capabilities. Adding `CapabilityBoundingSet=` restricts it to only those two.
 
-When the Ethernet cable is unplugged, `statime-inferno.service` loses its PTP grandmaster and immediately fails. With `Restart=always`, it restarts — but the NIC has no carrier, so the next start attempt fails instantly too. This cycle repeats at the `RestartSec=` interval (default 100ms), flooding the journal and burning CPU. When the cable is re-plugged, the NIC must re-negotiate link (~2s), DHCP must renew (~5s), and ARP must resolve before Statime can reach the PTP grandmaster. The `Restart=always` loop may restart Statime before the network is ready, causing 3–5 more failures before it finally succeeds. Total recovery: 30–60 seconds of chaos.
 
-Three targeted improvements collapse this to under 10 seconds:
-
-1. **`After=network-online.target`** in `statime-inferno.service` — ensures the service only starts when NetworkManager reports the link is up and routable. Does not help with mid-run link loss, but prevents the initial start storm on boot with a slow NIC.
-
-2. **`ExecStartPre` carrier check** — wait for the NIC carrier before attempting to start:
-   ```bash
-   ExecStartPre=/bin/bash -c 'until [ "$(cat /sys/class/net/${NIC}/carrier 2>/dev/null)" = "1" ]; do sleep 1; done'
-   ```
-   This makes the service block at `ExecStartPre` (no failure) until the link is physically up, then proceed to start normally. Combined with `Restart=always`, link-down recovery becomes: cable re-plugged → carrier detected → `ExecStartPre` exits → Statime starts successfully. One restart, clean.
-
-3. **`BindsTo=sys-subsystem-net-devices-<NIC>.device`** — binds the service lifecycle to the kernel device object for the NIC. When the NIC is unplugged (device disappears), systemd stops the service cleanly. When the NIC reappears (cable re-plug or driver reload), systemd restarts it. This requires predictable NIC naming (item 10) because the device unit name is derived from the interface name.
-
-##### Why implement?
-
-Network interruptions in a venue are common — someone trips over a cable, a switch is rebooted, a patch panel connection is jostled. The current behaviour (30–60s of restart storm) is operator-visible: audio cuts out, Cockpit shows service failures, the journal fills with errors. The improvements make the failure mode silent and self-healing in < 10 seconds, which matches what operators expect from a professional audio appliance.
-
-##### Why NOT implement (or defer)?
-
-Defer `BindsTo=sys-subsystem-net-devices-<NIC>.device` until Items 8 and 9 are complete and the NIC name is reliably known at boot time. The `After=network-online.target` and `ExecStartPre` carrier check have no dependencies and should be implemented immediately.
-
-##### Implementation notes
-
-In `statime-inferno.service`:
-
+##### Implementation
+Add to `statime-inferno.service`:
 ```ini
-[Unit]
-After=network-online.target sys-subsystem-net-devices-enp1s0.device
-Wants=network-online.target
-BindsTo=sys-subsystem-net-devices-enp1s0.device
-
 [Service]
-# NIC name must be resolved at runtime from /etc/inferno.conf or environment:
-EnvironmentFile=/etc/inferno.conf
-ExecStartPre=/bin/bash -c 'until [ "$(cat /sys/class/net/${INFERNO_NIC}/carrier 2>/dev/null)" = "1" ]; do sleep 1; done'
-Restart=always
-RestartSec=5s
-```
-
-Use `RestartSec=5s` rather than the default to avoid hammering the network stack during transient failures. Five seconds is fast enough for practical recovery and slow enough to avoid log floods.
-
-The `BindsTo=` device unit name follows the pattern `sys-subsystem-net-devices-<iface>.device` with hyphens replacing any non-alphanumeric characters in the interface name. For `enp1s0`: `sys-subsystem-net-devices-enp1s0.device`. Verify the unit exists:
-
-```bash
-systemctl status sys-subsystem-net-devices-enp1s0.device
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_TIME
+AmbientCapabilities=CAP_NET_ADMIN CAP_SYS_TIME
+NoNewPrivileges=true
 ```
 
 ---
 
-### New RT / Reliability Improvements (Session 2, April 2026)
-
----
-
-#### Item 58 — PREEMPT_RT Kernel Option
+#### Item 109 — Bundle Manifest `valid_from` Anti-Replay Timestamp
+> On Hold -- pending decision
 
 **Importance:** 🟡 Medium  
-**Impact:** Sub-100µs scheduling latency for statime/inferno-bridge vs. current ~500µs with PREEMPT_DYNAMIC  
-**Difficulty:** Hard (multi-day)  
-**Risk:** High  
-**Prerequisites:** None  
+**Impact:** Prevents replay attacks that roll back nodes to known-vulnerable firmware versions  
+**Difficulty:** Medium  
+**Risk:** Low  
+**Prerequisites:** Item 63 (signing enforcement)
 
 ##### What is it?
-
-The current Fedora IoT 43 kernel uses `PREEMPT_DYNAMIC` with `preempt=full` (full preemption, soft-RT). True `PREEMPT_RT` requires the Linus RT patchset and shows as `PREEMPT_RT` in `uname -a`. Fedora ships `kernel-rt` in its repos since F38, making it installable via dnf. PREEMPT_RT reduces worst-case scheduler latency from ~500µs to ~50µs — a measurable improvement in PTP jitter under CPU load.
+IoT Updater bundle `version.json` manifest contains `version`, `sha256`, and signature — but no time-bounded validity window. An attacker who captures a valid signed bundle can re-serve it indefinitely to downgrade a node to a vulnerable version. A `valid_from` / `valid_until` field in the manifest, checked in `apply-update.sh`, closes this window.
 
 ##### Why implement?
-
-`cyclictest` P99 latency with PREEMPT_RT is typically 50µs vs. 500µs with PREEMPT_DYNAMIC. For Dante AES67 with tight PTP requirements, reducing worst-case jitter by 10x directly improves audio quality under load. The improvement is most visible on nodes running multiple concurrent workloads (librespot + iradio + cockpit updates).
+Downgrade attacks are a real threat model for appliances with known CVEs in older firmware. Bundle signing (Item 63) prevents unsigned bundles, but doesn't prevent replay of legitimately-signed old bundles.
 
 ##### Why NOT implement (or defer)?
-
-`kernel-rt` is a separate package not in `fedora-bootc:43` by default. Replacing the kernel adds ~200MB to the image and requires extensive hardware compatibility testing. bootc may have constraints on non-standard kernels. Dante audio works acceptably with PREEMPT_DYNAMIC for most deployments — this is a marginal improvement for demanding installs, not a fix for a broken feature. Estimate: 3–5 days including testing across all target hardware.
+Requires all existing bundles to be re-signed with timestamps. Nodes with incorrect system time would reject valid bundles. Must handle clock skew gracefully.
 
 ##### Implementation notes
-
-In Containerfile:
-
-```dockerfile
-RUN dnf install -y kernel-rt kernel-rt-modules-extra &&     dnf remove -y kernel kernel-core kernel-modules &&     dnf clean all
+Add to `version.json` schema:
+```json
+{
+  "version": "24",
+  "valid_from": "2026-04-01T00:00:00Z",
+  "valid_until": "2027-04-01T00:00:00Z",
+  "sha256": "...",
+  "signature": "..."
+}
 ```
+In `apply-update.sh`, after signature verify: parse `valid_from`/`valid_until`, compare to `$(date -u +%s)`. Reject with clear error if outside window. Adjust `make-oci-bundle.sh` to auto-populate fields.
 
-Requires careful testing — verify `uname -r` shows `-rt` suffix, run `cyclictest -l100000 -m -n -a -t -p99 -i200 -h400` to confirm latency improvement, test full Dante audio stack for regressions. See `docs/rt-scheduling.md` for reference benchmarks.
+---
+
+---
+
+#### Item 110 — SELinux Policy Module for `inferno_aoip`
+> On Hold -- pending decision
+
+**Importance:** 🟡 Medium  
+**Impact:** Proper MAC confinement for all inferno processes — moves beyond relying on inherited unconfined contexts  
+**Difficulty:** Hard  
+**Risk:** Medium  
+**Prerequisites:** BUG-05, Item 59, Item 106
+
+##### What is it?
+All inferno user services currently inherit generic SELinux contexts (`unconfined_t` or `init_t` depending on how they're launched). A custom `inferno_aoip` policy module would confine them to only the files, capabilities, and network operations they actually need — providing defence-in-depth beyond capability sandboxing.
+
+##### Why implement?
+Fedora 43 ships with SELinux enforcing by default. Custom policy closes the gap between "running in enforcing mode" and "actually confined" — the current state has SELinux enforcing but inferno processes running as unconfined, giving a false sense of security.
+
+##### Why NOT implement (or defer)?
+Writing a correct SELinux policy is complex and time-consuming. Overly tight policy will break statime (raw sockets), ALSA (device access), or inferno-bridge. Requires a dedicated testing cycle. Defer until after RT stabilisation items (97-99) are stable.
+
+##### Implementation notes
+Collect AVC denials from a running node: `ausearch -m avc -ts recent | audit2allow -M inferno_aoip`. Build as permissive module first. Test with `semodule -i inferno_aoip.pp`. Promote to enforcing after validation sprint. Add `checkmodule` / `semodule_package` tooling to build pipeline.
+
+---
+
+---
+
+
+## RT Reliability
+
+| ID | Title | Importance | Difficulty | Risk | Prerequisites | Sprint |
+|---|---|---|---|---|---|---|
+| 75 | Resource Limits in Service Units (MemoryMax, TasksMax, CPUQuota) | Medium | Easy | Low | None | Later |
+| 76 | Explicit Systemd Service Dependencies Between User Services | Medium | Easy | Low | None | Sprint 2 |
+| 77 | Restart Backoff Strategy for Flapping Services | Low | Easy | Low | None | Later |
+| 91 | statime Log Level: trace to info in Production | Low | Easy | Low | None | Later |
+| 97 | Disable RT Throttling (sched_rt_runtime_us=-1) | High | Easy | Low | None | Sprint 2 |
+| 98 | RT CPU Isolation (isolcpus + nohz_full + rcu_nocbs) | High | Medium | Medium | 97, 108 | On Hold |
+| 99 | NIC Interrupt Pinning Away from RT CPUs | Medium | Medium | Medium | 98 | On Hold |
+| 103 | NIC TX Queue and Ring Buffer Tuning | Medium | Easy | Low | None | Sprint 2 |
+| 107 | WatchdogSec= for Critical Audio Services | High | Medium | Low | None | On Hold |
 
 ---
 
 #### Item 75 — Resource Limits in Service Units (MemoryMax, TasksMax, CPUQuota)
+> Later -- scheduled for a future sprint
 
 **Importance:** 🟡 Medium  
 **Impact:** Prevents runaway services from starving statime or causing OOM crashes on long-running nodes  
@@ -953,7 +744,10 @@ Leave `statime-inferno.service` and `inferno-bridge.service` without limits — 
 
 ---
 
+---
+
 #### Item 76 — Explicit Systemd Service Dependencies Between User Services
+> Sprint 2 -- scheduled for next sprint
 
 **Importance:** 🟡 Medium  
 **Impact:** Prevents race conditions; services start in correct order even after manual restarts  
@@ -992,7 +786,10 @@ Test the dependency chain: `systemctl --user stop inferno-bridge` should automat
 
 ---
 
+---
+
 #### Item 77 — Restart Backoff Strategy for Flapping Services
+> Later -- scheduled for a future sprint
 
 **Importance:** 🟢 Low  
 **Impact:** Prevents rapid restart loops from consuming CPU and filling the journal when services crash on startup  
@@ -1028,7 +825,10 @@ This creates backoff: 3s → ~14s → ~28s → ~58s → 120s (5 steps, capped at
 
 ---
 
+---
+
 #### Item 91 — `statime` Log Level: Reduce from `trace` to `info` in Production
+> Later -- scheduled for a future sprint
 
 **Importance:** 🟢 Low  
 **Impact:** Reduces journal noise by ~95% from statime; reduces disk I/O on RT workloads  
@@ -1058,66 +858,197 @@ Trace logging is invaluable for diagnosing PTP convergence issues in the field. 
 
 ---
 
-## Build Pipeline & Image Quality
+---
 
-### Summary Table
+#### Item 97 -- Disable RT Throttling (sched_rt_runtime_us=-1)
+> Sprint 2 -- scheduled for next sprint
 
-| ID | Title | Importance | Difficulty | Risk | Prerequisites |
-|---|---|---|---|---|---|
-| 40 | Pin base image digest | 🟠 High | Easy (<2h) | Low | None |
-| 42 | Reorder Containerfile layers for cache efficiency | 🟠 High | Easy (<2h) | Low | None |
-| 43 | Pass `--build-arg VERSION=$VERSION` | 🟠 High | Easy (<2h) | Low | None |
-| 44 | Generate `BUILD_DATE` and `GIT_SHA` build-args | 🟡 Medium | Easy (<2h) | Low | 43 |
-| 45 | Clean up `output-vN/` dirs after build | 🔴 Critical | Easy (<2h) | Low | None |
-| 46 | Parallel ISO branding + tarball export | 🟡 Medium | Easy (<2h) | Medium | None |
+**Importance:** High  
+**Impact:** Prevents kernel from throttling the statime RT thread for up to 50ms/s  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+Linux limits RT tasks to 95% CPU time by default. Setting `sched_rt_runtime_us=-1` removes this cap, eliminating periodic PTP jitter spikes caused by the throttle window.
+
+##### Implementation
+Add `/etc/sysctl.d/99-inferno-rt.conf`:
+```
+kernel.sched_rt_runtime_us = -1
+```
 
 ---
 
-### New Build Pipeline / Developer Experience Improvements (Session 2, April 2026)
+#### Item 98 — RT CPU Isolation (`isolcpus` + `nohz_full` + `rcu_nocbs`)
+> On Hold -- pending decision
+> Planning note: Must be dynamic: only apply CPU isolation on 4-core+ systems. Configurable via configure script, not baked into image.
+
+**Importance:** 🟠 High  
+**Impact:** Reduces PTP jitter by an order of magnitude by dedicating 1-2 cores exclusively to RT workloads  
+**Difficulty:** Medium  
+**Risk:** Medium  
+**Prerequisites:** Item 97, Item 108
+
+##### What is it?
+Even with `preempt=full` and `threadirqs`, kernel ticks (`HZ=250`) and RCU callbacks still interrupt all CPUs including ones running RT tasks. `isolcpus` removes specified CPUs from the scheduler's general pool; `nohz_full` makes those CPUs tickless; `rcu_nocbs` offloads RCU callbacks. The HP EliteDesk Mini has 4–8 cores — dedicating cores 2-3 to RT tasks is practical.
+
+##### Why implement?
+With CPU isolation, cyclictest P99 latency on Fedora drops from ~200µs to ~20µs. For PTP, this means consistently sub-100µs offset rather than occasional 500µs spikes under load.
+
+##### Why NOT implement (or defer)?
+Requires knowing the CPU topology of all target hardware. A 2-core system would leave 0 cores for non-RT work. Needs dynamic detection of core count in `inferno-configure.sh`. Previously deferred as Item 37 for this reason — now that EliteDesk is established target hardware, risk is lower.
+
+##### Implementation notes
+```toml
+# /usr/lib/bootc/kargs.d/99-rt-isolation.toml (Item 108 prerequisite)
+kargs = [
+  "isolcpus=nohz,domain,managed_irq:2-3",
+  "nohz_full=2-3",
+  "rcu_nocbs=2-3",
+  "rcu_nocb_poll"
+]
+```
+Add CPU count check to `inferno-configure.sh`: only write this kargs file if `nproc >= 4`. Pin statime to isolated CPUs via `ExecStart=/usr/bin/taskset -c 2-3 /usr/bin/statime ...` in unit file.
 
 ---
 
-#### Item 61 — Cockpit Plugin Update Without Full Image Rebuild
+---
+
+#### Item 99 — NIC Interrupt Pinning Away from RT CPUs
+> On Hold -- pending decision
 
 **Importance:** 🟡 Medium  
-**Impact:** Cockpit UI fixes deployable in minutes instead of requiring a 45–60 minute full image rebuild  
-**Difficulty:** Medium (half-day)  
+**Impact:** Prevents NIC IRQ handler from running on RT-isolated CPUs during PTP timestamp exchanges  
+**Difficulty:** Medium  
+**Risk:** Medium  
+**Prerequisites:** Item 98
+
+##### What is it?
+`threadirqs` makes IRQs run as kernel threads (good), but `irqbalance` migrates them freely — including onto RT-isolated CPUs. A NIC interrupt landing on CPU 2 during a PTP hardware timestamp exchange introduces unbounded jitter. The fix is to mask `irqbalance` and manually pin NIC IRQs to non-isolated CPUs.
+
+##### Why implement?
+Even with `isolcpus`, unmanaged IRQ migration can breach isolation boundaries. IRQ pinning is the standard complement to CPU isolation in RT audio workloads.
+
+##### Why NOT implement (or defer)?
+Manual IRQ pinning via `/proc/irq/*/smp_affinity` is fragile across driver updates and reboots. NetworkManager restarting the interface can reset IRQ assignments. Requires careful implementation.
+
+##### Implementation notes
+```bash
+# inferno-configure.sh — after NIC detection, if CPU isolation is active
+if [ "$(nproc)" -ge 4 ]; then
+  systemctl mask irqbalance 2>/dev/null || true
+  for irq in $(ls /sys/class/net/"$INFERNO_NIC"/device/msi_irqs/ 2>/dev/null); do
+    echo "3" > /proc/irq/$irq/smp_affinity  # CPUs 0-1 only (bitmask 0x3)
+  done
+fi
+```
+Add a `NetworkManager` dispatcher script to re-apply on interface up events.
+
+---
+
+---
+
+#### Item 103 — NIC TX Queue and Ring Buffer Tuning
+> Sprint 2 -- scheduled for next sprint
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents audio UDP packet drops during multichannel Dante streaming bursts  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+Default Linux NIC transmit queue length is 1000 packets. Multi-channel Dante sends many simultaneous UDP audio frames per millisecond; a burst from the ALSA plugin can overflow the queue and silently drop packets. Ring buffer defaults (typically 256 descriptors RX/TX) are also undersized for Dante traffic patterns. Ethtool coalescing defaults optimise for throughput, not latency.
+
+##### Why implement?
+Simple ethtool/ip tuning with no kernel changes. Directly addresses the root cause of intermittent audio glitches under load that aren't explained by PTP jitter.
+
+##### Why NOT implement (or defer)?
+`ethtool` is not currently in the Containerfile dependencies — needs to be added. Coalescing changes (`rx-usecs 50`) reduce throughput-optimised coalescing and slightly increase CPU IRQ rate.
+
+##### Implementation notes
+```bash
+# inferno-configure.sh — after NIC detection
+ip link set dev "$INFERNO_NIC" txqueuelen 10000
+ethtool -G "$INFERNO_NIC" rx 4096 tx 4096 2>/dev/null || true
+ethtool -C "$INFERNO_NIC" rx-usecs 50 tx-usecs 50 2>/dev/null || true
+```
+Add `ethtool` to `Containerfile` dnf install line. Add `|| true` to all ethtool calls — some NICs don't support all parameters.
+
+---
+
+---
+
+#### Item 107 -- WatchdogSec= for Critical Audio Services
+> On Hold -- pending decision
+
+**Importance:** High  
+**Impact:** Detects and recovers from silent service hangs without human intervention  
+**Difficulty:** Medium  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+A service can be 'running' but completely hung -- not processing audio. systemd `WatchdogSec=` restarts it if it fails to call `sd_notify(WATCHDOG=1)` within the timeout window. Services without native sd_notify support need a wrapper health check script.
+
+##### On Hold
+Deferred until Item 74 (health monitoring daemon) establishes a health check pattern. A watchdog without a meaningful check is just a restart timer.
+
+---
+
+
+## Build Pipeline
+
+| ID | Title | Importance | Difficulty | Risk | Prerequisites | Sprint |
+|---|---|---|---|---|---|---|
+| 67 | Remove/Redact Hardcoded IPs from Bench Scripts | Low | Easy | Low | None | Sprint 2 |
+| 68 | Add .containerignore to Reduce Build Context Size | Medium | Easy | Low | None | Later |
+| 70 | Add --setopt=tsflags=nodocs to DNF Install | Low | Easy | Low | None | Sprint 2 |
+| 71 | Tag Releases on Submodule Repositories | Low | Easy | Low | None | Later |
+| 72 | Consolidate Containerfile RUN Layers | Low | Medium | Low | None | Later |
+| 73 | BATS Test Suite for Shell Scripts | Medium | Hard | Low | None | Sprint 2 |
+| 108 | kargs.d/ for Declarative Kernel Args | Medium | Easy | Low | None | Later |
+| 111 | cockpit.transport.wait() for Plugin Init | Medium | Easy | Low | None | Later |
+
+---
+
+#### Item 67 — Remove/Redact Hardcoded IPs from Bench Scripts
+> Sprint 2 -- scheduled for next sprint
+
+**Importance:** 🟢 Low  
+**Impact:** Removes confusion for external operators copying bench commands from examples  
+**Difficulty:** Easy (<2h)  
 **Risk:** Low  
 **Prerequisites:** None  
 
 ##### What is it?
 
-`/usr/share/cockpit/inferno/` is read-only in the bootc image. Every UI-only fix (layout, labels, a missing status indicator) requires a full image build cycle. The `~/.local/share/cockpit/inferno/` path is writable and Cockpit checks it first, but it requires manual SSH deployment of plugin files.
+`scripts/bench/ptp-bench.sh`, `audio-loopback-test.sh`, and `stress-bench.sh` have hardcoded example IPs (`192.168.1.43`, `192.168.1.25`) in comments and default variable values. Operators copy-pasting these commands may accidentally target wrong nodes or be confused by errors from the placeholder IPs.
 
 ##### Why implement?
 
-A 45–60 minute build cycle for a one-line UI fix is impractical during active customer deployments. A signed update script that replaces only the Cockpit plugin files enables hotfixes within minutes. This also reduces the pressure to batch unrelated changes into releases, improving overall code quality.
+Documentation quality and operator safety. Hardcoded IPs in bench scripts look like they should work and cause confusing errors when they don't. Placeholder-style documentation (`<node-ip>`) is unambiguous.
 
 ##### Why NOT implement (or defer)?
 
-Out-of-band UI updates bypass the normal image build/test/sign pipeline. Plugin updates must be separately versioned and verified to avoid divergence between the appliance image version and the UI version. Adds complexity to version tracking.
+No reason to defer. Purely documentation cleanup, zero risk.
 
 ##### Implementation notes
 
-**Option A (recommended):** Mount cockpit plugin from `/var/lib/inferno/cockpit-override/` if present, so OTA updates only need to write to `/var`:
+Replace hardcoded IPs in comments with `<node-ip>` or `TARGET_NODE_IP`. Change any default `TARGET=192.168.1.43` to `TARGET=""` with:
 
 ```bash
-# In Containerfile:
-RUN ln -sf /var/lib/inferno/cockpit-override /root/.local/share/cockpit/inferno-override 2>/dev/null || true
+[ -z "$TARGET" ] && { echo "ERROR: set TARGET=<node-ip> before running"; exit 1; }
 ```
 
-**Option B:** `update-cockpit-plugin.sh` script that:
 
-1. Fetches latest `cockpit-inferno` tarball from GitHub releases
-2. Verifies SHA256 against a published checksum
-3. Extracts to `~/.local/share/cockpit/inferno/`
-4. Restarts `cockpit.service`
-
-Add "Check for UI Update" button to Cockpit Config tab. Show current plugin version and available version.
+---
 
 ---
 
 #### Item 68 — Add `.containerignore` to Reduce Build Context Size
+> Later -- scheduled for a future sprint
 
 **Importance:** 🟡 Medium  
 **Impact:** Prevents multi-GB build context transfer on every build; faster build start on COPILOT-BUILD-01  
@@ -1162,40 +1093,10 @@ Verify with: `podman build --dry-run .` and inspect the context size reported. C
 
 ---
 
-#### Item 69 — Pin `bootc-image-builder` Image Version in Build Script
-
-**Importance:** 🟡 Medium  
-**Impact:** Reproducible ISO builds — same BIB version used every time; prevents silent ISO layout changes  
-**Difficulty:** Easy (<2h)  
-**Risk:** Low  
-**Prerequisites:** None  
-
-##### What is it?
-
-`build/build-release.sh` uses `ghcr.io/osbuild/bootc-image-builder:latest` — a floating tag. BIB updates can change ISO layout, Kickstart handling, partition schemes, or introduce breaking changes without notice. A BIB update between v23 and v24 builds could produce different installer behaviour silently.
-
-##### Why implement?
-
-ISO build reproducibility requires a pinned toolchain. If a node in the field reports an installer problem that isn't reproducible, the first question is "what BIB version was used?" — which is currently unanswerable. Pinning to a specific digest answers that question definitively.
-
-##### Why NOT implement (or defer)?
-
-Pinning requires intentional version bumps, which means staying on an older BIB version longer than necessary. BIB is actively developed and may have bug fixes or security patches. Set a reminder to review the pin quarterly.
-
-##### Implementation notes
-
-```bash
-# In build-release.sh, replace:
-BIB_IMAGE="ghcr.io/osbuild/bootc-image-builder:latest"
-# With:
-BIB_IMAGE="ghcr.io/osbuild/bootc-image-builder:1.0.0@sha256:<digest>"
-```
-
-Get current digest: `podman pull ghcr.io/osbuild/bootc-image-builder:latest && podman inspect ghcr.io/osbuild/bootc-image-builder:latest --format '{{.Digest}}'`. Document the BIB version and upgrade procedure in `docs/build-process.md`.
-
 ---
 
 #### Item 70 — Add `--setopt=tsflags=nodocs` to DNF Install
+> Sprint 2 -- scheduled for next sprint
 
 **Importance:** 🟢 Low  
 **Impact:** ~50–100MB image size reduction; no documentation needed on a headless appliance  
@@ -1227,7 +1128,10 @@ Note: `rm -rf /usr/share/locale/*` removes all locale files — keep `en_US.UTF-
 
 ---
 
+---
+
 #### Item 71 — Tag Releases on Submodule Repositories
+> Later -- scheduled for a future sprint
 
 **Importance:** 🟢 Low  
 **Impact:** Enables version traceability; allows pinning submodule versions to specific appliance releases  
@@ -1260,7 +1164,10 @@ Consider removing `--remote` from `git submodule update` in `build-release.sh` a
 
 ---
 
+---
+
 #### Item 72 — Consolidate Containerfile RUN Layers
+> Later -- scheduled for a future sprint
 
 **Importance:** 🟢 Low  
 **Impact:** Fewer intermediate image layers; slightly faster build and reduced storage overhead  
@@ -1293,7 +1200,10 @@ Consolidate all the small `RUN echo > /etc/...` one-liners into grouped blocks w
 
 ---
 
+---
+
 #### Item 73 — BATS Test Suite for Shell Scripts
+> Sprint 2 -- scheduled for next sprint
 
 **Importance:** 🟡 Medium  
 **Impact:** Catches regressions in `inferno-configure.sh`, `apply-update.sh`, and health checks before they reach production  
@@ -1327,29 +1237,96 @@ Writing BATS tests for existing scripts requires understanding every code path �
 
 ---
 
-## Operations & Cockpit UI
+---
 
-### Summary Table
+#### Item 108 — `/usr/lib/bootc/kargs.d/` for Declarative Kernel Args
+> Later -- scheduled for a future sprint
 
-| ID | Title | Importance | Difficulty | Risk | Prerequisites |
-|---|---|---|---|---|---|
-| 48 | Health HTTP endpoint | 🟠 High | Easy (<2h) | Low | None |
-| 56 | Cockpit: certificate management | ⏸ Deferred | Medium (half-day) | Medium | None |
-| 60 | `dante-network-bench.sh` Default Timeout 3s → 8s | 🟢 Low | Easy (<2h) | Low | None |
-| 74 | Continuous Health Monitoring Daemon | 🟡 Medium | Medium (half-day) | Low | None |
-| 78 | Log Rotation for Custom Script Logs | 🟡 Medium | Easy (<2h) | Low | None |
-| 81 | User Action Audit Trail in Cockpit UI | 🟡 Medium | Medium (half-day) | Low | None |
-| 82 | Prometheus Metrics Endpoint via PCP | 🟡 Medium | Medium (half-day) | Low | None |
-| 83 | Central Logging via `systemd-journal-remote` | 🟡 Medium | Medium (half-day) | Low | None |
-| 90 | Internet Radio (iradio) Channel/Station Management in Cockpit | 🟢 Low | Medium (half-day) | Low | None |
+**Importance:** 🟡 Medium  
+**Impact:** Kernel args version-controlled in the image, portable across build tools, no BIB config dependency  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+Kernel arguments currently live in BIB's `config.toml` (`kargs` array). bootc natively supports `/usr/lib/bootc/kargs.d/*.toml` files baked into the image, which are applied at install time by the bootloader. This makes kernel args part of the container image (version-controlled, auditable) rather than a build-tool concern.
+
+##### Why implement?
+BIB config.toml is external to the container image — it must be kept in sync with the Containerfile. Moving kargs into the image means the exact kernel arguments used are visible by inspecting the container, and they're applied consistently regardless of which build tool is used.
+
+##### Why NOT implement (or defer)?
+Requires bootc ≥ 0.1.13 (available on Fedora 43). Some kargs (e.g. installer-specific args) may still need to live in BIB config.
+
+##### Implementation notes
+```toml
+# Bake into Containerfile via COPY or RUN:
+# /usr/lib/bootc/kargs.d/01-inferno-rt.toml
+kargs = [
+  "preempt=full",
+  "threadirqs",
+  "intel_pstate=disable",
+  "pcie_aspm=off",
+  "mitigations=off"
+]
+```
+Remove equivalent entries from `build/bib-config.toml`. Leaves BIB config.toml for installer-only args.
 
 ---
 
-### New Operations / Observability Improvements (Session 2, April 2026)
+---
+
+#### Item 111 — `cockpit.transport.wait()` for Plugin Initialisation
+> Later -- scheduled for a future sprint
+
+**Importance:** 🟡 Medium  
+**Impact:** Prevents intermittent "transport not ready" errors when Cockpit loads the inferno plugin  
+**Difficulty:** Easy  
+**Risk:** Low  
+**Prerequisites:** None
+
+##### What is it?
+`cockpit-inferno` `init()` runs immediately on `DOMContentLoaded`. Cockpit's official best practices recommend wrapping all init code in `cockpit.transport.wait()` to ensure the Cockpit transport channel is established before making `cockpit.spawn()` or `cockpit.file()` calls. Without this, slow Cockpit connections can result in silent init failures where the plugin loads but shows stale/empty data.
+
+##### Why implement?
+Intermittent "plugin shows nothing on first load, refresh fixes it" reports are almost always caused by this race condition. One-line fix with no downside.
+
+##### Why NOT implement (or defer)?
+No reason to defer. Low-risk, high-confidence improvement.
+
+##### Implementation notes
+```javascript
+// cockpit-inferno/src/inferno.js — wrap top-level init call
+document.addEventListener('DOMContentLoaded', function() {
+  cockpit.transport.wait(function() {
+    init();
+  });
+});
+```
+Apply same pattern to `cockpit-iot-updater/src/index.js` if it has the same pattern.
+
+---
+
+---
+
+
+## Operations and Cockpit
+
+| ID | Title | Importance | Difficulty | Risk | Prerequisites | Sprint |
+|---|---|---|---|---|---|---|
+| 60 | dante-network-bench.sh Default Timeout 3s to 8s | Low | Easy | Low | None | Later |
+| 74 | Continuous Health Monitoring Daemon | Medium | Medium | Low | None | Later |
+| 78 | Log Rotation for Custom Script Logs | Medium | Easy | Low | None | Sprint 2 |
+| 81 | User Action Audit Trail in Cockpit UI | Medium | Medium | Low | None | On Hold |
+| 83 | Central Logging via systemd-journal-remote | Medium | Medium | Low | None | On Hold |
+| 89 | PTP Offset Alerting Threshold | Medium | Medium | Low | 74 | Sprint 2 |
+| 95 | Cockpit Configuration Export/Import | Medium | Medium | Low | None | Later |
+| 96 | Cockpit In-App Help / Troubleshooting Runbook | Medium | Medium | Low | None | Later |
+| FR-01 | Factory Reset: Full Wipe and Re-Configure | Medium | Medium | Low | None | Sprint 2 |
 
 ---
 
 #### Item 60 — `dante-network-bench.sh` Default Timeout 3s → 8s
+> Later -- scheduled for a future sprint
 
 **Importance:** 🟢 Low  
 **Impact:** Consistent device discovery between bench script and Cockpit monitoring; no missed devices on slower networks  
@@ -1375,7 +1352,10 @@ In `scripts/bench/dante-network-bench.sh`, change: `MDNS_TIMEOUT=3` → `MDNS_TI
 
 ---
 
+---
+
 #### Item 74 — Continuous Health Monitoring Daemon
+> Later -- scheduled for a future sprint
 
 **Importance:** 🟡 Medium  
 **Impact:** Detects service failures within minutes instead of waiting for operator to open Cockpit  
@@ -1422,7 +1402,10 @@ Writes to `/var/lib/inferno/monitor-status.json` — readable by Cockpit without
 
 ---
 
+---
+
 #### Item 78 — Log Rotation for Custom Script Logs
+> Sprint 2 -- scheduled for next sprint
 
 **Importance:** 🟡 Medium  
 **Impact:** Prevents unbounded log growth on long-running nodes  
@@ -1481,7 +1464,10 @@ COPY build/logrotate-inferno /etc/logrotate.d/inferno
 
 ---
 
+---
+
 #### Item 81 — User Action Audit Trail in Cockpit UI
+> On Hold -- pending decision
 
 **Importance:** 🟡 Medium  
 **Impact:** Operational visibility — know who changed what and when on each node  
@@ -1520,39 +1506,11 @@ Call from: mode change, config save, service restart, rollback, NIC change. Expo
 
 ---
 
-#### Item 82 — Prometheus Metrics Endpoint via PCP
-
-**Importance:** 🟡 Medium  
-**Impact:** Enables integration with Grafana/Prometheus monitoring stacks for AV system visibility  
-**Difficulty:** Medium (half-day)  
-**Risk:** Low  
-**Prerequisites:** None  
-
-##### What is it?
-
-`pcp` (Performance Co-Pilot) is already installed for Cockpit metrics. PCP ships `pmproxy` which can expose PCP metrics as a Prometheus-compatible endpoint on port 44322 when run with `--timeseries`. This is not configured. PTP offset, audio xrun count, service uptime, CPU governor frequency, and disk utilisation are all available as PCP metrics.
-
-##### Why implement?
-
-AV integrators with Grafana/Prometheus monitoring stacks want to pull metrics from all devices without SSH. PTP offset trends over time are particularly valuable — they reveal systematic clock drift patterns not visible in instantaneous Cockpit displays.
-
-##### Why NOT implement (or defer)?
-
-`pmproxy` adds a listening service on port 44322. This port must be added to the firewall config (Item 65). PCP's Prometheus format may not include all desired metrics out-of-the-box — custom PCP metrics for inferno-specific data (PTP offset, Dante status) would require additional development.
-
-##### Implementation notes
-
-Add `pcp-export-pcp2prometheus` to Containerfile package list. Enable `pmproxy` with `--timeseries` flag:
-
-```bash
-systemctl enable pmproxy.service
-```
-
-Set `PMPROXY_OPTIONS=--timeseries` in `/etc/sysconfig/pmproxy`. Add firewall rule for port 44322 (optional, operator-controlled via `INFERNO_PROMETHEUS_ENABLED=yes` in `/etc/inferno.conf`).
-
 ---
 
 #### Item 83 — Central Logging via `systemd-journal-remote`
+> On Hold -- pending decision
+> Planning note: Only implement if the remote syslog server URL can be configured from within the Cockpit UI.
 
 **Importance:** 🟡 Medium  
 **Impact:** All inferno nodes ship logs to a central location for fleet-wide aggregation and alerting  
@@ -1593,65 +1551,150 @@ fi
 
 ---
 
-#### Item 90 — Internet Radio (iradio) Channel/Station Management in Cockpit
+---
 
-**Importance:** 🟢 Low  
-**Impact:** Operators can manage iRadio stations from Cockpit without SSH  
+#### Item 89 — PTP Offset Alerting Threshold
+> Sprint 2 -- scheduled for next sprint
+
+**Importance:** 🟡 Medium  
+**Impact:** Proactive notification when PTP drift exceeds safe range for Dante audio quality  
+**Difficulty:** Medium (half-day)  
+**Risk:** Low  
+**Prerequisites:** 74  
+
+##### What is it?
+
+PTP offset is displayed in the Cockpit Services tab but no alerting occurs when offset exceeds a threshold. If PTP drifts beyond 1ms (the danger zone for Dante), the operator only knows if actively watching the Cockpit UI. Dante can tolerate ~1ms PTP offset but audio quality degrades and device connections may drop above this.
+
+##### Why implement?
+
+PTP offset exceeding threshold is one of the most common causes of intermittent audio glitches in Dante installations. Automated alerting via the Cockpit UI (orange/red indicator change) enables operators to catch and diagnose the problem before it causes audible artefacts. The continuous monitor (Item 74) provides the infrastructure for this check.
+
+##### Why NOT implement (or defer)?
+
+Requires Item 74 (continuous monitoring daemon) to provide the periodic PTP offset reading. Implement Item 74 first, then add the alerting threshold check as an additional step in `inferno-monitor.sh`.
+
+##### Implementation notes
+
+In `inferno-monitor.sh` (Item 74), add PTP offset check:
+
+```bash
+PTP_OFFSET_US=$(journalctl -u statime-inferno -n 50 --no-pager 2>/dev/null     | grep "offset:" | tail -1 | grep -oP '[+-]?[0-9]+(?=.{0,5}us)' || echo "0")
+THRESHOLD="${INFERNO_PTP_ALERT_THRESHOLD_US:-500}"
+ABS_OFFSET="${PTP_OFFSET_US#-}"
+
+PTP_STATUS="ok"
+[ "${ABS_OFFSET}" -gt "${THRESHOLD}" ] 2>/dev/null && PTP_STATUS="warning"
+
+jq -n     --arg offset "$PTP_OFFSET_US"     --arg threshold "$THRESHOLD"     --arg status "$PTP_STATUS"     '{ptp_offset_us: $offset, ptp_threshold_us: $threshold, ptp_status: $status}'     >> /var/lib/inferno/monitor-status.json
+```
+
+Cockpit reads `/var/lib/inferno/monitor-status.json` and renders the PTP card with orange background when `ptp_status = "warning"`. Add `INFERNO_PTP_ALERT_THRESHOLD_US=500` to `/etc/inferno.conf` template.
+
+---
+
+---
+
+#### Item 95 — Cockpit Configuration Export/Import
+> Later -- scheduled for a future sprint
+
+**Importance:** 🟡 Medium  
+**Impact:** Enables mass provisioning of multiple nodes with identical config; backup/restore of node settings  
 **Difficulty:** Medium (half-day)  
 **Risk:** Low  
 **Prerequisites:** None  
 
 ##### What is it?
 
-iRadio mode is supported via the `iradio-bridge` submodule and the Cockpit mode switcher. However, station management — adding, removing, and reordering internet radio station URLs — requires SSH and direct editing of the iradio config file. The Cockpit Config tab shows an iradio mode option but no inline station editor.
+There is currently no way to export a node's configuration (`INFERNO_NAME`, `INFERNO_NIC`, `INFERNO_MODE`, etc.) from Cockpit or restore it. Operators with 10 identical nodes must configure each manually. A "Export Config" button and "Import Config" upload in the Cockpit Config tab would significantly speed up fleet provisioning.
 
 ##### Why implement?
 
-iRadio mode is a value-add feature that differentiates inferno from a basic Dante device. Operators using iRadio mode should be able to manage their station list from the same Cockpit interface they use for everything else. Requiring SSH for station management undermines the "no SSH needed" operator story.
+AV installs frequently have multiple identical nodes — backup receivers, multiple venues, staging/production pairs. Config export/import accelerates deployment from hours to minutes for large fleets. Config export also serves as an implicit backup mechanism.
 
 ##### Why NOT implement (or defer)?
 
-iRadio is a secondary feature; implement after the core audio features are stable. Station management requires reading/writing a TOML config file via Cockpit — use `cockpit.file()` API for this.
+Imported configs must be validated before applying — importing a config intended for different hardware (different NIC name) could break network connectivity. Add validation: check that `INFERNO_NIC` value exists as a network interface on the target node.
 
 ##### Implementation notes
 
-Add station editor card to Cockpit Config tab (only visible when mode = iradio):
+Add to Cockpit Config tab in `inferno.js`:
 
-```javascript
-// Only show when in iradio mode
-if (mode === "iradio") {
-    renderIradioStations(config.iradio_stations);
-}
-```
+- **Export**: `cockpit.file("/etc/inferno.conf").read()` → `Blob` download as `inferno-config-HOSTNAME.conf`
+- **Import**: file upload → validate NIC exists → `cockpit.file("/etc/inferno.conf").replace(content)` → `spSudo("systemctl restart inferno-configure")`
 
-Read/write iradio config TOML via `cockpit.file("/etc/iradio.toml")`. Show station list as editable rows: name, URL, enabled toggle. On save, call `spSudo("systemctl --user restart iradio-bridge")`.
+JSON format with schema validation is preferred over raw shell env format for import — convert `/etc/inferno.conf` to JSON for the export format while keeping the file itself as shell env syntax.
+
+---
+
+---
+
+#### Item 96 — Cockpit In-App Help / Troubleshooting Runbook
+> Later -- scheduled for a future sprint
+
+**Importance:** 🟡 Medium  
+**Impact:** Reduces support requests; operators can self-diagnose the top 5 failure modes without SSH  
+**Difficulty:** Medium (half-day)  
+**Risk:** Low  
+**Prerequisites:** None  
+
+##### What is it?
+
+No in-app help or troubleshooting guidance exists in the Cockpit UI. Common issues — no Dante devices discovered, PTP not converged, audio not playing, OTA update fails — each have multiple root causes that require knowledge of the system architecture to diagnose. A "Help" tab or collapsible guidance panels would guide operators through the decision tree.
+
+##### Why implement?
+
+AV operators are typically not Linux experts. "Dante shows no devices in Cockpit" has five possible causes (no cable, wrong NIC, mDNS filtered by switch, Dante device not powered, avahi-daemon not running). A guided decision tree in the UI narrows this to the actual cause in 30 seconds instead of 20 minutes of SSH debugging.
+
+##### Why NOT implement (or defer)?
+
+Help content requires maintenance — it must be updated when the system changes. Start with the 5 most common failure modes and expand as support patterns emerge from real deployments.
+
+##### Implementation notes
+
+Add "Help" tab to Cockpit plugin or collapsible `?` icon on each card:
+
+1. **No Dante devices**: cable → NIC selection → avahi-daemon running → try manual `avahi-browse -rt _netaudio-arc._tcp`
+2. **PTP not converged**: grandmaster available → statime running → check `journalctl -u statime-inferno` → check domain number (Item 88)
+3. **Audio not playing**: mode correct → librespot active → ALSA device exists → check `aplay -l` for loopback card
+4. **OTA update fails**: network connectivity → sidecar running → disk space → check `/var/lib/iot-updater/update.log`
+5. **Cockpit shows errors**: service unit logs → `journalctl --user -u inferno-bridge` → restart services
+
+
+---
+
+---
+
+#### FR-01 — Factory Reset Button in Cockpit
+> Sprint 2 -- scheduled for next sprint
+**Importance:** 🟠 High  
+**Difficulty:** Medium  
+**Risk:** Low  
+
+A Cockpit action that resets the node to unconfigured state:
+- Clears  (removes sentinel, triggers reconfigure on next boot)
+- Wipes Inferno state: 
+- Resets hostname to  format
+- Clears Dante TX name from state
+- Reboots into unconfigured state — Cockpit first-login wizard fires again
+
+After reset the node should advertise  via mDNS instead of  so inferno-central can discover it as "awaiting provisioning".
 
 ---
 
 
----
+## Network and Dante
 
-## Network / Dante Audio
-
-> New section added Session 2, April 2026. Items 85–89 covering Dante-specific network configuration and audio quality improvements.
-
-### Summary Table
-
-| ID | Title | Importance | Difficulty | Risk | Prerequisites |
-|---|---|---|---|---|---|
-| 85 | DSCP/QoS Marking for Dante Audio Traffic | 🟡 Medium | Medium (half-day) | Medium | 65 |
-| 86 | VLAN Interface Support for Dante AoIP Network | 🟡 Medium | Hard (multi-day) | Medium | None |
-| 87 | Dante Device Name Conflict Detection | 🟡 Medium | Easy (<2h) | Low | None |
-| 88 | Configurable PTP Domain Number | 🟡 Medium | Easy (<2h) | Low | None |
-| 89 | PTP Offset Alerting Threshold | 🟡 Medium | Medium (half-day) | Low | 74 |
-
----
-
-### New Network / Dante Audio Improvements (Session 2, April 2026)
+| ID | Title | Importance | Difficulty | Risk | Prerequisites | Sprint |
+|---|---|---|---|---|---|---|
+| 85 | DSCP/QoS Marking for Dante Audio Traffic | Medium | Medium | Medium | 65 | Later |
+| 88 | Configurable PTP Domain Number | Medium | Easy | Low | None | Later |
+| 102 | IGMP Multicast Group Membership for Dante | Medium | Easy | Low | None | On Hold |
 
 ---
 
 #### Item 85 — DSCP/QoS Marking for Dante Audio Traffic
+> Later -- scheduled for a future sprint
 
 **Importance:** 🟡 Medium  
 **Impact:** Audio traffic prioritised over background traffic on shared networks; reduces latency jitter  
@@ -1691,78 +1734,10 @@ Make configurable: add `INFERNO_DSCP_MARKING=yes` to `/etc/inferno.conf`. In `in
 
 ---
 
-#### Item 86 — VLAN Interface Support for Dante AoIP Network
-
-**Importance:** 🟡 Medium  
-**Impact:** Supports dedicated AoIP VLANs — standard practice in professional AV installations  
-**Difficulty:** Hard (multi-day)  
-**Risk:** Medium  
-**Prerequisites:** None  
-
-##### What is it?
-
-Professional AV installations typically use a dedicated VLAN for Dante traffic (e.g., VLAN 10 for AoIP, VLAN 1 for management). Currently, inferno uses the same NIC and VLAN for both management (Cockpit, SSH) and Dante audio. Supporting `INFERNO_DANTE_VLAN=10` in the config would allow creating a VLAN sub-interface for Dante traffic while management stays on the native interface.
-
-##### Why implement?
-
-Dedicated Dante VLANs: (1) isolate audio multicast from management traffic, (2) enable per-VLAN QoS policies on managed switches, (3) match the Audinate recommended deployment architecture for large installs. Many enterprise AV integrators require this for compliance with their network segmentation policies.
-
-##### Why NOT implement (or defer)?
-
-Hard difficulty and medium risk reflect the complexity of creating VLAN interfaces via NetworkManager, ensuring Dante binds to the VLAN interface instead of the native NIC, handling the PTP vs. management interface split, and testing across different switch configurations. Defer until the simpler items (DSCP, domain config) are in place.
-
-##### Implementation notes
-
-Add to `inferno-configure.sh`: if `INFERNO_DANTE_VLAN` is set and non-empty, create VLAN interface:
-
-```bash
-if [ -n "${INFERNO_DANTE_VLAN:-}" ]; then
-    DANTE_IFACE="${INFERNO_NIC}.${INFERNO_DANTE_VLAN}"
-    nmcli connection add type vlan ifname "${DANTE_IFACE}"         dev "${INFERNO_NIC}" id "${INFERNO_DANTE_VLAN}"
-fi
-```
-
-Update statime and inferno-bridge configurations to use `${DANTE_IFACE}` instead of `${INFERNO_NIC}` when `INFERNO_DANTE_VLAN` is set.
-
----
-
-#### Item 87 — Dante Device Name Conflict Detection
-
-**Importance:** 🟡 Medium  
-**Impact:** Prevents audio routing failures caused by duplicate device names in Dante Controller  
-**Difficulty:** Easy (<2h)  
-**Risk:** Low  
-**Prerequisites:** None  
-
-##### What is it?
-
-Inferno's Dante device name is derived from the MAC address suffix (e.g., `Inferno-73CF6B`). If two nodes produce the same name — due to sequential MAC assignment in batch NIC orders, VM cloning, or MAC spoofing — Dante Controller displays both with the same name, creating routing confusion. No detection or warning currently exists.
-
-##### Why implement?
-
-Dante name conflicts cause routing failures that are extremely difficult to diagnose without physical access. Operators see "two devices with the same name" in Dante Controller and cannot determine which is which. Early detection during first-boot or via Cockpit monitoring allows the operator to set a unique name via `INFERNO_NAME` in the config.
-
-##### Why NOT implement (or defer)?
-
-`avahi-browse` conflict detection adds ~8s to first-boot. On a large network, the scan may not capture all devices before timing out. This is best-effort detection, not a guarantee.
-
-##### Implementation notes
-
-In `inferno-configure.sh`, after device name is set:
-
-```bash
-CONFLICT=$(avahi-browse -t -p --resolve _netaudio-arc._udp 2>/dev/null     | awk -F';' '{print $4}' | grep -c "^${INFERNO_NAME}$" || true)
-if [ "${CONFLICT:-0}" -gt 0 ]; then
-    echo "WARNING: Dante device name '${INFERNO_NAME}' already visible on network — possible conflict"
-    echo "WARNING: Set INFERNO_NAME in /etc/inferno.conf to a unique value"
-fi
-```
-
-Also add to Cockpit Monitoring tab `scanDanteDevices()`: if any discovered device name matches local `INFERNO_NAME` on a different IP, show a warning badge.
-
 ---
 
 #### Item 88 — Configurable PTP Domain Number
+> Later -- scheduled for a future sprint
 
 **Importance:** 🟡 Medium  
 **Impact:** Supports mixed PTP environments where Dante uses a non-default PTP domain  
@@ -1792,195 +1767,10 @@ No reason to defer. Straightforward template variable substitution — the same 
 
 ---
 
-#### Item 89 — PTP Offset Alerting Threshold
-
-**Importance:** 🟡 Medium  
-**Impact:** Proactive notification when PTP drift exceeds safe range for Dante audio quality  
-**Difficulty:** Medium (half-day)  
-**Risk:** Low  
-**Prerequisites:** 74  
-
-##### What is it?
-
-PTP offset is displayed in the Cockpit Services tab but no alerting occurs when offset exceeds a threshold. If PTP drifts beyond 1ms (the danger zone for Dante), the operator only knows if actively watching the Cockpit UI. Dante can tolerate ~1ms PTP offset but audio quality degrades and device connections may drop above this.
-
-##### Why implement?
-
-PTP offset exceeding threshold is one of the most common causes of intermittent audio glitches in Dante installations. Automated alerting via the Cockpit UI (orange/red indicator change) enables operators to catch and diagnose the problem before it causes audible artefacts. The continuous monitor (Item 74) provides the infrastructure for this check.
-
-##### Why NOT implement (or defer)?
-
-Requires Item 74 (continuous monitoring daemon) to provide the periodic PTP offset reading. Implement Item 74 first, then add the alerting threshold check as an additional step in `inferno-monitor.sh`.
-
-##### Implementation notes
-
-In `inferno-monitor.sh` (Item 74), add PTP offset check:
-
-```bash
-PTP_OFFSET_US=$(journalctl -u statime-inferno -n 50 --no-pager 2>/dev/null     | grep "offset:" | tail -1 | grep -oP '[+-]?[0-9]+(?=.{0,5}us)' || echo "0")
-THRESHOLD="${INFERNO_PTP_ALERT_THRESHOLD_US:-500}"
-ABS_OFFSET="${PTP_OFFSET_US#-}"
-
-PTP_STATUS="ok"
-[ "${ABS_OFFSET}" -gt "${THRESHOLD}" ] 2>/dev/null && PTP_STATUS="warning"
-
-jq -n     --arg offset "$PTP_OFFSET_US"     --arg threshold "$THRESHOLD"     --arg status "$PTP_STATUS"     '{ptp_offset_us: $offset, ptp_threshold_us: $threshold, ptp_status: $status}'     >> /var/lib/inferno/monitor-status.json
-```
-
-Cockpit reads `/var/lib/inferno/monitor-status.json` and renders the PTP card with orange background when `ptp_status = "warning"`. Add `INFERNO_PTP_ALERT_THRESHOLD_US=500` to `/etc/inferno.conf` template.
-
----
-
-## RT / Reliability — Web Research Additions (Session 2)
-
-### Summary Table
-
-| # | Title | Importance | Difficulty | Risk | Prerequisites |
-|---|-------|------------|------------|------|---------------|
-| 97 | Disable RT Throttling (`sched_rt_runtime_us=-1`) | 🟠 High | Easy | Low | None |
-| 98 | RT CPU Isolation (`isolcpus` + `nohz_full` + `rcu_nocbs`) | 🟠 High | Medium | Medium | 97 |
-| 99 | NIC Interrupt Pinning Away from RT CPUs | 🟡 Medium | Medium | Medium | 98 |
-| 100 | Hardware PTP Timestamping Enforcement | 🔴 Critical | Easy | Low | None |
-| 101 | PTP `priority1 = 255` Slave-Only Enforcement | 🟡 Medium | Easy | Low | None |
-| 102 | IGMP Multicast Group Membership for Dante | 🟡 Medium | Easy | Low | None |
-| 103 | NIC TX Queue and Ring Buffer Tuning | 🟡 Medium | Easy | Low | None |
-| 104 | bootc Switch Rollback via `FailureAction=` | 🟠 High | Easy | Low | None |
-| 105 | Cockpit CSP Hardening (Remove `unsafe-inline`) | 🟠 High | Easy | Low | None |
-| 106 | `statime-inferno.service` Capability Sandboxing | 🟠 High | Easy | Medium | None |
-| 107 | `WatchdogSec=` for Critical Audio Services | 🟠 High | Medium | Low | None |
-| 108 | `/usr/lib/bootc/kargs.d/` for All Kernel Args | 🟡 Medium | Easy | Low | None |
-| 109 | Bundle Manifest `valid_from` Anti-Replay | 🟡 Medium | Medium | Low | 63 |
-| 110 | SELinux Policy Module for `inferno_aoip` | 🟡 Medium | Hard | Medium | BUG-05, 59 |
-| 111 | `cockpit.transport.wait()` for Plugin Init | 🟡 Medium | Easy | Low | None |
-
----
-
-#### Item 98 — RT CPU Isolation (`isolcpus` + `nohz_full` + `rcu_nocbs`)
-
-**Importance:** 🟠 High  
-**Impact:** Reduces PTP jitter by an order of magnitude by dedicating 1-2 cores exclusively to RT workloads  
-**Difficulty:** Medium  
-**Risk:** Medium  
-**Prerequisites:** Item 97, Item 108
-
-##### What is it?
-Even with `preempt=full` and `threadirqs`, kernel ticks (`HZ=250`) and RCU callbacks still interrupt all CPUs including ones running RT tasks. `isolcpus` removes specified CPUs from the scheduler's general pool; `nohz_full` makes those CPUs tickless; `rcu_nocbs` offloads RCU callbacks. The HP EliteDesk Mini has 4–8 cores — dedicating cores 2-3 to RT tasks is practical.
-
-##### Why implement?
-With CPU isolation, cyclictest P99 latency on Fedora drops from ~200µs to ~20µs. For PTP, this means consistently sub-100µs offset rather than occasional 500µs spikes under load.
-
-##### Why NOT implement (or defer)?
-Requires knowing the CPU topology of all target hardware. A 2-core system would leave 0 cores for non-RT work. Needs dynamic detection of core count in `inferno-configure.sh`. Previously deferred as Item 37 for this reason — now that EliteDesk is established target hardware, risk is lower.
-
-##### Implementation notes
-```toml
-# /usr/lib/bootc/kargs.d/99-rt-isolation.toml (Item 108 prerequisite)
-kargs = [
-  "isolcpus=nohz,domain,managed_irq:2-3",
-  "nohz_full=2-3",
-  "rcu_nocbs=2-3",
-  "rcu_nocb_poll"
-]
-```
-Add CPU count check to `inferno-configure.sh`: only write this kargs file if `nproc >= 4`. Pin statime to isolated CPUs via `ExecStart=/usr/bin/taskset -c 2-3 /usr/bin/statime ...` in unit file.
-
----
-
-#### Item 99 — NIC Interrupt Pinning Away from RT CPUs
-
-**Importance:** 🟡 Medium  
-**Impact:** Prevents NIC IRQ handler from running on RT-isolated CPUs during PTP timestamp exchanges  
-**Difficulty:** Medium  
-**Risk:** Medium  
-**Prerequisites:** Item 98
-
-##### What is it?
-`threadirqs` makes IRQs run as kernel threads (good), but `irqbalance` migrates them freely — including onto RT-isolated CPUs. A NIC interrupt landing on CPU 2 during a PTP hardware timestamp exchange introduces unbounded jitter. The fix is to mask `irqbalance` and manually pin NIC IRQs to non-isolated CPUs.
-
-##### Why implement?
-Even with `isolcpus`, unmanaged IRQ migration can breach isolation boundaries. IRQ pinning is the standard complement to CPU isolation in RT audio workloads.
-
-##### Why NOT implement (or defer)?
-Manual IRQ pinning via `/proc/irq/*/smp_affinity` is fragile across driver updates and reboots. NetworkManager restarting the interface can reset IRQ assignments. Requires careful implementation.
-
-##### Implementation notes
-```bash
-# inferno-configure.sh — after NIC detection, if CPU isolation is active
-if [ "$(nproc)" -ge 4 ]; then
-  systemctl mask irqbalance 2>/dev/null || true
-  for irq in $(ls /sys/class/net/"$INFERNO_NIC"/device/msi_irqs/ 2>/dev/null); do
-    echo "3" > /proc/irq/$irq/smp_affinity  # CPUs 0-1 only (bitmask 0x3)
-  done
-fi
-```
-Add a `NetworkManager` dispatcher script to re-apply on interface up events.
-
----
-
-#### Item 100 — Hardware PTP Timestamping Enforcement
-
-**Importance:** 🔴 Critical  
-**Impact:** Guarantees sub-microsecond PTP precision on supporting NICs; provides clear diagnostic when hardware timestamping is unavailable  
-**Difficulty:** Easy  
-**Risk:** Low  
-**Prerequisites:** None
-
-##### What is it?
-`inferno-configure.sh` detects hardware PTP capability (Item 12) but `inferno-ptpv1.toml` uses `hardware-clock = "auto"` — silently falling back to software timestamps if hardware timestamps fail. Software PTP timestamps have 10-100× worse accuracy. There's no log entry or health status to indicate which mode is active.
-
-##### Why implement?
-On NICs that support hardware timestamping (Intel i210, i219, I225 — all common in EliteDesk hardware), software fallback represents a massive quality regression with zero operator visibility. Inferno nodes that silently fall back to SW timestamps will have noticeably worse Dante audio quality but no obvious cause.
-
-##### Why NOT implement (or defer)?
-Some deployment NICs genuinely don't support hardware timestamping. Hard-failing would block deployment on those nodes. Must warn clearly but not block.
-
-##### Implementation notes
-```bash
-# inferno-configure.sh — extend existing HW_PTP detection block
-if [ "${HW_PTP_AVAILABLE:-no}" = "yes" ]; then
-    PTP_DEV=$(ls /sys/class/net/"$INFERNO_NIC"/device/ptp/ 2>/dev/null | head -1)
-    if test -c "/dev/${PTP_DEV:-ptpX}"; then
-        echo "HW_PTP_DEVICE=/dev/$PTP_DEV" >> /etc/inferno.conf
-        ethtool -T "$INFERNO_NIC" 2>/dev/null | grep -q "hardware-transmit" && \
-            echo "✓ Hardware PTP timestamps confirmed on $INFERNO_NIC" || \
-            echo "WARNING: NIC reports PTP support but hardware-transmit not listed"
-    else
-        echo "WARNING: HW PTP claimed but /dev/$PTP_DEV not accessible — using SW timestamps"
-    fi
-fi
-```
-Surface `HW_PTP_DEVICE` value in Cockpit Services tab PTP card.
-
----
-
-#### Item 101 — PTP `priority1 = 255` Slave-Only Enforcement
-
-**Importance:** 🟡 Medium  
-**Impact:** Prevents Inferno from accidentally winning PTP grandmaster election on a network with no other Dante master  
-**Difficulty:** Easy  
-**Risk:** Low  
-**Prerequisites:** None
-
-##### What is it?
-`templates/inferno-ptpv1.toml` uses `priority1 = 251`. IEEE 1588 BMCA: `priority1 = 255` means "never become master" — the device explicitly refuses grandmaster election. At 251, if no other Dante device is visible, Inferno could win the BMCA election and become grandmaster with its unsynchronised free-running clock, causing every other Dante device to slew to an incorrect time reference.
-
-##### Why implement?
-Inferno is a Dante endpoint/bridge, not a grandmaster clock. It should never be selected as PTP master. A professional install that loses its Dante grandmaster clock should not silently fall back to Inferno's local clock — it should log a fault.
-
-##### Why NOT implement (or defer)?
-In a standalone single-node test setup, `priority1=255` means the node never has a master. statime should handle this gracefully (not crash), but behaviour should be verified.
-
-##### Implementation notes
-One-line change in `templates/inferno-ptpv1.toml`:
-```toml
-priority1 = 255   # slave-only: never win BMCA grandmaster election
-priority2 = 255   # belt-and-suspenders
-```
-Verify statime handles no-master condition gracefully before deploying.
-
 ---
 
 #### Item 102 — IGMP Multicast Group Membership for Dante
+> On Hold -- pending decision
 
 **Importance:** 🟡 Medium  
 **Impact:** Prevents Dante control traffic drops on managed switches with IGMP snooping enabled  
@@ -2015,192 +1805,120 @@ ip addr add 224.0.1.129 dev "$1" autojoin 2>/dev/null || true
 
 ---
 
-#### Item 103 — NIC TX Queue and Ring Buffer Tuning
+---
 
-**Importance:** 🟡 Medium  
-**Impact:** Prevents audio UDP packet drops during multichannel Dante streaming bursts  
-**Difficulty:** Easy  
-**Risk:** Low  
+
+## Deferred
+
+| ID | Title | Importance | Difficulty | Risk | Prerequisites | Sprint |
+|---|---|---|---|---|---|---|
+| 4 | GRUB / Boot Screen Branding via BIB | Medium | Medium | Low | None | Deferred |
+| 24 | Eliminate Reboot at End of inferno-configure.sh | Deferred | Medium | Medium | 11 | Deferred |
+| 29 | Image Signing with cosign/sigstore | Deferred | Hard | Low | None | Deferred |
+| 32 | Cockpit TLS: Custom Certificate | Deferred | Medium | Low | None | Deferred |
+| 37 | IRQ Affinity / CPU Isolation | Deferred | Hard | Medium | None | Deferred |
+| 56 | Cockpit: Certificate Management | Deferred | Medium | Medium | None | Deferred |
+
+---
+
+#### Item 4 — GRUB / Boot Screen Branding via BIB
+> Deferred -- not currently scheduled
+
+**Importance:** 🟢 Low
+**Impact:** Eliminates the post-build `inject-iso-branding.sh` step; branding baked into ISO automatically
+**Difficulty:** Medium
+**Risk:** Low
+**Prerequisites:** 1
+
+> **Implementation note:** Conditional — only implement if BIB supports the required branding elements natively. No workarounds or hybrid approaches; if BIB cannot do it cleanly, leave the post-build `inject-iso-branding.sh` script as-is.
+
+##### What is it?
+
+Currently branding is applied via a post-build script (`inject-iso-branding.sh`) that modifies the ISO after BIB produces it. BIB's `[customizations.installer]` in `config.toml` could handle this natively.
+
+##### Why implement?
+
+Every ISO rebuild requires remembering to run `inject-iso-branding.sh` or shipping an unbranded ISO. Moving branding into `config.toml` makes the build self-contained.
+
+##### Why NOT implement (or defer)?
+
+Defer if BIB's installer customisation API doesn't support all the branding elements currently in the post-build script. The `[customizations.installer]` surface area changes frequently between BIB versions. A hybrid approach (BIB handles what it can, reduced post-build script for the rest) is acceptable.
+
+##### Implementation notes
+
+Track [BIB release notes](https://github.com/osbuild/bootc-image-builder) for native GRUB theme support. For now, the kickstart `bootloader --timeout=3` (Item 3) covers the most important functional aspect of "appliance boot behaviour."
+
+---
+
+#### Item 24 -- Eliminate Reboot at End of inferno-configure.sh
+> Deferred -- not currently scheduled
+
+**Importance:** Deferred
+**Difficulty:** Medium
+**Risk:** Medium
+**Prerequisites:** 11 (systemd target restructure)
+
+##### What is it?
+`inferno-configure.sh` currently reboots at the end to ensure all services are running in their final state. Eliminating this reboot requires careful systemd target ordering so that services can be activated in-place without a restart.
+
+Deferred until the systemd target restructure (Item 11) is complete — that work is a prerequisite for safely removing the reboot.
+
+---
+
+#### Item 29 -- Image Signing with cosign/sigstore
+> Deferred -- not currently scheduled
+
+**Importance:** Deferred
+**Difficulty:** Hard
+**Risk:** Low
 **Prerequisites:** None
 
 ##### What is it?
-Default Linux NIC transmit queue length is 1000 packets. Multi-channel Dante sends many simultaneous UDP audio frames per millisecond; a burst from the ALSA plugin can overflow the queue and silently drop packets. Ring buffer defaults (typically 256 descriptors RX/TX) are also undersized for Dante traffic patterns. Ethtool coalescing defaults optimise for throughput, not latency.
+Sign OTA images and bootc container images with `cosign` (sigstore). Verify signatures at update time before applying. This closes the supply-chain attack surface on the update path.
 
-##### Why implement?
-Simple ethtool/ip tuning with no kernel changes. Directly addresses the root cause of intermittent audio glitches under load that aren't explained by PTP jitter.
-
-##### Why NOT implement (or defer)?
-`ethtool` is not currently in the Containerfile dependencies — needs to be added. Coalescing changes (`rx-usecs 50`) reduce throughput-optimised coalescing and slightly increase CPU IRQ rate.
-
-##### Implementation notes
-```bash
-# inferno-configure.sh — after NIC detection
-ip link set dev "$INFERNO_NIC" txqueuelen 10000
-ethtool -G "$INFERNO_NIC" rx 4096 tx 4096 2>/dev/null || true
-ethtool -C "$INFERNO_NIC" rx-usecs 50 tx-usecs 50 2>/dev/null || true
-```
-Add `ethtool` to `Containerfile` dnf install line. Add `|| true` to all ethtool calls — some NICs don't support all parameters.
+Deferred pending a decision on the key management approach (hardware key vs. CI secret). The signing infrastructure needs to be established before implementation is useful.
 
 ---
 
-#### Item 108 — `/usr/lib/bootc/kargs.d/` for Declarative Kernel Args
+#### Item 32 -- Cockpit TLS: Custom Certificate
+> Deferred -- not currently scheduled
 
-**Importance:** 🟡 Medium  
-**Impact:** Kernel args version-controlled in the image, portable across build tools, no BIB config dependency  
-**Difficulty:** Easy  
-**Risk:** Low  
+**Importance:** Deferred
+**Difficulty:** Medium
+**Risk:** Low
 **Prerequisites:** None
 
 ##### What is it?
-Kernel arguments currently live in BIB's `config.toml` (`kargs` array). bootc natively supports `/usr/lib/bootc/kargs.d/*.toml` files baked into the image, which are applied at install time by the bootloader. This makes kernel args part of the container image (version-controlled, auditable) rather than a build-tool concern.
+Allow operators to provide a custom TLS certificate for the Cockpit web interface instead of using the auto-generated self-signed cert. This eliminates browser security warnings in enterprise deployments.
 
-##### Why implement?
-BIB config.toml is external to the container image — it must be kept in sync with the Containerfile. Moving kargs into the image means the exact kernel arguments used are visible by inspecting the container, and they're applied consistently regardless of which build tool is used.
-
-##### Why NOT implement (or defer)?
-Requires bootc ≥ 0.1.13 (available on Fedora 43). Some kargs (e.g. installer-specific args) may still need to live in BIB config.
-
-##### Implementation notes
-```toml
-# Bake into Containerfile via COPY or RUN:
-# /usr/lib/bootc/kargs.d/01-inferno-rt.toml
-kargs = [
-  "preempt=full",
-  "threadirqs",
-  "intel_pstate=disable",
-  "pcie_aspm=off",
-  "mitigations=off"
-]
-```
-Remove equivalent entries from `build/bib-config.toml`. Leaves BIB config.toml for installer-only args.
+Deferred until there is a clear deployment model for certificate distribution (ACME, manual, or org CA).
 
 ---
 
-#### Item 109 — Bundle Manifest `valid_from` Anti-Replay Timestamp
+#### Item 37 -- IRQ Affinity / CPU Isolation
+> Deferred -- not currently scheduled
 
-**Importance:** 🟡 Medium  
-**Impact:** Prevents replay attacks that roll back nodes to known-vulnerable firmware versions  
-**Difficulty:** Medium  
-**Risk:** Low  
-**Prerequisites:** Item 63 (signing enforcement)
-
-##### What is it?
-IoT Updater bundle `version.json` manifest contains `version`, `sha256`, and signature — but no time-bounded validity window. An attacker who captures a valid signed bundle can re-serve it indefinitely to downgrade a node to a vulnerable version. A `valid_from` / `valid_until` field in the manifest, checked in `apply-update.sh`, closes this window.
-
-##### Why implement?
-Downgrade attacks are a real threat model for appliances with known CVEs in older firmware. Bundle signing (Item 63) prevents unsigned bundles, but doesn't prevent replay of legitimately-signed old bundles.
-
-##### Why NOT implement (or defer)?
-Requires all existing bundles to be re-signed with timestamps. Nodes with incorrect system time would reject valid bundles. Must handle clock skew gracefully.
-
-##### Implementation notes
-Add to `version.json` schema:
-```json
-{
-  "version": "24",
-  "valid_from": "2026-04-01T00:00:00Z",
-  "valid_until": "2027-04-01T00:00:00Z",
-  "sha256": "...",
-  "signature": "..."
-}
-```
-In `apply-update.sh`, after signature verify: parse `valid_from`/`valid_until`, compare to `$(date -u +%s)`. Reject with clear error if outside window. Adjust `make-oci-bundle.sh` to auto-populate fields.
-
----
-
-#### Item 110 — SELinux Policy Module for `inferno_aoip`
-
-**Importance:** 🟡 Medium  
-**Impact:** Proper MAC confinement for all inferno processes — moves beyond relying on inherited unconfined contexts  
-**Difficulty:** Hard  
-**Risk:** Medium  
-**Prerequisites:** BUG-05, Item 59, Item 106
-
-##### What is it?
-All inferno user services currently inherit generic SELinux contexts (`unconfined_t` or `init_t` depending on how they're launched). A custom `inferno_aoip` policy module would confine them to only the files, capabilities, and network operations they actually need — providing defence-in-depth beyond capability sandboxing.
-
-##### Why implement?
-Fedora 43 ships with SELinux enforcing by default. Custom policy closes the gap between "running in enforcing mode" and "actually confined" — the current state has SELinux enforcing but inferno processes running as unconfined, giving a false sense of security.
-
-##### Why NOT implement (or defer)?
-Writing a correct SELinux policy is complex and time-consuming. Overly tight policy will break statime (raw sockets), ALSA (device access), or inferno-bridge. Requires a dedicated testing cycle. Defer until after RT stabilisation items (97-99) are stable.
-
-##### Implementation notes
-Collect AVC denials from a running node: `ausearch -m avc -ts recent | audit2allow -M inferno_aoip`. Build as permissive module first. Test with `semodule -i inferno_aoip.pp`. Promote to enforcing after validation sprint. Add `checkmodule` / `semodule_package` tooling to build pipeline.
-
----
-
-#### Item 111 — `cockpit.transport.wait()` for Plugin Initialisation
-
-**Importance:** 🟡 Medium  
-**Impact:** Prevents intermittent "transport not ready" errors when Cockpit loads the inferno plugin  
-**Difficulty:** Easy  
-**Risk:** Low  
+**Importance:** Deferred
+**Difficulty:** Hard
+**Risk:** Medium
 **Prerequisites:** None
 
 ##### What is it?
-`cockpit-inferno` `init()` runs immediately on `DOMContentLoaded`. Cockpit's official best practices recommend wrapping all init code in `cockpit.transport.wait()` to ensure the Cockpit transport channel is established before making `cockpit.spawn()` or `cockpit.file()` calls. Without this, slow Cockpit connections can result in silent init failures where the plugin loads but shows stale/empty data.
+Pin hardware IRQs away from the CPUs running RT audio workloads. Requires identifying all IRQ sources, setting `smp_affinity` for each, and ensuring new IRQs don't land on isolated CPUs.
 
-##### Why implement?
-Intermittent "plugin shows nothing on first load, refresh fixes it" reports are almost always caused by this race condition. One-line fix with no downside.
-
-##### Why NOT implement (or defer)?
-No reason to defer. Low-risk, high-confidence improvement.
-
-##### Implementation notes
-```javascript
-// cockpit-inferno/src/inferno.js — wrap top-level init call
-document.addEventListener('DOMContentLoaded', function() {
-  cockpit.transport.wait(function() {
-    init();
-  });
-});
-```
-Apply same pattern to `cockpit-iot-updater/src/index.js` if it has the same pattern.
+Deferred because it requires knowing the IRQ topology of all target hardware (EliteDesks vary by generation). Superseded in priority by Item 98 (RT CPU isolation via `isolcpus`) and Item 99 (NIC interrupt pinning), which are more targeted.
 
 ---
 
-## Deferred — Not Now
+#### Item 56 -- Cockpit: Certificate Management
+> Deferred -- not currently scheduled
 
-> These items were reviewed during April 2026 sprint planning and deferred. They remain candidates for future sprints but are out of scope for current work.
+**Importance:** Deferred
+**Difficulty:** Medium
+**Risk:** Medium
+**Prerequisites:** None
 
-| # | Title | Original Priority | Reason for Deferral |
-|---|-------|-------------------|---------------------|
-| 24 | Eliminate the Reboot at End of inferno-configure.sh | 🟡 Medium | Reboot is a safe catch-all; revisit once other firstboot changes are stable |
-| 29 | Image Signing with cosign/sigstore | 🟡 Medium | Closed deployment, low tamper risk; revisit when security posture requires it |
-| 32 | Cockpit TLS: Custom Certificate | 🟡 Medium | Self-signed fine for now; defer with Item 56 |
-| 37 | IRQ Affinity / CPU Isolation | 🟡 Medium | Risky without knowing CPU topology of all target hardware |
-| 56 | Cockpit: Certificate Management | 🟡 Medium | Defer with Item 32 |
+##### What is it?
+Cockpit UI panel for managing TLS certificates: view current cert, upload a custom cert, trigger ACME renewal. Depends on Item 32 (custom certificate) being implemented first.
 
-### Factory Reset / Provisioning Mode
-
-**Not yet tracked as roadmap items. Adding now.**
-
-#### FR-01 — Factory Reset Button in Cockpit
-**Importance:** 🟠 High  
-**Difficulty:** Medium  
-**Risk:** Low  
-
-A Cockpit action that resets the node to unconfigured state:
-- Clears  (removes sentinel, triggers reconfigure on next boot)
-- Wipes Inferno state: 
-- Resets hostname to  format
-- Clears Dante TX name from state
-- Reboots into unconfigured state — Cockpit first-login wizard fires again
-
-After reset the node should advertise  via mDNS instead of  so inferno-central can discover it as "awaiting provisioning".
-
-#### FR-02 — Provisioning Mode mDNS Advertisement  
-**Importance:** 🟠 High  
-**Difficulty:** Medium  
-**Risk:** Low  
-**Prerequisite:** FR-01  
-
-In unconfigured state (no ), the node advertises:
--  (new service type, signals "ready to configure")
-- Payload: MAC address, hardware type, current firmware version
-
-inferno-central discovers this service type and lists the node as "awaiting provisioning". Operator can push a config remotely, node transitions to operational state and switches advertisement to .
-
-This is the zero-touch deployment model for fleet management.
-
+---
