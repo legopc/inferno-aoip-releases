@@ -138,7 +138,8 @@ RUN systemctl mask \
     systemd-timesyncd chronyd ntpd \
     plymouth-start plymouth-quit plymouth-quit-wait \
     sssd ModemManager bluetooth cups cups-browsed \
-    dnf-makecache.service dnf-makecache.timer
+    dnf-makecache.service dnf-makecache.timer \
+    bootc-fetch-apply-updates.service bootc-fetch-apply-updates.timer
 
 # ── Default target (fedora-bootc:43 defaults to graphical — force headless) ───
 RUN systemctl set-default multi-user.target

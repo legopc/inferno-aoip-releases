@@ -173,12 +173,12 @@ echo "Writing system config files..."
 substitute /etc/inferno/statime-inferno.toml.template /etc/statime-inferno.toml
 substitute /etc/inferno/99-inferno.conf.template      /etc/alsa/conf.d/99-inferno.conf
 
-# ── Configure hardware PTP clock in statime if detected ─────────────────────
-# The template has no hardware-clock entry; we inject it only when a real PTP
-# device is confirmed so statime never guesses ("auto") or silently falls back.
+# ── Report hardware PTP clock status ────────────────────────────────────────
+# The statime template uses hardware-clock = "auto" so statime can select the
+# matching /dev/ptp* device at startup. Do not write device paths here; this
+# statime build parses hardware-clock as a selector, not a filesystem path.
 if [ "$INFERNO_HW_PTP" = "yes" ] && [ -n "${PTP_DEV:-}" ] && [ -c "/dev/${PTP_DEV}" ]; then
-    sed -i "/^\[\[port\]\]/a hardware-clock = \"/dev/${PTP_DEV}\"" /etc/statime-inferno.toml
-    echo "PTP: statime configured with hardware-clock = /dev/${PTP_DEV}"
+    echo "PTP: statime hardware-clock=auto will use detected /dev/${PTP_DEV}"
 else
     echo "PTP: statime using software virtual clock"
 fi
@@ -236,24 +236,28 @@ cp "/etc/inferno/systemd/user/inferno-aux-keepalive.service" "${SYSTEMD_USER}/"
 chown -R core:core "${CORE_HOME}"
 restorecon -Rv /var/home/core/ 2>/dev/null || true
 
-# ── Enable linger for core (user services start at boot, not just at login) ───
-loginctl enable-linger core
-
-# Wait for the core user's systemd instance to start (up to 30s)
-echo "Waiting for core user systemd instance..."
-for i in $(seq 1 30); do
-    [ -d "/run/user/${CORE_UID}/systemd" ] && break
-    sleep 1
-done
-
 # ── Enable user services ───────────────────────────────────────────────────────
 echo "Enabling user services for core..."
+WANTS_DIR="${SYSTEMD_USER}/default.target.wants"
+mkdir -p "${WANTS_DIR}"
 for svc in inferno-bridge inferno-keepalive librespot librespot-watchdog; do
-    sudo -u core XDG_RUNTIME_DIR="/run/user/${CORE_UID}" \
-        systemctl --user enable "${svc}.service" 2>/dev/null \
-        && echo "  enabled: ${svc}" \
-        || echo "  WARNING: could not enable ${svc} — will try on next reboot"
+    if [ -f "${SYSTEMD_USER}/${svc}.service" ]; then
+        ln -sfn "../${svc}.service" "${WANTS_DIR}/${svc}.service"
+        echo "  enabled: ${svc}"
+    else
+        echo "  WARNING: ${svc}.service missing — will not start automatically"
+    fi
 done
+chown -R core:core "${SYSTEMD_USER}"
+restorecon -Rv /var/home/core/ 2>/dev/null || true
+
+# ── Enable linger for core (user services start at boot, not just at login) ───
+# Write the linger sentinel directly instead of calling loginctl from first boot.
+# loginctl talks to logind, which can contend with Cockpit's forced password
+# change session on fresh installs.
+mkdir -p /var/lib/systemd/linger
+touch /var/lib/systemd/linger/core
+restorecon /var/lib/systemd/linger/core 2>/dev/null || true
 
 # ── Item 14: Run hardware probe → /var/log/inferno-probe.log ──────────────────
 # Captures NIC, carrier, HW PTP, audio, storage, CPU for operator diagnostics.

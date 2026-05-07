@@ -3,8 +3,7 @@ Description=Inferno AoIP First-Boot Node Configuration
 Documentation=https://github.com/legopc/inferno-aoip-releases
 # Only runs if /etc/inferno.conf is absent (i.e., never configured yet)
 ConditionPathExists=!/etc/inferno.conf
-After=network-online.target
-Wants=network-online.target
+After=NetworkManager.service network.target
 
 [Service]
 Type=oneshot

@@ -8,6 +8,7 @@ virtual-system-clock-base = "monotonic_raw"
 usrvclock-export = true
 
 [[port]]
+hardware-clock = "auto"
 interface = "%%INFERNO_NIC%%"
 network-mode = "ipv4"
 
