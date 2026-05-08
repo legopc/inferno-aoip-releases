@@ -568,6 +568,16 @@ function infernoClockPath() {
     return currentConf.INFERNO_CLOCK_PATH || "/tmp/ptp-usrvclock";
 }
 
+function infernoDeviceId() {
+    var deviceId = currentConf.INFERNO_DEVICE_ID;
+    if (!deviceId) throw new Error("INFERNO_DEVICE_ID is required for Dante device identity");
+    return deviceId;
+}
+
+function infernoPluginPath() {
+    return currentConf.INFERNO_PLUGIN_PATH || "/usr/lib64/alsa-lib/libasound_module_pcm_inferno.so";
+}
+
 // ── Internet Radio (iradio-bridge) ALSA setup ──────────────────────────────────
 // Mirrors ensureAuxSetup but writes pcm.inferno_iradio_N blocks (slots 1–4)
 // and a systemd user service unit for iradio-bridge.
@@ -582,15 +592,10 @@ async function ensureIradioSetup(danteName, numChannels) {
     numChannels = numChannels || 2; // default 2 stereo pairs
     var asoundText = await cockpit.file(ASOUNDRC).read() || "";
 
-    var deviceIdMatch = asoundText.match(/DEVICE_ID\s+([0-9a-f]+)/i);
-    var clockMatch    = asoundText.match(/CLOCK_PATH\s+(\S+)/);
-    var pluginMatch   = asoundText.match(/lib\s+"([^"]+)"/);
-
     var bindIp     = infernoBindValue();
-    var baseId     = deviceIdMatch ? deviceIdMatch[1]  : "000000000000000";
-    var clockPath  = clockMatch    ? clockMatch[1]     : infernoClockPath();
-    if (clockPath === "/tmp/ptp-usrvclock") clockPath = infernoClockPath();
-    var pluginPath = pluginMatch   ? pluginMatch[1]    : "/usr/lib64/alsa-lib/libasound_module_pcm_inferno.so";
+    var baseId     = infernoDeviceId();
+    var clockPath  = infernoClockPath();
+    var pluginPath = infernoPluginPath();
 
     // Always regenerate iradio ALSA blocks so channel count changes take effect.
     // Strip old iradio blocks then append fresh ones.
@@ -658,12 +663,9 @@ async function ensureAuxSetup(cardIn, cardIn2, cardOut, cardOut2, txCh, rxCh, da
     var asoundText = await cockpit.file(ASOUNDRC).read() || "";
     var needsAlsa  = !asoundText.includes("pcm.inferno_aux_tx");
 
-    var deviceIdMatch  = asoundText.match(/DEVICE_ID\s+([0-9a-f]+)/i);
-    var pluginMatch    = asoundText.match(/lib\s+"([^"]+)"/);
-
     var bindIp     = infernoBindValue();
-    var baseId     = deviceIdMatch ? deviceIdMatch[1]  : "000000000000000";
-    var pluginPath = pluginMatch   ? pluginMatch[1]    : "/usr/lib64/alsa-lib/libasound_module_pcm_inferno.so";
+    var baseId     = infernoDeviceId();
+    var pluginPath = infernoPluginPath();
     var txId       = deriveDeviceId(baseId, 1);
     var rxId       = deriveDeviceId(baseId, 2);
     var txName     = (danteName || "Inferno") + "-TX";
@@ -751,6 +753,21 @@ async function ensureAuxSetup(cardIn, cardIn2, cardOut, cardOut2, txCh, rxCh, da
         // Aux blocks already exist — update TX/RX channel counts in place with scoped sed
         await spUser("sed -i '/pcm\\.inferno_aux_tx/,/^}/s/TX_CHANNELS.*/TX_CHANNELS " + txCh + "/' " + ASOUNDRC);
         await spUser("sed -i '/pcm\\.inferno_aux_rx/,/^}/s/RX_CHANNELS.*/RX_CHANNELS " + rxCh + "/' " + ASOUNDRC);
+
+        function replaceAuxLine(text, pcmName, key, value) {
+            var blockRe = new RegExp("(pcm\\." + pcmName + "\\s*\\{[\\s\\S]*?^\\s*\\})", "m");
+            var lineRe = new RegExp("(^\\s*" + key + "\\s+).*", "m");
+            return text.replace(blockRe, function(block) {
+                return block.replace(lineRe, function(_, prefix) { return prefix + value; });
+            });
+        }
+
+        var currentAux = await cockpit.file(ASOUNDRC).read() || "";
+        currentAux = replaceAuxLine(currentAux, "inferno_aux_tx", "BIND_IP", bindIp);
+        currentAux = replaceAuxLine(currentAux, "inferno_aux_rx", "BIND_IP", bindIp);
+        currentAux = replaceAuxLine(currentAux, "inferno_aux_tx", "CLOCK_PATH", infernoClockPath());
+        currentAux = replaceAuxLine(currentAux, "inferno_aux_rx", "CLOCK_PATH", infernoClockPath());
+        await cockpit.file(ASOUNDRC).replace(currentAux);
 
         // Multi blocks: remove stale ones, rewrite if needed
         await spUser("sed -i '/^# Multi-card/,/^}/d' " + ASOUNDRC);

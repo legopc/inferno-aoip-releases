@@ -610,12 +610,14 @@ const fs = require("fs");
     INFERNO_INTERFACE: "172.16.10.63",
     INFERNO_BIND: "enp0s31f6",
     INFERNO_CLOCK_PATH: "/dev/ptp0",
+    INFERNO_DEVICE_ID: "18602424bbbb0000",
+    INFERNO_PLUGIN_PATH: "/opt/inferno/lib/libasound_module_pcm_inferno.so",
   };
 
   eval(source.slice(start, end));
 
   files[ASOUNDRC] = `pcm_type.inferno {
-    lib "/usr/lib64/alsa-lib/libasound_module_pcm_inferno.so"
+    lib "/stale/generated/libasound_module_pcm_inferno.so"
 }
 
 pcm.inferno_spotify {
@@ -654,6 +656,21 @@ pcm.inferno_spotify {
     throw new Error(`expected 2 iradio CLOCK_PATH /dev/ptp0 lines, got ${clockMatches.length}`);
   }
 
+  if (/DEVICE_ID\s+18602424aaa8000[ab]/.test(iradioBlocks)) {
+    throw new Error("iradio generation inherited stale DEVICE_ID 18602424aaa80000");
+  }
+  if (!/DEVICE_ID\s+18602424bbbb000a/.test(iradioBlocks) || !/DEVICE_ID\s+18602424bbbb000b/.test(iradioBlocks)) {
+    throw new Error("iradio generation did not derive DEVICE_ID values from INFERNO_DEVICE_ID");
+  }
+
+  if (/lib\s+"\/stale\/generated\/libasound_module_pcm_inferno\.so"/.test(iradioBlocks)) {
+    throw new Error("iradio generation inherited stale pcm_type.inferno plugin path");
+  }
+  const iradioPluginMatches = iradioBlocks.match(/lib\s+"\/opt\/inferno\/lib\/libasound_module_pcm_inferno\.so"/g) || [];
+  if (iradioPluginMatches.length !== 2) {
+    throw new Error(`expected 2 iradio canonical plugin paths, got ${iradioPluginMatches.length}`);
+  }
+
   await ensureAuxSetup("PCH", "none", "PCH", "none", 2, 2, "Inferno-Test");
   const withAux = files[ASOUNDRC];
   const auxStart = withAux.indexOf("# AUX TX: analog input");
@@ -666,6 +683,106 @@ pcm.inferno_spotify {
   const auxBindMatches = auxBlocks.match(/BIND_IP\s+enp0s31f6/g) || [];
   if (auxBindMatches.length !== 2) {
     throw new Error(`expected 2 AUX BIND_IP enp0s31f6 lines, got ${auxBindMatches.length}`);
+  }
+
+  if (/DEVICE_ID\s+18602424aaa8000[12]/.test(auxBlocks)) {
+    throw new Error("AUX generation inherited stale DEVICE_ID 18602424aaa80000");
+  }
+  if (!/DEVICE_ID\s+18602424bbbb0001/.test(auxBlocks) || !/DEVICE_ID\s+18602424bbbb0002/.test(auxBlocks)) {
+    throw new Error("AUX generation did not derive DEVICE_ID values from INFERNO_DEVICE_ID");
+  }
+
+  if (!withAux.includes('pcm_type.inferno {\n    lib "/stale/generated/libasound_module_pcm_inferno.so"')) {
+    throw new Error("fixture must preserve existing stale generated pcm_type.inferno block before canonicality checks");
+  }
+  files[ASOUNDRC] = `pcm.inferno_spotify {
+    type inferno
+    BIND_IP 192.168.1.45
+    CLOCK_PATH /tmp/ptp-usrvclock
+    DEVICE_ID 18602424aaa80000
+}
+`;
+  await ensureAuxSetup("PCH", "none", "PCH", "none", 2, 2, "Inferno-Test");
+  const auxWithoutPcmType = files[ASOUNDRC];
+  if (/lib\s+"\/stale\/generated\/libasound_module_pcm_inferno\.so"/.test(auxWithoutPcmType)) {
+    throw new Error("AUX generation inherited stale plugin path when creating pcm_type.inferno");
+  }
+  if (!auxWithoutPcmType.includes('pcm_type.inferno {\n    lib "/opt/inferno/lib/libasound_module_pcm_inferno.so"')) {
+    throw new Error("AUX generation did not create pcm_type.inferno with canonical plugin path");
+  }
+
+  files[ASOUNDRC] = `pcm.inferno_aux_tx {
+    type inferno
+    BIND_IP 192.168.1.45
+    TX_CHANNELS 2
+    CLOCK_PATH /tmp/ptp-usrvclock
+    DEVICE_ID 18602424aaa80001
+}
+
+pcm.inferno_aux_rx {
+    type inferno
+    BIND_IP 192.168.1.45
+    RX_CHANNELS 2
+    CLOCK_PATH /tmp/ptp-usrvclock
+    DEVICE_ID 18602424aaa80002
+}
+`;
+  await ensureAuxSetup("PCH", "none", "PCH", "none", 4, 4, "Inferno-Test");
+  const updatedAux = files[ASOUNDRC];
+  const updatedAuxBlocks = updatedAux.slice(updatedAux.indexOf("pcm.inferno_aux_tx"));
+  if (/BIND_IP\s+192\.168\.1\.45/.test(updatedAuxBlocks)) {
+    throw new Error("existing AUX update kept stale BIND_IP 192.168.1.45");
+  }
+  if (/CLOCK_PATH\s+\/tmp\/ptp-usrvclock/.test(updatedAuxBlocks)) {
+    throw new Error("existing AUX update kept stale CLOCK_PATH /tmp/ptp-usrvclock");
+  }
+  const updatedAuxBindMatches = updatedAuxBlocks.match(/BIND_IP\s+enp0s31f6/g) || [];
+  if (updatedAuxBindMatches.length !== 2) {
+    throw new Error(`expected 2 updated AUX BIND_IP enp0s31f6 lines, got ${updatedAuxBindMatches.length}`);
+  }
+  const updatedAuxClockMatches = updatedAuxBlocks.match(/CLOCK_PATH\s+\/dev\/ptp0/g) || [];
+  if (updatedAuxClockMatches.length !== 2) {
+    throw new Error(`expected 2 updated AUX CLOCK_PATH /dev/ptp0 lines, got ${updatedAuxClockMatches.length}`);
+  }
+
+  currentConf = {
+    INFERNO_NIC: "enp0s31f6",
+    INFERNO_INTERFACE: "172.16.10.63",
+    INFERNO_BIND: "enp0s31f6",
+    INFERNO_CLOCK_PATH: "/dev/ptp0",
+  };
+  files[ASOUNDRC] = `pcm.inferno_spotify {
+    type inferno
+    BIND_IP enp0s31f6
+    CLOCK_PATH /dev/ptp0
+    DEVICE_ID 18602424aaa80000
+}
+`;
+  try {
+    await ensureAuxSetup("PCH", "none", "PCH", "none", 2, 2, "Inferno-Test");
+    throw new Error("AUX generation accepted missing INFERNO_DEVICE_ID");
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    if (message !== "INFERNO_DEVICE_ID is required for Dante device identity") {
+      throw new Error(`unexpected missing device ID error: ${message}`);
+    }
+  }
+
+  files[ASOUNDRC] = `pcm.inferno_spotify {
+    type inferno
+    BIND_IP enp0s31f6
+    CLOCK_PATH /dev/ptp0
+    DEVICE_ID 18602424aaa80000
+}
+`;
+  try {
+    await ensureIradioSetup("Inferno-Test", 2);
+    throw new Error("iradio generation accepted missing INFERNO_DEVICE_ID");
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    if (message !== "INFERNO_DEVICE_ID is required for Dante device identity") {
+      throw new Error(`unexpected iradio missing device ID error: ${message}`);
+    }
   }
 
   currentConf = { INFERNO_INTERFACE: "172.16.10.63" };
