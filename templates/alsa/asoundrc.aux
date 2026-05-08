@@ -7,7 +7,7 @@ pcm_type.inferno {
 pcm.inferno_aux_tx {
     type inferno
     NAME "%%INFERNO_NAME%%-TX"
-    BIND_IP %%INFERNO_INTERFACE%%
+    BIND_IP %%INFERNO_BIND%%
     SAMPLE_RATE 48000
     PROCESS_ID 2
     ALT_PORT 6004
@@ -15,7 +15,7 @@ pcm.inferno_aux_tx {
     TX_CHANNELS 2
     TX_LATENCY_NS 10000000
     RX_LATENCY_NS 10000000
-    CLOCK_PATH /tmp/ptp-usrvclock
+    CLOCK_PATH %%INFERNO_CLOCK_PATH%%
     DEVICE_ID %%INFERNO_DEVICE_ID_TX%%
 
     hint {
@@ -29,7 +29,7 @@ pcm.inferno_aux_tx {
 pcm.inferno_aux_rx {
     type inferno
     NAME "%%INFERNO_NAME%%-RX"
-    BIND_IP %%INFERNO_INTERFACE%%
+    BIND_IP %%INFERNO_BIND%%
     SAMPLE_RATE 48000
     PROCESS_ID 3
     ALT_PORT 6008
@@ -37,7 +37,7 @@ pcm.inferno_aux_rx {
     TX_CHANNELS 0
     TX_LATENCY_NS 10000000
     RX_LATENCY_NS 10000000
-    CLOCK_PATH /tmp/ptp-usrvclock
+    CLOCK_PATH %%INFERNO_CLOCK_PATH%%
     DEVICE_ID %%INFERNO_DEVICE_ID_RX%%
 
     hint {

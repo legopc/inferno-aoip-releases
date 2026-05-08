@@ -558,6 +558,15 @@ function deriveDeviceId(baseId, offset) {
     return (baseId || "000000000000").slice(0, -4) + suffix.toString(16).padStart(4, "0");
 }
 
+function infernoBindValue() {
+    var bind = currentConf.INFERNO_BIND || currentConf.INFERNO_NIC || currentConf.INFERNO_INTERFACE || "127.0.0.1";
+    return bind === "0.0.0.0" ? (currentConf.INFERNO_NIC || "127.0.0.1") : bind;
+}
+
+function infernoClockPath() {
+    return currentConf.INFERNO_CLOCK_PATH || "/tmp/ptp-usrvclock";
+}
+
 // ── Internet Radio (iradio-bridge) ALSA setup ──────────────────────────────────
 // Mirrors ensureAuxSetup but writes pcm.inferno_iradio_N blocks (slots 1–4)
 // and a systemd user service unit for iradio-bridge.
@@ -577,9 +586,11 @@ async function ensureIradioSetup(danteName, numChannels) {
     var clockMatch    = asoundText.match(/CLOCK_PATH\s+(\S+)/);
     var pluginMatch   = asoundText.match(/lib\s+"([^"]+)"/);
 
-    var bindIp     = bindIpMatch   ? bindIpMatch[1]   : "127.0.0.1";
+    var bindIp     = bindIpMatch   ? bindIpMatch[1]   : infernoBindValue();
+    if (bindIp === "0.0.0.0") bindIp = infernoBindValue();
     var baseId     = deviceIdMatch ? deviceIdMatch[1]  : "000000000000000";
-    var clockPath  = clockMatch    ? clockMatch[1]     : "/tmp/ptp-usrvclock";
+    var clockPath  = clockMatch    ? clockMatch[1]     : infernoClockPath();
+    if (clockPath === "/tmp/ptp-usrvclock") clockPath = infernoClockPath();
     var pluginPath = pluginMatch   ? pluginMatch[1]    : "/usr/lib64/alsa-lib/libasound_module_pcm_inferno.so";
 
     // Always regenerate iradio ALSA blocks so channel count changes take effect.
@@ -652,7 +663,8 @@ async function ensureAuxSetup(cardIn, cardIn2, cardOut, cardOut2, txCh, rxCh, da
     var deviceIdMatch  = asoundText.match(/DEVICE_ID\s+([0-9a-f]+)/i);
     var pluginMatch    = asoundText.match(/lib\s+"([^"]+)"/);
 
-    var bindIp     = bindIpMatch   ? bindIpMatch[1]   : "127.0.0.1";
+    var bindIp     = bindIpMatch   ? bindIpMatch[1]   : infernoBindValue();
+    if (bindIp === "0.0.0.0") bindIp = infernoBindValue();
     var baseId     = deviceIdMatch ? deviceIdMatch[1]  : "000000000000000";
     var pluginPath = pluginMatch   ? pluginMatch[1]    : "/usr/lib64/alsa-lib/libasound_module_pcm_inferno.so";
     var txId       = deriveDeviceId(baseId, 1);
@@ -698,7 +710,7 @@ async function ensureAuxSetup(cardIn, cardIn2, cardOut, cardOut2, txCh, rxCh, da
             "    TX_CHANNELS " + txCh,
             "    TX_LATENCY_NS 10000000",
             "    RX_LATENCY_NS 10000000",
-            "    CLOCK_PATH /tmp/ptp-usrvclock",
+            "    CLOCK_PATH " + infernoClockPath(),
             "    DEVICE_ID " + txId,
             "    hint { show off description \"Inferno AUX TX: analog in to Dante\" }",
             "}",
@@ -721,7 +733,7 @@ async function ensureAuxSetup(cardIn, cardIn2, cardOut, cardOut2, txCh, rxCh, da
             "    TX_CHANNELS 0",
             "    TX_LATENCY_NS 10000000",
             "    RX_LATENCY_NS 10000000",
-            "    CLOCK_PATH /tmp/ptp-usrvclock",
+            "    CLOCK_PATH " + infernoClockPath(),
             "    DEVICE_ID " + rxId,
             "    hint { show off description \"Inferno AUX RX: Dante to analog out\" }",
             "}",
@@ -822,6 +834,7 @@ async function saveConfig() {
             INFERNO_SPOTIFY_NAME:   newSpotifyName,
             INFERNO_DANTE_NAME:     newDanteName,
             INFERNO_NIC:            $("cfg-nic").value,
+            INFERNO_BIND:           $("cfg-nic").value,
             INFERNO_AUDIO_CARD_IN:  $("cfg-audio-in").value,
             INFERNO_AUDIO_CARD_IN2: $("cfg-audio-in2").value  || "none",
             INFERNO_AUDIO_CARD_OUT: $("cfg-audio-out").value,

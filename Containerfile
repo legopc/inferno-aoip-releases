@@ -81,7 +81,7 @@ RUN mkdir -p \
 # Declarative definitions so systemd can recreate user/dirs after stateless bootc upgrades.
 # The existing useradd/mkdir RUN commands remain authoritative until Stage 2.
 RUN mkdir -p /usr/lib/sysusers.d /usr/lib/tmpfiles.d && \
-    printf 'u core 1000 "Inferno Core" /var/home/core /bin/bash\nm core wheel\nm core audio\n' \
+    printf 'u core 1000 "Inferno Core" /var/home/core /bin/bash\nm core wheel\nm core audio\nm core clock\n' \
         > /usr/lib/sysusers.d/inferno.conf && \
     printf 'd /var/lib/inferno     0755 core core -\nd /var/lib/iot-updater 0755 root root -\nZ /var/log/pcp 0775 pcp pcp -\n' \
         > /usr/lib/tmpfiles.d/inferno.conf
@@ -159,6 +159,7 @@ RUN mkdir -p /var/home && \
     # causing inferno-bridge and librespot to fail with "No such device" on /dev/snd/*.
     # Fix: write directly to /etc/group, bypassing groupadd entirely.
     sed -i '/^audio:/d' /etc/group && echo 'audio:x:63:core' >> /etc/group && \
+    sed -i '/^clock:/d' /etc/group && echo 'clock:x:103:core' >> /etc/group && \
     # Pre-enable lingering so systemd starts the core user session from the very first boot.
     # Without this, loginctl enable-linger (called in inferno-configure.sh) creates the
     # lingering session for the first time on boot 2 — at that point the audio group is not

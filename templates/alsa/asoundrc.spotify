@@ -7,7 +7,7 @@ pcm_type.inferno {
 pcm.inferno_spotify {
     type inferno
     NAME "%%INFERNO_NAME%%"
-    BIND_IP %%INFERNO_INTERFACE%%
+    BIND_IP %%INFERNO_BIND%%
     SAMPLE_RATE 48000
     PROCESS_ID 1
     ALT_PORT 6000
@@ -15,7 +15,7 @@ pcm.inferno_spotify {
     TX_CHANNELS 2
     TX_LATENCY_NS 10000000
     RX_LATENCY_NS 10000000
-    CLOCK_PATH /tmp/ptp-usrvclock
+    CLOCK_PATH %%INFERNO_CLOCK_PATH%%
     DEVICE_ID %%INFERNO_DEVICE_ID%%
 
     hint {

@@ -77,13 +77,21 @@ if [ -z "${INFERNO_INTERFACE}" ]; then
 fi
 echo "IP: ${INFERNO_INTERFACE}"
 
+# Inferno's ALSA plugin validates BIND_IP as either an assigned IP address or
+# an interface name. Bind by NIC name so first-boot DHCP timing cannot leave
+# every Dante mode with the invalid fallback BIND_IP 0.0.0.0.
+INFERNO_BIND="${INFERNO_NIC}"
+echo "Dante bind: ${INFERNO_BIND}"
+
 # Item 12: HW PTP capability check — detect hardware timestamping support on the Dante NIC.
 # Hardware PTP yields ~100 ns offset; software-only yields ~500 µs (still fine for Dante).
 # Result logged for operator visibility and written to /etc/inferno.conf for Cockpit to read.
 INFERNO_HW_PTP="no"
+INFERNO_CLOCK_PATH="/tmp/ptp-usrvclock"
 PTP_DEV=$(ls "/sys/class/net/${INFERNO_NIC}/device/ptp/" 2>/dev/null | head -1 || true)
 if [ -n "${PTP_DEV:-}" ] && [ -c "/dev/${PTP_DEV}" ]; then
     INFERNO_HW_PTP="yes"
+    INFERNO_CLOCK_PATH="/dev/${PTP_DEV}"
     echo "HW PTP: hardware clock /dev/${PTP_DEV} on ${INFERNO_NIC} ✓  (~100 ns offset)"
 elif command -v ethtool &>/dev/null; then
     HW_TS=$(ethtool -T "${INFERNO_NIC}" 2>/dev/null | grep -c "hardware-transmit" || true)
@@ -101,7 +109,11 @@ elif command -v ethtool &>/dev/null; then
             done
         fi
         [ -n "$PTP_DEV" ] && echo "HW PTP device: /dev/${PTP_DEV}" || echo "HW PTP: device node not found, will use software clock"
-        [ -z "$PTP_DEV" ] && INFERNO_HW_PTP="no"
+        if [ -n "$PTP_DEV" ] && [ -c "/dev/${PTP_DEV}" ]; then
+            INFERNO_CLOCK_PATH="/dev/${PTP_DEV}"
+        else
+            INFERNO_HW_PTP="no"
+        fi
     else
         echo "HW PTP: ${INFERNO_NIC} — software PTP only  (~500 µs offset, Dante works fine)"
     fi
@@ -152,6 +164,7 @@ INFERNO_NAME="Inferno-${MAC_SUFFIX^^}"
 PLUGIN_PATH="/usr/lib64/alsa-lib/libasound_module_pcm_inferno.so"
 
 echo "MAC: ${MAC}  DEVICE_ID: ${INFERNO_DEVICE_ID}  NAME: ${INFERNO_NAME}"
+echo "Inferno clock path: ${INFERNO_CLOCK_PATH}"
 
 # ── Template substitution helper ───────────────────────────────────────────────
 substitute() {
@@ -160,6 +173,8 @@ substitute() {
         -e "s|%%INFERNO_NAME%%|${INFERNO_NAME}|g" \
         -e "s|%%INFERNO_NIC%%|${INFERNO_NIC}|g" \
         -e "s|%%INFERNO_INTERFACE%%|${INFERNO_INTERFACE}|g" \
+        -e "s|%%INFERNO_BIND%%|${INFERNO_BIND}|g" \
+        -e "s|%%INFERNO_CLOCK_PATH%%|${INFERNO_CLOCK_PATH}|g" \
         -e "s|%%INFERNO_DEVICE_ID%%|${INFERNO_DEVICE_ID}|g" \
         -e "s|%%INFERNO_DEVICE_ID_TX%%|${INFERNO_DEVICE_ID_TX}|g" \
         -e "s|%%INFERNO_DEVICE_ID_RX%%|${INFERNO_DEVICE_ID_RX}|g" \
@@ -182,6 +197,7 @@ if [ "$INFERNO_HW_PTP" = "yes" ] && [ -n "${PTP_DEV:-}" ] && [ -c "/dev/${PTP_DE
 else
     echo "PTP: statime using software virtual clock"
 fi
+echo "PTP: Inferno CLOCK_PATH=${INFERNO_CLOCK_PATH}"
 
 # ── Set hostname ───────────────────────────────────────────────────────────────
 HOSTNAME="inferno-$(echo "${MAC_SUFFIX}" | tr '[:upper:]' '[:lower:]')"
@@ -282,6 +298,8 @@ INFERNO_MODE=spotify
 INFERNO_NAME=${INFERNO_NAME}
 INFERNO_NIC=${INFERNO_NIC}
 INFERNO_INTERFACE=${INFERNO_INTERFACE}
+INFERNO_BIND=${INFERNO_BIND}
+INFERNO_CLOCK_PATH=${INFERNO_CLOCK_PATH}
 INFERNO_DEVICE_ID=${INFERNO_DEVICE_ID}
 INFERNO_DEVICE_ID_TX=${INFERNO_DEVICE_ID_TX}
 INFERNO_DEVICE_ID_RX=${INFERNO_DEVICE_ID_RX}
@@ -302,6 +320,8 @@ echo "${INFERNO_VERSION}" > /var/lib/inferno/version
 echo "=== Inferno AoIP configuration complete ==="
 echo "    Name:      ${INFERNO_NAME}"
 echo "    NIC:       ${INFERNO_NIC} (${INFERNO_INTERFACE})"
+echo "    Bind:      ${INFERNO_BIND}"
+echo "    Clock:     ${INFERNO_CLOCK_PATH}"
 echo "    DEVICE_ID: ${INFERNO_DEVICE_ID}"
 echo "    Rebooting in 5 seconds to start all services..."
 sleep 5
