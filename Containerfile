@@ -190,6 +190,7 @@ RUN TARBALL=inferno-aoip.tar.gz && \
 # ── Templates (stored with %%PLACEHOLDER%% values, substituted at first boot) ─
 # System config templates
 COPY templates/inferno-ptpv1.toml         /etc/inferno/statime-inferno.toml.template
+COPY templates/udev/90-inferno-ptp.rules /etc/udev/rules.d/90-inferno-ptp.rules
 COPY templates/alsa/99-inferno.conf       /etc/inferno/99-inferno.conf.template
 COPY templates/alsa/asoundrc.spotify      /etc/inferno/asoundrc.spotify.template
 COPY templates/alsa/asoundrc.aux          /etc/inferno/asoundrc.aux.template

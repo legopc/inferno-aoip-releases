@@ -38,6 +38,7 @@ statime_template="${repo_root}/templates/inferno-ptpv1.toml"
 configure_script="${repo_root}/build/inferno-configure.sh"
 configure_unit="${repo_root}/build/systemd/inferno-configure.service"
 containerfile="${repo_root}/Containerfile"
+ptp_udev_rule="${repo_root}/templates/udev/90-inferno-ptp.rules"
 spotify_asound="${repo_root}/templates/alsa/asoundrc.spotify"
 aux_asound="${repo_root}/templates/alsa/asoundrc.aux"
 upgrade_script="${repo_root}/templates/scripts/inferno-upgrade.sh"
@@ -109,6 +110,24 @@ assert_contains \
     'm core clock|clock:x:[0-9]+:core|clock.*core' \
     'Containerfile must grant core access to /dev/ptpN through the clock group'
 
+[ -f "$ptp_udev_rule" ] || fail 'PTP udev rule file must exist'
+assert_contains_literal \
+    "$ptp_udev_rule" \
+    'KERNEL=="ptp[0-9]*", GROUP="clock", MODE="0660"' \
+    'PTP udev rule must grant /dev/ptpN access through the clock group'
+assert_not_contains_literal \
+    "$ptp_udev_rule" \
+    'uaccess' \
+    'PTP udev rule must not use seat-local uaccess permissions'
+assert_not_contains_literal \
+    "$ptp_udev_rule" \
+    'MODE="0666"' \
+    'PTP udev rule must not make /dev/ptpN world-writable'
+assert_contains \
+    "$containerfile" \
+    '^[[:space:]]*COPY[[:space:]]+templates/udev/90-inferno-ptp\.rules[[:space:]]+/etc/udev/rules\.d/90-inferno-ptp\.rules[[:space:]]*$' \
+    'Containerfile must install the PTP udev rule into /etc/udev/rules.d/90-inferno-ptp.rules'
+
 substitute_asound_template() {
     local src=$1 dst=$2
     sed \
@@ -143,13 +162,16 @@ generated_clock_count=$(grep -Ec '^[[:space:]]+CLOCK_PATH[[:space:]]+/dev/ptp0$'
 run_upgrade_fixture() {
     local fixture=$1
     local allow_non_char_ptp=${2:-1}
+    local status=0
     mkdir -p \
         "${fixture}/core/.config/systemd/user" \
         "${fixture}/templates" \
-        "${fixture}/sys/class/net/eno1/device/ptp" \
         "${fixture}/dev"
-    : > "${fixture}/sys/class/net/eno1/device/ptp/ptp0"
-    : > "${fixture}/dev/ptp0"
+    if [ ! -e "${fixture}/no-default-net" ]; then
+        mkdir -p "${fixture}/sys/class/net/eno1/device/ptp"
+        : > "${fixture}/sys/class/net/eno1/device/ptp/ptp0"
+        : > "${fixture}/dev/ptp0"
+    fi
 
     env \
         INFERNO_CONF="${fixture}/inferno.conf" \
@@ -158,10 +180,12 @@ run_upgrade_fixture() {
         INFERNO_SYSTEMD_USER="${fixture}/core/.config/systemd/user" \
         INFERNO_SYS_CLASS_NET="${fixture}/sys/class/net" \
         INFERNO_DEV_ROOT="${fixture}/dev" \
+        INFERNO_IP_FIXTURE="${fixture}/ip.fixture" \
         INFERNO_ALLOW_NON_CHAR_PTP="${allow_non_char_ptp}" \
         INFERNO_SKIP_OWNERSHIP=1 \
         INFERNO_SKIP_USER_RELOAD=1 \
-        bash "${upgrade_script}" > "${fixture}/upgrade.log" 2>&1
+        bash "${upgrade_script}" > "${fixture}/upgrade.log" 2>&1 || status=$?
+    [ "${status}" -eq 0 ] || return "${status}"
     assert_not_contains_literal \
         "${fixture}/upgrade.log" \
         'sudo: unknown user core' \
@@ -225,11 +249,12 @@ assert_not_contains_literal \
     'inferno-upgrade.sh production path must require /dev/ptpN to be a character device'
 
 escape_fixture="${tmpdir}/upgrade-sed-escaping"
-mkdir -p "${escape_fixture}/core"
+mkdir -p "${escape_fixture}/core" "${escape_fixture}/sys/class/net/eno&1\lab/device/ptp" "${escape_fixture}/dev"
+: > "${escape_fixture}/no-default-net"
+: > "${escape_fixture}/sys/class/net/eno&1\lab/device/ptp/ptp&0\lab"
+: > "${escape_fixture}/dev/ptp&0\lab"
 cat > "${escape_fixture}/inferno.conf" <<'EOF_CONF'
-INFERNO_NIC=eno1
-INFERNO_BIND='eno&1\lab'
-INFERNO_CLOCK_PATH='/dev/ptp&0\lab'
+INFERNO_NIC='eno&1\lab'
 EOF_CONF
 cat > "${escape_fixture}/core/.asoundrc" <<'EOF_ASOUNDRC'
 pcm.inferno_spotify {
@@ -247,6 +272,313 @@ assert_contains_literal \
     "${escape_fixture}/core/.asoundrc" \
     'CLOCK_PATH /dev/ptp&0\lab' \
     'inferno-upgrade.sh must escape ampersands and backslashes when repairing CLOCK_PATH'
+assert_contains_literal \
+    "${escape_fixture}/inferno.conf" \
+    "INFERNO_NIC='eno&1\lab'" \
+    'inferno-upgrade.sh must write source-safe quoted canonical NIC values'
+bash -c "source \"${escape_fixture}/inferno.conf\"; [ \"\${INFERNO_NIC}\" = 'eno&1\lab' ] && [ \"\${INFERNO_BIND}\" = 'eno&1\lab' ] && [ \"\${INFERNO_CLOCK_PATH}\" = '/dev/ptp&0\lab' ]" || \
+    fail 'canonical inferno.conf must remain sourceable and preserve exact metacharacter values'
+
+idempotent_fixture="${tmpdir}/upgrade-asound-idempotent"
+mkdir -p "${idempotent_fixture}/core" "${idempotent_fixture}/sys/class/net/enp0s31f6" "${idempotent_fixture}/dev"
+: > "${idempotent_fixture}/no-default-net"
+cat > "${idempotent_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 172.16.10.63 default
+EOF_IP
+cat > "${idempotent_fixture}/inferno.conf" <<'EOF_CONF'
+INFERNO_NIC='enp0s31f6'
+INFERNO_INTERFACE='172.16.10.63'
+INFERNO_BIND='enp0s31f6'
+INFERNO_HW_PTP='no'
+INFERNO_CLOCK_PATH='/tmp/ptp-usrvclock'
+EOF_CONF
+cat > "${idempotent_fixture}/core/.asoundrc" <<'EOF_ASOUNDRC'
+pcm.inferno_spotify {
+    type inferno
+    BIND_IP enp0s31f6
+    CLOCK_PATH /tmp/ptp-usrvclock
+}
+EOF_ASOUNDRC
+run_upgrade_fixture "${idempotent_fixture}"
+assert_contains_literal "${idempotent_fixture}/upgrade.log" 'inferno-upgrade: all service files up to date' 'upgrade must not mark unchanged .asoundrc as changed'
+
+stale_ip_fixture="${tmpdir}/upgrade-stale-ip-bind"
+mkdir -p "${stale_ip_fixture}/core" "${stale_ip_fixture}/sys/class/net/enp0s31f6/device/ptp" "${stale_ip_fixture}/dev"
+: > "${stale_ip_fixture}/no-default-net"
+: > "${stale_ip_fixture}/sys/class/net/enp0s31f6/device/ptp/ptp0"
+: > "${stale_ip_fixture}/dev/ptp0"
+# Fixture format: NIC IPv4 DEFAULT, where DEFAULT may be the literal word default.
+cat > "${stale_ip_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 172.16.10.63 default
+EOF_IP
+cat > "${stale_ip_fixture}/inferno.conf" <<'EOF_CONF'
+INFERNO_NIC=enp0s31f6
+INFERNO_INTERFACE=192.168.1.45
+INFERNO_HW_PTP=yes
+EOF_CONF
+cat > "${stale_ip_fixture}/core/.asoundrc" <<'EOF_ASOUNDRC'
+pcm.inferno_spotify {
+    type inferno
+    slave {
+        pcm "hw:0"
+    }
+    BIND_IP 192.168.1.45
+    CLOCK_PATH /dev/ptp0
+}
+pcm.custom_monitor {
+    type inferno
+    BIND_IP 192.168.1.45
+    CLOCK_PATH /tmp/custom-clock
+}
+EOF_ASOUNDRC
+run_upgrade_fixture "${stale_ip_fixture}"
+assert_contains_literal "${stale_ip_fixture}/inferno.conf" "INFERNO_BIND='enp0s31f6'" 'upgrade must canonicalize INFERNO_BIND to selected NIC name'
+assert_contains_literal "${stale_ip_fixture}/inferno.conf" "INFERNO_INTERFACE='172.16.10.63'" 'upgrade must recompute informational INFERNO_INTERFACE from current IPv4'
+assert_contains_literal "${stale_ip_fixture}/inferno.conf" "INFERNO_HW_PTP='yes'" 'upgrade must preserve hardware PTP when selected NIC has a usable /dev/ptpN'
+assert_contains_literal "${stale_ip_fixture}/inferno.conf" "INFERNO_CLOCK_PATH='/dev/ptp0'" 'upgrade must store the selected NIC hardware PTP clock path'
+assert_contains_literal "${stale_ip_fixture}/core/.asoundrc" 'BIND_IP enp0s31f6' 'upgrade must repair stale nonzero IP BIND_IP to selected NIC name'
+assert_contains_literal "${stale_ip_fixture}/core/.asoundrc" 'BIND_IP 192.168.1.45' 'upgrade must not repair unrelated ALSA BIND_IP lines outside Inferno-managed PCM blocks'
+
+canonical_export_fixture="${tmpdir}/upgrade-canonical-export-keys"
+mkdir -p "${canonical_export_fixture}/core" "${canonical_export_fixture}/sys/class/net/enp0s31f6/device/ptp" "${canonical_export_fixture}/dev"
+: > "${canonical_export_fixture}/no-default-net"
+: > "${canonical_export_fixture}/sys/class/net/enp0s31f6/device/ptp/ptp0"
+: > "${canonical_export_fixture}/dev/ptp0"
+cat > "${canonical_export_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 172.16.10.63 default
+EOF_IP
+cat > "${canonical_export_fixture}/inferno.conf" <<'EOF_CONF'
+# preserved managed-key comment
+  INFERNO_NIC=old0
+export INFERNO_INTERFACE=192.168.1.45
+ export INFERNO_BIND=old0
+	INFERNO_HW_PTP=no
+export INFERNO_CLOCK_PATH=/tmp/ptp-usrvclock
+INFERNO_EXTRA=keep-me
+EOF_CONF
+run_upgrade_fixture "${canonical_export_fixture}"
+for managed_key in INFERNO_NIC INFERNO_INTERFACE INFERNO_BIND INFERNO_HW_PTP INFERNO_CLOCK_PATH; do
+    managed_count=$(grep -Ec "^[[:space:]]*(export[[:space:]]+)?${managed_key}=" "${canonical_export_fixture}/inferno.conf")
+    [ "${managed_count}" -eq 1 ] || fail "upgrade must leave exactly one canonical ${managed_key} entry"
+done
+assert_contains_literal "${canonical_export_fixture}/inferno.conf" '# preserved managed-key comment' 'upgrade must preserve comments while canonicalizing inferno.conf'
+assert_contains_literal "${canonical_export_fixture}/inferno.conf" 'INFERNO_EXTRA=keep-me' 'upgrade must preserve unknown inferno.conf keys while canonicalizing managed keys'
+assert_not_contains "${canonical_export_fixture}/inferno.conf" '^[[:space:]]+INFERNO_NIC=|^[[:space:]]*export[[:space:]]+INFERNO_' 'upgrade must strip legacy indented and exported managed keys'
+
+no_hw_ptp_fixture="${tmpdir}/upgrade-no-hw-ptp"
+mkdir -p "${no_hw_ptp_fixture}/core" "${no_hw_ptp_fixture}/sys/class/net/enp0s31f6" "${no_hw_ptp_fixture}/dev"
+: > "${no_hw_ptp_fixture}/no-default-net"
+cat > "${no_hw_ptp_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 172.16.10.63 default
+EOF_IP
+cat > "${no_hw_ptp_fixture}/inferno.conf" <<'EOF_CONF'
+INFERNO_NIC=enp0s31f6
+INFERNO_BIND=enp0s31f6
+INFERNO_HW_PTP=yes
+INFERNO_CLOCK_PATH=/dev/ptp0
+EOF_CONF
+cat > "${no_hw_ptp_fixture}/core/.asoundrc" <<'EOF_ASOUNDRC'
+pcm.inferno_spotify {
+    type inferno
+    BIND_IP enp0s31f6
+    CLOCK_PATH /dev/ptp0
+}
+EOF_ASOUNDRC
+run_upgrade_fixture "${no_hw_ptp_fixture}"
+assert_contains_literal "${no_hw_ptp_fixture}/inferno.conf" "INFERNO_HW_PTP='no'" 'upgrade must recalculate stale hardware PTP state from the selected NIC'
+assert_contains_literal "${no_hw_ptp_fixture}/inferno.conf" "INFERNO_CLOCK_PATH='/tmp/ptp-usrvclock'" 'upgrade must fall back to usrvclock when selected NIC has no usable /dev/ptpN'
+assert_contains_literal "${no_hw_ptp_fixture}/core/.asoundrc" 'CLOCK_PATH /tmp/ptp-usrvclock' 'upgrade must repair .asoundrc clock path when hardware PTP disappears'
+
+default_route_fixture="${tmpdir}/upgrade-missing-nic-default-route"
+mkdir -p "${default_route_fixture}/core" "${default_route_fixture}/sys/class/net/enp0s31f6" "${default_route_fixture}/dev"
+: > "${default_route_fixture}/no-default-net"
+cat > "${default_route_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 172.16.10.63 default
+EOF_IP
+cat > "${default_route_fixture}/inferno.conf" <<'EOF_CONF'
+INFERNO_NIC=eno1
+INFERNO_BIND=eno1
+INFERNO_INTERFACE=192.168.1.45
+EOF_CONF
+cat > "${default_route_fixture}/core/.asoundrc" <<'EOF_ASOUNDRC'
+pcm.inferno_spotify {
+    type inferno
+    BIND_IP eno1
+    CLOCK_PATH /tmp/ptp-usrvclock
+}
+EOF_ASOUNDRC
+run_upgrade_fixture "${default_route_fixture}"
+assert_contains_literal "${default_route_fixture}/inferno.conf" "INFERNO_NIC='enp0s31f6'" 'upgrade must choose the default-route NIC when the saved NIC is missing'
+assert_contains_literal "${default_route_fixture}/inferno.conf" "INFERNO_BIND='enp0s31f6'" 'upgrade bind identity must follow fallback selected NIC'
+
+ambiguous_fixture="${tmpdir}/upgrade-ambiguous-nic"
+mkdir -p "${ambiguous_fixture}/core" "${ambiguous_fixture}/sys/class/net/enp0s31f6" "${ambiguous_fixture}/sys/class/net/enp2s0" "${ambiguous_fixture}/dev"
+: > "${ambiguous_fixture}/no-default-net"
+cat > "${ambiguous_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 172.16.10.63
+enp2s0 172.16.20.63
+EOF_IP
+cat > "${ambiguous_fixture}/inferno.conf" <<'EOF_CONF'
+INFERNO_NIC=eno1
+INFERNO_BIND=eno1
+INFERNO_INTERFACE=192.168.1.45
+EOF_CONF
+before_ambiguous_conf=$(cat "${ambiguous_fixture}/inferno.conf")
+if run_upgrade_fixture "${ambiguous_fixture}"; then
+    fail 'upgrade must fail loudly when the saved NIC is missing and fallback NIC selection is ambiguous'
+fi
+after_ambiguous_conf=$(cat "${ambiguous_fixture}/inferno.conf")
+[ "${before_ambiguous_conf}" = "${after_ambiguous_conf}" ] || fail 'ambiguous NIC failure must leave inferno.conf untouched'
+assert_contains_literal "${ambiguous_fixture}/upgrade.log" 'ambiguous' 'ambiguous NIC failure must log a loud diagnostic'
+
+dhcp_late_fixture="${tmpdir}/upgrade-dhcp-late"
+mkdir -p "${dhcp_late_fixture}/core" "${dhcp_late_fixture}/sys/class/net/enp0s31f6" "${dhcp_late_fixture}/dev"
+: > "${dhcp_late_fixture}/no-default-net"
+cat > "${dhcp_late_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 - default
+EOF_IP
+cat > "${dhcp_late_fixture}/inferno.conf" <<'EOF_CONF'
+INFERNO_NIC=enp0s31f6
+INFERNO_BIND=enp0s31f6
+INFERNO_INTERFACE=192.168.1.45
+EOF_CONF
+cat > "${dhcp_late_fixture}/core/.asoundrc" <<'EOF_ASOUNDRC'
+pcm.inferno_spotify {
+    type inferno
+    BIND_IP enp0s31f6
+    CLOCK_PATH /tmp/ptp-usrvclock
+}
+EOF_ASOUNDRC
+run_upgrade_fixture "${dhcp_late_fixture}"
+assert_contains_literal "${dhcp_late_fixture}/inferno.conf" "INFERNO_INTERFACE='192.168.1.45'" 'upgrade must preserve prior non-empty INFERNO_INTERFACE when DHCP has no current IPv4'
+assert_not_contains_literal "${dhcp_late_fixture}/inferno.conf" "INFERNO_INTERFACE='0.0.0.0'" 'upgrade must not write 0.0.0.0 when DHCP is not ready'
+assert_contains_literal "${dhcp_late_fixture}/upgrade.log" 'WARNING: no current IPv4 for enp0s31f6; preserving INFERNO_INTERFACE=192.168.1.45' 'upgrade must warn when preserving prior INFERNO_INTERFACE because DHCP is not ready'
+
+ownership_fixture="${tmpdir}/upgrade-ptp-ownership"
+ownership_bin="${ownership_fixture}/bin"
+mkdir -p "${ownership_fixture}/core/.config/systemd/user" "${ownership_fixture}/sys/class/net/enp0s31f6" "${ownership_fixture}/dev" "${ownership_bin}"
+: > "${ownership_fixture}/no-default-net"
+cat > "${ownership_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 172.16.10.63 default
+EOF_IP
+cat > "${ownership_fixture}/inferno.conf" <<'EOF_CONF'
+INFERNO_NIC='enp0s31f6'
+INFERNO_INTERFACE='172.16.10.63'
+INFERNO_BIND='enp0s31f6'
+INFERNO_HW_PTP='no'
+INFERNO_CLOCK_PATH='/tmp/ptp-usrvclock'
+EOF_CONF
+cat > "${ownership_bin}/getent" <<'EOF_SH'
+#!/bin/sh
+printf 'getent %s\n' "$*" >> "$SHIM_LOG"
+if [ "$1" = "group" ] && [ "$2" = "clock" ] && [ -f "$SHIM_GROUP_STATE" ]; then
+    printf 'clock:x:103:\n'
+    exit 0
+fi
+exit 2
+EOF_SH
+cat > "${ownership_bin}/groupadd" <<'EOF_SH'
+#!/bin/sh
+printf 'groupadd %s\n' "$*" >> "$SHIM_LOG"
+[ "$1" = "-r" ] && [ "$2" = "clock" ] || exit 1
+: > "$SHIM_GROUP_STATE"
+EOF_SH
+cat > "${ownership_bin}/usermod" <<'EOF_SH'
+#!/bin/sh
+printf 'usermod %s\n' "$*" >> "$SHIM_LOG"
+[ "$1" = "-aG" ] && [ "$2" = "clock" ] && [ "$3" = "core" ]
+EOF_SH
+cat > "${ownership_bin}/udevadm" <<'EOF_SH'
+#!/bin/sh
+printf 'udevadm %s\n' "$*" >> "$SHIM_LOG"
+EOF_SH
+cat > "${ownership_bin}/chown" <<'EOF_SH'
+#!/bin/sh
+printf 'chown %s\n' "$*" >> "$SHIM_LOG"
+EOF_SH
+chmod +x "${ownership_bin}/getent" "${ownership_bin}/groupadd" "${ownership_bin}/usermod" "${ownership_bin}/udevadm" "${ownership_bin}/chown"
+status=0
+env \
+    PATH="${ownership_bin}:$PATH" \
+    SHIM_LOG="${ownership_fixture}/shim.log" \
+    SHIM_GROUP_STATE="${ownership_fixture}/clock.group" \
+    INFERNO_CONF="${ownership_fixture}/inferno.conf" \
+    INFERNO_TEMPLATE_DIR="${ownership_fixture}/templates" \
+    INFERNO_CORE_HOME="${ownership_fixture}/core" \
+    INFERNO_SYSTEMD_USER="${ownership_fixture}/core/.config/systemd/user" \
+    INFERNO_SYS_CLASS_NET="${ownership_fixture}/sys/class/net" \
+    INFERNO_DEV_ROOT="${ownership_fixture}/dev" \
+    INFERNO_IP_FIXTURE="${ownership_fixture}/ip.fixture" \
+    INFERNO_SKIP_USER_RELOAD=1 \
+    bash "${upgrade_script}" > "${ownership_fixture}/upgrade.log" 2>&1 || status=$?
+[ "${status}" -eq 0 ] || fail 'upgrade must complete when ownership refresh shims succeed'
+assert_contains_literal "${ownership_fixture}/shim.log" 'getent group clock' 'upgrade ownership path must verify the clock group exists'
+assert_contains_literal "${ownership_fixture}/shim.log" 'groupadd -r clock' 'upgrade ownership path must create the clock group when missing'
+assert_contains_literal "${ownership_fixture}/shim.log" 'usermod -aG clock core' 'upgrade ownership path must add core to the clock group'
+assert_contains_literal "${ownership_fixture}/shim.log" 'udevadm control --reload' 'upgrade ownership path must reload udev rules after installing PTP permissions'
+assert_contains_literal "${ownership_fixture}/shim.log" 'udevadm trigger --subsystem-match=ptp --action=add' 'upgrade ownership path must retrigger PTP udev add events'
+
+ownership_fail_fixture="${tmpdir}/upgrade-ptp-ownership-usermod-fails"
+ownership_fail_bin="${ownership_fail_fixture}/bin"
+mkdir -p "${ownership_fail_fixture}/core/.config/systemd/user" "${ownership_fail_fixture}/sys/class/net/enp0s31f6" "${ownership_fail_fixture}/dev" "${ownership_fail_bin}"
+: > "${ownership_fail_fixture}/no-default-net"
+: > "${ownership_fail_fixture}/clock.group"
+cat > "${ownership_fail_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 172.16.10.63 default
+EOF_IP
+cat > "${ownership_fail_fixture}/inferno.conf" <<'EOF_CONF'
+INFERNO_NIC='enp0s31f6'
+INFERNO_INTERFACE='172.16.10.63'
+INFERNO_BIND='enp0s31f6'
+INFERNO_HW_PTP='no'
+INFERNO_CLOCK_PATH='/tmp/ptp-usrvclock'
+EOF_CONF
+cat > "${ownership_fail_bin}/getent" <<'EOF_SH'
+#!/bin/sh
+printf 'getent %s\n' "$*" >> "$SHIM_LOG"
+if [ "$1" = "group" ] && [ "$2" = "clock" ] && [ -f "$SHIM_GROUP_STATE" ]; then
+    printf 'clock:x:103:\n'
+    exit 0
+fi
+exit 2
+EOF_SH
+cat > "${ownership_fail_bin}/groupadd" <<'EOF_SH'
+#!/bin/sh
+printf 'groupadd %s\n' "$*" >> "$SHIM_LOG"
+exit 1
+EOF_SH
+cat > "${ownership_fail_bin}/usermod" <<'EOF_SH'
+#!/bin/sh
+printf 'usermod %s\n' "$*" >> "$SHIM_LOG"
+exit 42
+EOF_SH
+cat > "${ownership_fail_bin}/udevadm" <<'EOF_SH'
+#!/bin/sh
+printf 'udevadm %s\n' "$*" >> "$SHIM_LOG"
+EOF_SH
+cat > "${ownership_fail_bin}/chown" <<'EOF_SH'
+#!/bin/sh
+printf 'chown %s\n' "$*" >> "$SHIM_LOG"
+EOF_SH
+chmod +x "${ownership_fail_bin}/getent" "${ownership_fail_bin}/groupadd" "${ownership_fail_bin}/usermod" "${ownership_fail_bin}/udevadm" "${ownership_fail_bin}/chown"
+status=0
+env \
+    PATH="${ownership_fail_bin}:$PATH" \
+    SHIM_LOG="${ownership_fail_fixture}/shim.log" \
+    SHIM_GROUP_STATE="${ownership_fail_fixture}/clock.group" \
+    INFERNO_CONF="${ownership_fail_fixture}/inferno.conf" \
+    INFERNO_TEMPLATE_DIR="${ownership_fail_fixture}/templates" \
+    INFERNO_CORE_HOME="${ownership_fail_fixture}/core" \
+    INFERNO_SYSTEMD_USER="${ownership_fail_fixture}/core/.config/systemd/user" \
+    INFERNO_SYS_CLASS_NET="${ownership_fail_fixture}/sys/class/net" \
+    INFERNO_DEV_ROOT="${ownership_fail_fixture}/dev" \
+    INFERNO_IP_FIXTURE="${ownership_fail_fixture}/ip.fixture" \
+    INFERNO_SKIP_USER_RELOAD=1 \
+    bash "${upgrade_script}" > "${ownership_fail_fixture}/upgrade.log" 2>&1 || status=$?
+[ "${status}" -eq 42 ] || fail "upgrade must exit with usermod failure status 42 when core cannot be added to the clock group (got ${status})"
+assert_contains_literal "${ownership_fail_fixture}/shim.log" 'usermod -aG clock core' 'failing ownership fixture must exercise core clock-group membership refresh'
+assert_not_contains_literal "${ownership_fail_fixture}/shim.log" 'udevadm control --reload' 'upgrade must not reload udev rules after usermod fails'
+assert_not_contains_literal "${ownership_fail_fixture}/shim.log" 'udevadm trigger --subsystem-match=ptp --action=add' 'upgrade must not retrigger PTP udev events after usermod fails'
 
 REPO_ROOT="$repo_root" node <<'NODE'
 const fs = require("fs");
@@ -255,9 +587,10 @@ const fs = require("fs");
   const repoRoot = process.env.REPO_ROOT;
   const source = fs.readFileSync(`${repoRoot}/src/inferno.js`, "utf8");
   const start = source.indexOf("function deriveDeviceId");
-  const end = source.indexOf("async function ensureAuxSetup");
+  const endAnchor = "async function saveConfig";
+  const end = source.indexOf(endAnchor);
   if (start < 0 || end < 0 || end <= start) {
-    throw new Error("could not extract iradio generation functions from src/inferno.js");
+    throw new Error("could not extract ALSA generation functions from src/inferno.js");
   }
 
   const files = Object.create(null);
@@ -270,11 +603,12 @@ const fs = require("fs");
       };
     },
   };
+  const USER_HOME = "/var/home/core";
   async function spUser() {}
   let currentConf = {
-    INFERNO_NIC: "eno1",
-    INFERNO_INTERFACE: "0.0.0.0",
-    INFERNO_BIND: "eno1",
+    INFERNO_NIC: "enp0s31f6",
+    INFERNO_INTERFACE: "172.16.10.63",
+    INFERNO_BIND: "enp0s31f6",
     INFERNO_CLOCK_PATH: "/dev/ptp0",
   };
 
@@ -287,7 +621,7 @@ const fs = require("fs");
 pcm.inferno_spotify {
     type inferno
     NAME "Inferno-Test"
-    BIND_IP 0.0.0.0
+    BIND_IP 192.168.1.45
     SAMPLE_RATE 48000
     PROCESS_ID 1
     ALT_PORT 6000
@@ -304,12 +638,12 @@ pcm.inferno_spotify {
   if (iradioStart < 0) throw new Error("iradio ALSA blocks were not generated");
   const iradioBlocks = generated.slice(iradioStart);
 
-  if (/BIND_IP\s+0\.0\.0\.0/.test(iradioBlocks)) {
-    throw new Error("iradio generation inherited stale BIND_IP 0.0.0.0");
+  if (/BIND_IP\s+192\.168\.1\.45/.test(iradioBlocks)) {
+    throw new Error("iradio generation inherited stale BIND_IP 192.168.1.45");
   }
-  const bindMatches = iradioBlocks.match(/BIND_IP\s+eno1/g) || [];
+  const bindMatches = iradioBlocks.match(/BIND_IP\s+enp0s31f6/g) || [];
   if (bindMatches.length !== 2) {
-    throw new Error(`expected 2 iradio BIND_IP eno1 lines, got ${bindMatches.length}`);
+    throw new Error(`expected 2 iradio BIND_IP enp0s31f6 lines, got ${bindMatches.length}`);
   }
 
   if (/CLOCK_PATH\s+\/tmp\/ptp-usrvclock/.test(iradioBlocks)) {
@@ -318,6 +652,31 @@ pcm.inferno_spotify {
   const clockMatches = iradioBlocks.match(/CLOCK_PATH\s+\/dev\/ptp0/g) || [];
   if (clockMatches.length !== 2) {
     throw new Error(`expected 2 iradio CLOCK_PATH /dev/ptp0 lines, got ${clockMatches.length}`);
+  }
+
+  await ensureAuxSetup("PCH", "none", "PCH", "none", 2, 2, "Inferno-Test");
+  const withAux = files[ASOUNDRC];
+  const auxStart = withAux.indexOf("# AUX TX: analog input");
+  if (auxStart < 0) throw new Error("AUX ALSA blocks were not generated");
+  const auxBlocks = withAux.slice(auxStart);
+
+  if (/BIND_IP\s+192\.168\.1\.45/.test(auxBlocks)) {
+    throw new Error("AUX generation inherited stale BIND_IP 192.168.1.45");
+  }
+  const auxBindMatches = auxBlocks.match(/BIND_IP\s+enp0s31f6/g) || [];
+  if (auxBindMatches.length !== 2) {
+    throw new Error(`expected 2 AUX BIND_IP enp0s31f6 lines, got ${auxBindMatches.length}`);
+  }
+
+  currentConf = { INFERNO_INTERFACE: "172.16.10.63" };
+  try {
+    await ensureIradioSetup("Inferno-Test", 2);
+    throw new Error("iradio generation accepted missing INFERNO_BIND and INFERNO_NIC");
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    if (message !== "INFERNO_BIND or INFERNO_NIC is required for Dante binding") {
+      throw new Error(`unexpected missing bind/NIC error: ${message}`);
+    }
   }
 })();
 NODE

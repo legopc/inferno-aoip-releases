@@ -1,6 +1,7 @@
 [Unit]
 Description=Inferno user service migration (sync templates on bootc upgrade)
-After=inferno-configure.service
+Wants=network-online.target
+After=network-online.target inferno-configure.service
 ConditionPathExists=/etc/inferno.conf
 # Run before user session starts so services load the new files
 Before=user@1000.service

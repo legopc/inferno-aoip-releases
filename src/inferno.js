@@ -559,8 +559,9 @@ function deriveDeviceId(baseId, offset) {
 }
 
 function infernoBindValue() {
-    var bind = currentConf.INFERNO_BIND || currentConf.INFERNO_NIC || currentConf.INFERNO_INTERFACE || "127.0.0.1";
-    return bind === "0.0.0.0" ? (currentConf.INFERNO_NIC || "127.0.0.1") : bind;
+    var bind = currentConf.INFERNO_BIND || currentConf.INFERNO_NIC;
+    if (!bind) throw new Error("INFERNO_BIND or INFERNO_NIC is required for Dante binding");
+    return bind;
 }
 
 function infernoClockPath() {
@@ -581,13 +582,11 @@ async function ensureIradioSetup(danteName, numChannels) {
     numChannels = numChannels || 2; // default 2 stereo pairs
     var asoundText = await cockpit.file(ASOUNDRC).read() || "";
 
-    var bindIpMatch   = asoundText.match(/BIND_IP\s+(\S+)/);
     var deviceIdMatch = asoundText.match(/DEVICE_ID\s+([0-9a-f]+)/i);
     var clockMatch    = asoundText.match(/CLOCK_PATH\s+(\S+)/);
     var pluginMatch   = asoundText.match(/lib\s+"([^"]+)"/);
 
-    var bindIp     = bindIpMatch   ? bindIpMatch[1]   : infernoBindValue();
-    if (bindIp === "0.0.0.0") bindIp = infernoBindValue();
+    var bindIp     = infernoBindValue();
     var baseId     = deviceIdMatch ? deviceIdMatch[1]  : "000000000000000";
     var clockPath  = clockMatch    ? clockMatch[1]     : infernoClockPath();
     if (clockPath === "/tmp/ptp-usrvclock") clockPath = infernoClockPath();
@@ -659,12 +658,10 @@ async function ensureAuxSetup(cardIn, cardIn2, cardOut, cardOut2, txCh, rxCh, da
     var asoundText = await cockpit.file(ASOUNDRC).read() || "";
     var needsAlsa  = !asoundText.includes("pcm.inferno_aux_tx");
 
-    var bindIpMatch    = asoundText.match(/BIND_IP\s+(\S+)/);
     var deviceIdMatch  = asoundText.match(/DEVICE_ID\s+([0-9a-f]+)/i);
     var pluginMatch    = asoundText.match(/lib\s+"([^"]+)"/);
 
-    var bindIp     = bindIpMatch   ? bindIpMatch[1]   : infernoBindValue();
-    if (bindIp === "0.0.0.0") bindIp = infernoBindValue();
+    var bindIp     = infernoBindValue();
     var baseId     = deviceIdMatch ? deviceIdMatch[1]  : "000000000000000";
     var pluginPath = pluginMatch   ? pluginMatch[1]    : "/usr/lib64/alsa-lib/libasound_module_pcm_inferno.so";
     var txId       = deriveDeviceId(baseId, 1);
