@@ -11,6 +11,7 @@ INFERNO_CONF="${INFERNO_CONF:-/etc/inferno.conf}"
 SYS_CLASS_NET="${INFERNO_SYS_CLASS_NET:-/sys/class/net}"
 DEV_ROOT="${INFERNO_DEV_ROOT:-/dev}"
 IP_FIXTURE="${INFERNO_IP_FIXTURE:-}"
+ETC_GROUP="${INFERNO_ETC_GROUP:-/etc/group}"
 CORE_UID=1000
 
 # Load node config for placeholder substitution
@@ -275,11 +276,54 @@ repair_asoundrc() {
 }
 
 refresh_ptp_access() {
+    local clock_gid group_dir tmp
     if ! getent group clock >/dev/null; then
         groupadd -r clock || true
     fi
     getent group clock >/dev/null || { echo "inferno-upgrade: ERROR: clock group is unavailable" >&2; return 1; }
     usermod -aG clock core
+    clock_gid=$(getent group clock | awk -F: '{print $3; exit}')
+    [[ "${clock_gid}" =~ ^[0-9]+$ ]] || { echo "inferno-upgrade: ERROR: invalid clock group GID '${clock_gid}'" >&2; return 1; }
+    [ -f "${ETC_GROUP}" ] || { echo "inferno-upgrade: ERROR: active group file '${ETC_GROUP}' is missing" >&2; return 1; }
+    group_dir=$(dirname "${ETC_GROUP}")
+    tmp=$(mktemp "${group_dir}/.group.XXXXXX")
+    awk -F: -v gid="${clock_gid}" '
+        BEGIN { OFS = FS }
+        $1 == "clock" {
+            saw_clock = 1
+            split($4, members, ",")
+            for (i in members) {
+                if (members[i] != "") seen[members[i]] = 1
+            }
+            seen["core"] = 1
+            list = ""
+            for (i = 1; i <= length($4); i++) {
+                member = ""
+                while (i <= length($4) && substr($4, i, 1) != ",") {
+                    member = member substr($4, i, 1)
+                    i++
+                }
+                if (member != "" && seen[member]) {
+                    list = list (list == "" ? "" : ",") member
+                    seen[member] = 0
+                }
+            }
+            if (seen["core"]) list = list (list == "" ? "" : ",") "core"
+            print "clock", $2, gid, list
+            next
+        }
+        { print }
+        END {
+            if (!saw_clock) print "clock", "x", gid, "core"
+        }
+    ' "${ETC_GROUP}" > "${tmp}"
+    chmod 0644 "${tmp}"
+    chown root:root "${tmp}" 2>/dev/null || true
+    if ! [ -f "${ETC_GROUP}" ] || ! diff -q "${tmp}" "${ETC_GROUP}" &>/dev/null 2>&1; then
+        mv -f "${tmp}" "${ETC_GROUP}"
+    else
+        rm -f "${tmp}"
+    fi
     udevadm control --reload || true
     udevadm trigger --subsystem-match=ptp --action=add || true
 }

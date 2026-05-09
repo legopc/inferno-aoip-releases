@@ -34,6 +34,13 @@ assert_not_contains_literal() {
     fi
 }
 
+assert_line_count() {
+    local file=$1 pattern=$2 expected=$3 message=$4
+    local actual
+    actual=$(grep -Ec -- "$pattern" "$file" || true)
+    [ "${actual}" -eq "${expected}" ] || fail "${message} (expected ${expected}, got ${actual})"
+}
+
 statime_template="${repo_root}/templates/inferno-ptpv1.toml"
 configure_script="${repo_root}/build/inferno-configure.sh"
 configure_unit="${repo_root}/build/systemd/inferno-configure.service"
@@ -43,6 +50,23 @@ spotify_asound="${repo_root}/templates/alsa/asoundrc.spotify"
 aux_asound="${repo_root}/templates/alsa/asoundrc.aux"
 upgrade_script="${repo_root}/templates/scripts/inferno-upgrade.sh"
 librespot_unit="${repo_root}/templates/systemd/user/librespot.service"
+
+stub_common_upgrade_commands() {
+    local bin_dir=$1
+    cat > "${bin_dir}/udevadm" <<'EOF_SH'
+#!/bin/sh
+printf 'udevadm %s\n' "$*" >> "$SHIM_LOG"
+EOF_SH
+    cat > "${bin_dir}/chown" <<'EOF_SH'
+#!/bin/sh
+printf 'chown %s\n' "$*" >> "$SHIM_LOG"
+EOF_SH
+    cat > "${bin_dir}/restorecon" <<'EOF_SH'
+#!/bin/sh
+printf 'restorecon %s\n' "$*" >> "$SHIM_LOG"
+EOF_SH
+    chmod +x "${bin_dir}/udevadm" "${bin_dir}/chown" "${bin_dir}/restorecon"
+}
 
 assert_contains \
     "$statime_template" \
@@ -456,8 +480,13 @@ assert_contains_literal "${dhcp_late_fixture}/upgrade.log" 'WARNING: no current 
 
 ownership_fixture="${tmpdir}/upgrade-ptp-ownership"
 ownership_bin="${ownership_fixture}/bin"
-mkdir -p "${ownership_fixture}/core/.config/systemd/user" "${ownership_fixture}/sys/class/net/enp0s31f6" "${ownership_fixture}/dev" "${ownership_bin}"
+mkdir -p "${ownership_fixture}/core/.config/systemd/user" "${ownership_fixture}/sys/class/net/enp0s31f6" "${ownership_fixture}/dev" "${ownership_bin}" "${ownership_fixture}/etc"
 : > "${ownership_fixture}/no-default-net"
+cat > "${ownership_fixture}/etc/group" <<'EOF_GROUP'
+root:x:0:
+core:x:1000:
+audio:x:63:core
+EOF_GROUP
 cat > "${ownership_fixture}/ip.fixture" <<'EOF_IP'
 enp0s31f6 172.16.10.63 default
 EOF_IP
@@ -488,15 +517,8 @@ cat > "${ownership_bin}/usermod" <<'EOF_SH'
 printf 'usermod %s\n' "$*" >> "$SHIM_LOG"
 [ "$1" = "-aG" ] && [ "$2" = "clock" ] && [ "$3" = "core" ]
 EOF_SH
-cat > "${ownership_bin}/udevadm" <<'EOF_SH'
-#!/bin/sh
-printf 'udevadm %s\n' "$*" >> "$SHIM_LOG"
-EOF_SH
-cat > "${ownership_bin}/chown" <<'EOF_SH'
-#!/bin/sh
-printf 'chown %s\n' "$*" >> "$SHIM_LOG"
-EOF_SH
-chmod +x "${ownership_bin}/getent" "${ownership_bin}/groupadd" "${ownership_bin}/usermod" "${ownership_bin}/udevadm" "${ownership_bin}/chown"
+stub_common_upgrade_commands "${ownership_bin}"
+chmod +x "${ownership_bin}/getent" "${ownership_bin}/groupadd" "${ownership_bin}/usermod"
 status=0
 env \
     PATH="${ownership_bin}:$PATH" \
@@ -509,6 +531,7 @@ env \
     INFERNO_SYS_CLASS_NET="${ownership_fixture}/sys/class/net" \
     INFERNO_DEV_ROOT="${ownership_fixture}/dev" \
     INFERNO_IP_FIXTURE="${ownership_fixture}/ip.fixture" \
+    INFERNO_ETC_GROUP="${ownership_fixture}/etc/group" \
     INFERNO_SKIP_USER_RELOAD=1 \
     bash "${upgrade_script}" > "${ownership_fixture}/upgrade.log" 2>&1 || status=$?
 [ "${status}" -eq 0 ] || fail 'upgrade must complete when ownership refresh shims succeed'
@@ -520,9 +543,14 @@ assert_contains_literal "${ownership_fixture}/shim.log" 'udevadm trigger --subsy
 
 ownership_fail_fixture="${tmpdir}/upgrade-ptp-ownership-usermod-fails"
 ownership_fail_bin="${ownership_fail_fixture}/bin"
-mkdir -p "${ownership_fail_fixture}/core/.config/systemd/user" "${ownership_fail_fixture}/sys/class/net/enp0s31f6" "${ownership_fail_fixture}/dev" "${ownership_fail_bin}"
+mkdir -p "${ownership_fail_fixture}/core/.config/systemd/user" "${ownership_fail_fixture}/sys/class/net/enp0s31f6" "${ownership_fail_fixture}/dev" "${ownership_fail_bin}" "${ownership_fail_fixture}/etc"
 : > "${ownership_fail_fixture}/no-default-net"
 : > "${ownership_fail_fixture}/clock.group"
+cat > "${ownership_fail_fixture}/etc/group" <<'EOF_GROUP'
+root:x:0:
+core:x:1000:
+audio:x:63:core
+EOF_GROUP
 cat > "${ownership_fail_fixture}/ip.fixture" <<'EOF_IP'
 enp0s31f6 172.16.10.63 default
 EOF_IP
@@ -552,15 +580,8 @@ cat > "${ownership_fail_bin}/usermod" <<'EOF_SH'
 printf 'usermod %s\n' "$*" >> "$SHIM_LOG"
 exit 42
 EOF_SH
-cat > "${ownership_fail_bin}/udevadm" <<'EOF_SH'
-#!/bin/sh
-printf 'udevadm %s\n' "$*" >> "$SHIM_LOG"
-EOF_SH
-cat > "${ownership_fail_bin}/chown" <<'EOF_SH'
-#!/bin/sh
-printf 'chown %s\n' "$*" >> "$SHIM_LOG"
-EOF_SH
-chmod +x "${ownership_fail_bin}/getent" "${ownership_fail_bin}/groupadd" "${ownership_fail_bin}/usermod" "${ownership_fail_bin}/udevadm" "${ownership_fail_bin}/chown"
+stub_common_upgrade_commands "${ownership_fail_bin}"
+chmod +x "${ownership_fail_bin}/getent" "${ownership_fail_bin}/groupadd" "${ownership_fail_bin}/usermod"
 status=0
 env \
     PATH="${ownership_fail_bin}:$PATH" \
@@ -573,12 +594,248 @@ env \
     INFERNO_SYS_CLASS_NET="${ownership_fail_fixture}/sys/class/net" \
     INFERNO_DEV_ROOT="${ownership_fail_fixture}/dev" \
     INFERNO_IP_FIXTURE="${ownership_fail_fixture}/ip.fixture" \
+    INFERNO_ETC_GROUP="${ownership_fail_fixture}/etc/group" \
     INFERNO_SKIP_USER_RELOAD=1 \
     bash "${upgrade_script}" > "${ownership_fail_fixture}/upgrade.log" 2>&1 || status=$?
 [ "${status}" -eq 42 ] || fail "upgrade must exit with usermod failure status 42 when core cannot be added to the clock group (got ${status})"
 assert_contains_literal "${ownership_fail_fixture}/shim.log" 'usermod -aG clock core' 'failing ownership fixture must exercise core clock-group membership refresh'
 assert_not_contains_literal "${ownership_fail_fixture}/shim.log" 'udevadm control --reload' 'upgrade must not reload udev rules after usermod fails'
 assert_not_contains_literal "${ownership_fail_fixture}/shim.log" 'udevadm trigger --subsystem-match=ptp --action=add' 'upgrade must not retrigger PTP udev events after usermod fails'
+
+missing_group_fixture="${tmpdir}/upgrade-ptp-missing-active-group-file"
+missing_group_bin="${missing_group_fixture}/bin"
+mkdir -p "${missing_group_fixture}/core/.config/systemd/user" "${missing_group_fixture}/sys/class/net/enp0s31f6" "${missing_group_fixture}/dev" "${missing_group_bin}" "${missing_group_fixture}/etc"
+: > "${missing_group_fixture}/clock.group"
+: > "${missing_group_fixture}/no-default-net"
+cat > "${missing_group_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 172.16.10.63 default
+EOF_IP
+cat > "${missing_group_fixture}/inferno.conf" <<'EOF_CONF'
+INFERNO_NIC='enp0s31f6'
+INFERNO_INTERFACE='172.16.10.63'
+INFERNO_BIND='enp0s31f6'
+INFERNO_HW_PTP='no'
+INFERNO_CLOCK_PATH='/tmp/ptp-usrvclock'
+EOF_CONF
+cat > "${missing_group_bin}/getent" <<'EOF_SH'
+#!/bin/sh
+printf 'getent %s\n' "$*" >> "$SHIM_LOG"
+if [ "$1" = "group" ] && [ "$2" = "clock" ] && [ -f "$SHIM_GROUP_STATE" ]; then
+    printf 'clock:x:103:\n'
+    exit 0
+fi
+exit 2
+EOF_SH
+cat > "${missing_group_bin}/groupadd" <<'EOF_SH'
+#!/bin/sh
+printf 'groupadd %s\n' "$*" >> "$SHIM_LOG"
+exit 1
+EOF_SH
+cat > "${missing_group_bin}/usermod" <<'EOF_SH'
+#!/bin/sh
+printf 'usermod %s\n' "$*" >> "$SHIM_LOG"
+[ "$1" = "-aG" ] && [ "$2" = "clock" ] && [ "$3" = "core" ]
+EOF_SH
+stub_common_upgrade_commands "${missing_group_bin}"
+chmod +x "${missing_group_bin}/getent" "${missing_group_bin}/groupadd" "${missing_group_bin}/usermod"
+status=0
+env \
+    PATH="${missing_group_bin}:$PATH" \
+    SHIM_LOG="${missing_group_fixture}/shim.log" \
+    SHIM_GROUP_STATE="${missing_group_fixture}/clock.group" \
+    INFERNO_CONF="${missing_group_fixture}/inferno.conf" \
+    INFERNO_TEMPLATE_DIR="${missing_group_fixture}/templates" \
+    INFERNO_CORE_HOME="${missing_group_fixture}/core" \
+    INFERNO_SYSTEMD_USER="${missing_group_fixture}/core/.config/systemd/user" \
+    INFERNO_SYS_CLASS_NET="${missing_group_fixture}/sys/class/net" \
+    INFERNO_DEV_ROOT="${missing_group_fixture}/dev" \
+    INFERNO_IP_FIXTURE="${missing_group_fixture}/ip.fixture" \
+    INFERNO_ETC_GROUP="${missing_group_fixture}/etc/group" \
+    INFERNO_SKIP_USER_RELOAD=1 \
+    bash "${upgrade_script}" > "${missing_group_fixture}/upgrade.log" 2>&1 || status=$?
+[ "${status}" -ne 0 ] || fail 'upgrade must fail rather than synthesize a one-line active /etc/group file'
+assert_contains_literal "${missing_group_fixture}/upgrade.log" "active group file '${missing_group_fixture}/etc/group' is missing" 'upgrade must log a clear error when the active group file is missing'
+assert_not_contains_literal "${missing_group_fixture}/shim.log" 'udevadm control --reload' 'upgrade must not reload udev rules after active group file repair fails'
+
+split_group_fixture="${tmpdir}/upgrade-ptp-active-group-split"
+split_group_bin="${split_group_fixture}/bin"
+mkdir -p "${split_group_fixture}/core/.config/systemd/user" "${split_group_fixture}/sys/class/net/enp0s31f6" "${split_group_fixture}/dev" "${split_group_bin}" "${split_group_fixture}/etc"
+: > "${split_group_fixture}/clock.group"
+: > "${split_group_fixture}/no-default-net"
+cat > "${split_group_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 172.16.10.63 default
+EOF_IP
+cat > "${split_group_fixture}/inferno.conf" <<'EOF_CONF'
+INFERNO_NIC='enp0s31f6'
+INFERNO_INTERFACE='172.16.10.63'
+INFERNO_BIND='enp0s31f6'
+INFERNO_HW_PTP='no'
+INFERNO_CLOCK_PATH='/tmp/ptp-usrvclock'
+EOF_CONF
+cat > "${split_group_fixture}/etc/group" <<'EOF_GROUP'
+root:x:0:
+core:x:1000:
+audio:x:63:core
+EOF_GROUP
+cat > "${split_group_bin}/getent" <<'EOF_SH'
+#!/bin/sh
+printf 'getent %s\n' "$*" >> "$SHIM_LOG"
+if [ "$1" = "group" ] && [ "$2" = "clock" ] && [ -f "$SHIM_GROUP_STATE" ]; then
+    printf 'clock:x:103:\n'
+    exit 0
+fi
+exit 2
+EOF_SH
+cat > "${split_group_bin}/groupadd" <<'EOF_SH'
+#!/bin/sh
+printf 'groupadd %s\n' "$*" >> "$SHIM_LOG"
+exit 1
+EOF_SH
+cat > "${split_group_bin}/usermod" <<'EOF_SH'
+#!/bin/sh
+printf 'usermod %s\n' "$*" >> "$SHIM_LOG"
+[ "$1" = "-aG" ] && [ "$2" = "clock" ] && [ "$3" = "core" ]
+EOF_SH
+stub_common_upgrade_commands "${split_group_bin}"
+chmod +x "${split_group_bin}/getent" "${split_group_bin}/groupadd" "${split_group_bin}/usermod"
+status=0
+env \
+    PATH="${split_group_bin}:$PATH" \
+    SHIM_LOG="${split_group_fixture}/shim.log" \
+    SHIM_GROUP_STATE="${split_group_fixture}/clock.group" \
+    INFERNO_CONF="${split_group_fixture}/inferno.conf" \
+    INFERNO_TEMPLATE_DIR="${split_group_fixture}/templates" \
+    INFERNO_CORE_HOME="${split_group_fixture}/core" \
+    INFERNO_SYSTEMD_USER="${split_group_fixture}/core/.config/systemd/user" \
+    INFERNO_SYS_CLASS_NET="${split_group_fixture}/sys/class/net" \
+    INFERNO_DEV_ROOT="${split_group_fixture}/dev" \
+    INFERNO_IP_FIXTURE="${split_group_fixture}/ip.fixture" \
+    INFERNO_ETC_GROUP="${split_group_fixture}/etc/group" \
+    INFERNO_SKIP_USER_RELOAD=1 \
+    bash "${upgrade_script}" > "${split_group_fixture}/upgrade.log" 2>&1 || status=$?
+[ "${status}" -eq 0 ] || fail "upgrade must repair active /etc/group split when usermod succeeds but NSS-backed clock membership is not active (got ${status})"
+assert_contains_literal "${split_group_fixture}/etc/group" 'clock:x:103:core' 'upgrade must write the active /etc/group clock entry for bootc upgraded nodes'
+assert_contains_literal "${split_group_fixture}/shim.log" 'usermod -aG clock core' 'active group split fixture must still exercise usermod path'
+
+append_group_fixture="${tmpdir}/upgrade-ptp-active-group-append-core"
+append_group_bin="${append_group_fixture}/bin"
+mkdir -p "${append_group_fixture}/core/.config/systemd/user" "${append_group_fixture}/sys/class/net/enp0s31f6" "${append_group_fixture}/dev" "${append_group_bin}" "${append_group_fixture}/etc"
+: > "${append_group_fixture}/clock.group"
+: > "${append_group_fixture}/no-default-net"
+cat > "${append_group_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 172.16.10.63 default
+EOF_IP
+cat > "${append_group_fixture}/inferno.conf" <<'EOF_CONF'
+INFERNO_NIC='enp0s31f6'
+INFERNO_INTERFACE='172.16.10.63'
+INFERNO_BIND='enp0s31f6'
+INFERNO_HW_PTP='no'
+INFERNO_CLOCK_PATH='/tmp/ptp-usrvclock'
+EOF_CONF
+cat > "${append_group_fixture}/etc/group" <<'EOF_GROUP'
+root:x:0:
+core:x:1000:
+clock:x:103:alice,bob
+audio:x:63:core
+EOF_GROUP
+cat > "${append_group_bin}/getent" <<'EOF_SH'
+#!/bin/sh
+printf 'getent %s\n' "$*" >> "$SHIM_LOG"
+if [ "$1" = "group" ] && [ "$2" = "clock" ] && [ -f "$SHIM_GROUP_STATE" ]; then
+    printf 'clock:x:103:alice,bob\n'
+    exit 0
+fi
+exit 2
+EOF_SH
+cat > "${append_group_bin}/groupadd" <<'EOF_SH'
+#!/bin/sh
+printf 'groupadd %s\n' "$*" >> "$SHIM_LOG"
+exit 1
+EOF_SH
+cat > "${append_group_bin}/usermod" <<'EOF_SH'
+#!/bin/sh
+printf 'usermod %s\n' "$*" >> "$SHIM_LOG"
+[ "$1" = "-aG" ] && [ "$2" = "clock" ] && [ "$3" = "core" ]
+EOF_SH
+stub_common_upgrade_commands "${append_group_bin}"
+chmod +x "${append_group_bin}/getent" "${append_group_bin}/groupadd" "${append_group_bin}/usermod"
+status=0
+env \
+    PATH="${append_group_bin}:$PATH" \
+    SHIM_LOG="${append_group_fixture}/shim.log" \
+    SHIM_GROUP_STATE="${append_group_fixture}/clock.group" \
+    INFERNO_CONF="${append_group_fixture}/inferno.conf" \
+    INFERNO_TEMPLATE_DIR="${append_group_fixture}/templates" \
+    INFERNO_CORE_HOME="${append_group_fixture}/core" \
+    INFERNO_SYSTEMD_USER="${append_group_fixture}/core/.config/systemd/user" \
+    INFERNO_SYS_CLASS_NET="${append_group_fixture}/sys/class/net" \
+    INFERNO_DEV_ROOT="${append_group_fixture}/dev" \
+    INFERNO_IP_FIXTURE="${append_group_fixture}/ip.fixture" \
+    INFERNO_ETC_GROUP="${append_group_fixture}/etc/group" \
+    INFERNO_SKIP_USER_RELOAD=1 \
+    bash "${upgrade_script}" > "${append_group_fixture}/upgrade.log" 2>&1 || status=$?
+[ "${status}" -eq 0 ] || fail "upgrade must append core to existing clock members (got ${status})"
+assert_line_count "${append_group_fixture}/etc/group" '^clock:x:103:alice,bob,core$' 1 'upgrade must append core exactly once while preserving existing clock members'
+
+preserve_group_fixture="${tmpdir}/upgrade-ptp-active-group-preserve"
+preserve_group_bin="${preserve_group_fixture}/bin"
+mkdir -p "${preserve_group_fixture}/core/.config/systemd/user" "${preserve_group_fixture}/sys/class/net/enp0s31f6" "${preserve_group_fixture}/dev" "${preserve_group_bin}" "${preserve_group_fixture}/etc"
+: > "${preserve_group_fixture}/clock.group"
+: > "${preserve_group_fixture}/no-default-net"
+cat > "${preserve_group_fixture}/ip.fixture" <<'EOF_IP'
+enp0s31f6 172.16.10.63 default
+EOF_IP
+cat > "${preserve_group_fixture}/inferno.conf" <<'EOF_CONF'
+INFERNO_NIC='enp0s31f6'
+INFERNO_INTERFACE='172.16.10.63'
+INFERNO_BIND='enp0s31f6'
+INFERNO_HW_PTP='no'
+INFERNO_CLOCK_PATH='/tmp/ptp-usrvclock'
+EOF_CONF
+cat > "${preserve_group_fixture}/etc/group" <<'EOF_GROUP'
+root:x:0:
+core:x:1000:
+clock:x:103:alice,bob,core
+audio:x:63:core
+EOF_GROUP
+cat > "${preserve_group_bin}/getent" <<'EOF_SH'
+#!/bin/sh
+printf 'getent %s\n' "$*" >> "$SHIM_LOG"
+if [ "$1" = "group" ] && [ "$2" = "clock" ] && [ -f "$SHIM_GROUP_STATE" ]; then
+    printf 'clock:x:103:alice,bob,core\n'
+    exit 0
+fi
+exit 2
+EOF_SH
+cat > "${preserve_group_bin}/groupadd" <<'EOF_SH'
+#!/bin/sh
+printf 'groupadd %s\n' "$*" >> "$SHIM_LOG"
+exit 1
+EOF_SH
+cat > "${preserve_group_bin}/usermod" <<'EOF_SH'
+#!/bin/sh
+printf 'usermod %s\n' "$*" >> "$SHIM_LOG"
+[ "$1" = "-aG" ] && [ "$2" = "clock" ] && [ "$3" = "core" ]
+EOF_SH
+stub_common_upgrade_commands "${preserve_group_bin}"
+chmod +x "${preserve_group_bin}/getent" "${preserve_group_bin}/groupadd" "${preserve_group_bin}/usermod"
+status=0
+env \
+    PATH="${preserve_group_bin}:$PATH" \
+    SHIM_LOG="${preserve_group_fixture}/shim.log" \
+    SHIM_GROUP_STATE="${preserve_group_fixture}/clock.group" \
+    INFERNO_CONF="${preserve_group_fixture}/inferno.conf" \
+    INFERNO_TEMPLATE_DIR="${preserve_group_fixture}/templates" \
+    INFERNO_CORE_HOME="${preserve_group_fixture}/core" \
+    INFERNO_SYSTEMD_USER="${preserve_group_fixture}/core/.config/systemd/user" \
+    INFERNO_SYS_CLASS_NET="${preserve_group_fixture}/sys/class/net" \
+    INFERNO_DEV_ROOT="${preserve_group_fixture}/dev" \
+    INFERNO_IP_FIXTURE="${preserve_group_fixture}/ip.fixture" \
+    INFERNO_ETC_GROUP="${preserve_group_fixture}/etc/group" \
+    INFERNO_SKIP_USER_RELOAD=1 \
+    bash "${upgrade_script}" > "${preserve_group_fixture}/upgrade.log" 2>&1 || status=$?
+[ "${status}" -eq 0 ] || fail "upgrade must preserve existing clock members while ensuring core membership (got ${status})"
+assert_line_count "${preserve_group_fixture}/etc/group" '^clock:x:103:alice,bob,core$' 1 'upgrade must preserve existing clock members and avoid duplicate core entries'
 
 REPO_ROOT="$repo_root" node <<'NODE'
 const fs = require("fs");
